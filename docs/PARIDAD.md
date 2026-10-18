@@ -26,11 +26,11 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 
 | Módulo C# | Qué contiene | Destino en WebCircuits | Hito | Estado |
 |---|---|---|---|---|
-| `CircuitProject/` | Modelo del circuito y elementos lógicos | `src/core/model/` | M2 | ⬜ |
-| `Runner/` | Motor de simulación | `src/core/simulate/` | M2 | ⬜ |
-| `SymbolShapes/` | Geometría de los símbolos | `src/render/shapes/` | M2 | ⬜ |
+| `CircuitProject/` | Modelo del circuito y elementos lógicos | `src/core/model/` | M2 | 🟡 |
+| `Runner/` | Motor de simulación | `src/core/simulate/` | M2 | 🟡 |
+| `SymbolShapes/` | Geometría de los símbolos | `src/render/symbols/` | M2 | 🟡 |
 | `Icon/` | Iconos | `src/render/icons/` | M2 | ⬜ |
-| `Editor/` | Editor, herramientas, undo/redo | `src/app/editor/` | M2 | ⬜ |
+| `Editor/` | Editor, herramientas, undo/redo | `src/app/editor.ts` | M2 | ⬜ |
 | `DataPersistent/` | Persistencia `.CircuitProject` (XML versionado) | `src/core/persist/` | M4 | ⬜ |
 | `Schema/` | Esquemas XSD + gramáticas ANTLR | `src/core/schema/` | M4 | ⬜ |
 | `ColorPicker/` | Selector de color | `src/app/color-picker/` | M6 | ⬜ |
@@ -41,6 +41,9 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | `Dialog/` | Diálogos (**WPF**) | `src/app/dialogs/` (Svelte) | M4+ | ⬜ |
 
 > `Dialog/` es casi todo WPF: **no se porta su estructura**, solo la funcionalidad.
+>
+> 🟡 en M1 = hay una parte ya portada con tests verdes (el modelo, un motor mínimo y tres
+> símbolos), no el módulo entero; el resto llega en el hito indicado.
 
 ---
 

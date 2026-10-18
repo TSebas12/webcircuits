@@ -1,0 +1,91 @@
+WebCircuits
+Copyright 2026 Sebastian Aguero
+
+This product is a derivative work of LogicCircuit (https://www.logiccircuit.org)
+and includes software developed by LogicCircuit.org.
+
+
+-------------------------------------------------------------------------------
+AVISO DE COPYRIGHT DE LA OBRA ORIGINAL (RETENIDO)
+-------------------------------------------------------------------------------
+
+Lo que sigue es el aviso que acompaña al código original, en su fichero
+"Sources/License.txt", reproducido literalmente:
+
+    Copyright 2026 LogicCircuit.org
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+
+-------------------------------------------------------------------------------
+OBRA ORIGINAL
+-------------------------------------------------------------------------------
+
+    Proyecto             LogicCircuit
+    Autoría              LogicCircuit.org
+    Web                  https://www.logiccircuit.org
+    Código               https://github.com/eugenelepekhin/LogicCircuit
+    Commit de referencia 1077664f9d9c5f18abece41ba00f5c58cd64fc00
+    Versión de referencia 2.26.09.10
+    Licencia             Apache License 2.0
+
+
+-------------------------------------------------------------------------------
+DECLARACIÓN DE CAMBIOS (Apache License 2.0, apartado 4.b)
+-------------------------------------------------------------------------------
+
+La obra original no incluye fichero NOTICE, de modo que este documento no
+reproduce ninguno. Existe para dos cosas que el apartado 4.b de la licencia
+exige a toda obra derivada: retener el aviso de copyright de arriba y declarar
+los cambios realizados.
+
+WebCircuits no es una copia del original: es una reimplementación. Se ha
+reescrito de C#/WPF a TypeScript sobre Canvas 2D para que se ejecute en el
+navegador en lugar de en Windows. Resumen de los cambios:
+
+1. Lenguaje y plataforma. C# y WPF (Windows) se sustituyen por TypeScript y
+   Canvas 2D (navegador). El motor de simulación usa máscaras de bits en lugar
+   de la representación del original.
+
+2. Punto de partida. El código se leyó y tradujo desde el commit fijado arriba.
+   No se ha copiado código compilado ni binarios.
+
+3. Qué se conserva del original, a propósito. El modelo de datos, la semántica
+   de simulación, el formato de fichero ".CircuitProject", la geometría de la
+   rejilla y el comportamiento de pines y compuertas son fieles al original,
+   para que los circuitos ya existentes se comporten igual.
+
+4. Qué se ha reescrito por completo. Toda la interfaz: colores, tipografías,
+   paneles, menús, iconos y animaciones son nuevos y no pretenden imitar los
+   del original.
+
+5. Funciones que el original no tiene, y que se han añadido: capas con
+   visibilidad independiente, temas y colores configurables, gestión de
+   ficheros propia del navegador, síntesis de circuito a partir de una tabla de
+   verdad, análisis de retardos de propagación, buses que no se saturan, reloj
+   determinista y modo didáctico.
+
+6. Elementos derivados directamente de la obra original. Las gramáticas ANTLR
+   (.g4) y los esquemas XSD proceden de la fuente original.
+
+7. Nombre. Se ha cambiado por "WebCircuits". Apache License 2.0 no concede
+   derechos de marca, así que seguir usando el nombre "LogicCircuit" habría
+   sido inapropiado.
+
+
+-------------------------------------------------------------------------------
+DEPENDENCIAS DE TERCEROS
+-------------------------------------------------------------------------------
+
+El listado completo de dependencias, sus licencias y para qué se usa cada una
+está en "docs/THIRD-PARTY.md".

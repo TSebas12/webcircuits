@@ -2,6 +2,19 @@
   "name": "webcircuits",
   "private": true,
   "version": "0.0.0",
+  "description": "Simulador de circuitos lógicos digitales en el navegador. Reescritura web de LogicCircuit (C#/WPF) en TypeScript y Canvas 2D, con capas y temas.",
+  "license": "Apache-2.0",
+  "author": "Sebastian Aguero",
+  "keywords": [
+    "logic-simulator",
+    "digital-logic",
+    "logic-circuit",
+    "circuit-simulator",
+    "typescript",
+    "svelte",
+    "canvas",
+    "education"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite",
