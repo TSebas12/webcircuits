@@ -1,36 +1,51 @@
 <script lang="ts">
+  import Diagram from './app/Diagram.svelte'
+
   const version = '0.0.0'
 </script>
 
-<main>
-  <h1>WebCircuits</h1>
-  <p class="subtitle">Simulador de circuitos lógicos digitales en el navegador.</p>
-  <p class="status">v{version} · en construcción (hito M0 — preparación)</p>
-</main>
+<div class="shell">
+  <header>
+    <span class="brand">WebCircuits</span>
+    <span class="hint">arrastra para mover · rueda para acercar</span>
+    <span class="spacer"></span>
+    <span class="version">v{version} · M1</span>
+  </header>
+
+  <Diagram />
+</div>
 
 <style>
-  main {
-    max-width: 42rem;
-    margin: 14vh auto 0;
-    padding: 0 1.5rem;
+  .shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
   }
 
-  h1 {
-    font-size: clamp(2rem, 6vw, 3rem);
-    margin: 0 0 0.5rem;
-    letter-spacing: -0.02em;
+  header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 0 0 auto;
+    padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-bg);
   }
 
-  .subtitle {
-    font-size: 1.125rem;
-    opacity: 0.8;
-    margin: 0 0 2.5rem;
+  .brand {
+    font-weight: 650;
+    letter-spacing: -0.01em;
   }
 
-  .status {
-    font-size: 0.875rem;
-    opacity: 0.55;
-    border-top: 1px solid currentColor;
-    padding-top: 0.75rem;
+  .hint,
+  .version {
+    font-size: 0.78rem;
+    color: var(--fg-muted);
+  }
+
+  .spacer {
+    flex: 1 1 auto;
   }
 </style>

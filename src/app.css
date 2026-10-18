@@ -1,17 +1,32 @@
 /* ─────────────────────────────────────────────────────────────────────────
-   Base de estilos de WebCircuits.
+   Base de estilos y tokens de tema de WebCircuits.
 
-   Los tokens de tema (M6) vivirán aquí. OJO: el canvas NO lee variables CSS
-   (`ctx.fillStyle = 'var(--x)'` no funciona). Por eso `theme-bridge` (M2-13)
-   las traduce a JavaScript con `getComputedStyle`.
+   ⚠️ El canvas NO lee variables CSS: `ctx.fillStyle = 'var(--x)'` no funciona.
+   Por eso `render/theme-bridge.ts` las traduce a JavaScript con `getComputedStyle`.
+   Añadir un color aquí NO basta: hay que exponerlo también en `RenderTheme`.
+
+   Nomenclatura: `--wc-*` para lo que ve el motor de dibujado, sin prefijo para el resto.
    ───────────────────────────────────────────────────────────────────────── */
 
 :root {
   --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, Consolas, 'Courier New', monospace;
 
-  --bg: #ffffff;
-  --fg: #1a1a1a;
+  /* ── Interfaz ──────────────────────────────────────────────────────── */
+  --bg: #f6f7f9;
+  --fg: #191c21;
+  --fg-muted: #5d646f;
+  --panel-bg: #ffffff;
+  --border: #e3e6ea;
+
+  /* ── Lienzo del diagrama ───────────────────────────────────────────── */
+  --wc-diagram-bg: #fbfbfd;
+  --wc-grid-dot: #d5d9e0;
+  --wc-grid-dot-strong: #aeb5c1;
+  --wc-wire: #22252b;
+  --wc-symbol-fill: #ffffff;
+  --wc-symbol-stroke: #22252b;
+  --wc-selection: #3b82f6;
 
   color-scheme: light dark;
   font: 16px/1.5 var(--font-sans);
@@ -25,8 +40,19 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #14161a;
-    --fg: #e8e8ea;
+    --bg: #0f1115;
+    --fg: #e7e9ee;
+    --fg-muted: #99a1ad;
+    --panel-bg: #16191f;
+    --border: #262b33;
+
+    --wc-diagram-bg: #101318;
+    --wc-grid-dot: #242932;
+    --wc-grid-dot-strong: #3a414c;
+    --wc-wire: #e7e9ee;
+    --wc-symbol-fill: #1a1e25;
+    --wc-symbol-stroke: #e7e9ee;
+    --wc-selection: #60a5fa;
   }
 }
 
@@ -34,11 +60,13 @@
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  min-height: 100vh;
+html,
+body,
+#app {
+  height: 100%;
 }
 
-#app {
-  min-height: 100vh;
+body {
+  margin: 0;
+  overflow: hidden;
 }
