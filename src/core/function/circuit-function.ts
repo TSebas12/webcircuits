@@ -110,16 +110,16 @@ export abstract class CircuitFunction {
   }
 
   protected setResult0(state: State): boolean {
-    if (this.circuitState[this.result0] !== state) {
-      this.circuitState[this.result0] = state
+    if (this.circuitState.get(this.result0) !== state) {
+      this.circuitState.set(this.result0, state)
       return true
     }
     return false
   }
 
   protected setResult(index: number, state: State): boolean {
-    if (this.circuitState[this.result[index]!] !== state) {
-      this.circuitState[this.result[index]!] = state
+    if (this.circuitState.get(this.result[index]!) !== state) {
+      this.circuitState.set(this.result[index]!, state)
       return true
     }
     return false
@@ -145,7 +145,7 @@ export abstract class CircuitFunction {
   protected triStateGroup(): State {
     let state: State = State.Off
     for (const index of this.parameter) {
-      switch (this.circuitState[index]) {
+      switch (this.circuitState.get(index)) {
         case State.On0:
           return State.On0
         case State.On1:
@@ -154,7 +154,7 @@ export abstract class CircuitFunction {
         case State.Off:
           break
         default:
-          throw CircuitFunction.badState(this.circuitState[index]!)
+          throw CircuitFunction.badState(this.circuitState.get(index)!)
       }
     }
     return state
@@ -162,7 +162,7 @@ export abstract class CircuitFunction {
 
   protected and(): State {
     for (let i = 0; i < this.parameter.length; i++) {
-      if (this.circuitState[this.parameter[i]!] === State.On0) {
+      if (this.circuitState.get(this.parameter[i]!) === State.On0) {
         return State.On0
       }
     }
@@ -171,7 +171,7 @@ export abstract class CircuitFunction {
 
   protected or(): State {
     for (let i = 0; i < this.parameter.length; i++) {
-      if (this.circuitState[this.parameter[i]!] === State.On1) {
+      if (this.circuitState.get(this.parameter[i]!) === State.On1) {
         return State.On1
       }
     }
@@ -192,15 +192,15 @@ export abstract class CircuitFunction {
   }
 
   protected controlledState(enable: State): State {
-    return this.circuitState[this.parameter[1]!] === enable
-      ? this.circuitState[this.parameter[0]!]!
+    return this.circuitState.get(this.parameter[1]!) === enable
+      ? this.circuitState.get(this.parameter[0]!)
       : State.Off
   }
 
   protected count(state: State): number {
     let count = 0
     for (const index of this.parameter) {
-      if (this.circuitState[index] === state) {
+      if (this.circuitState.get(index) === state) {
         count++
       }
     }
@@ -211,7 +211,7 @@ export abstract class CircuitFunction {
     let changed = false
     let s: State
     for (let i = 0; i < this.parameter.length; i++) {
-      if (state[i] !== (s = this.circuitState[this.parameter[i]!]!)) {
+      if (state[i] !== (s = this.circuitState.get(this.parameter[i]!)!)) {
         state[i] = s
         changed = true
       }
@@ -223,7 +223,7 @@ export abstract class CircuitFunction {
     // Tracer.Assert(parameters.Length <= 32)
     let state = 0
     for (let i = 0; i < parameters.length; i++) {
-      if (this.circuitState[parameters[i]!] === State.On1) {
+      if (this.circuitState.get(parameters[i]!) === State.On1) {
         state |= 1 << i
       }
     }

@@ -107,7 +107,7 @@ export class FunctionNot extends CircuitFunction {
   }
   override evaluate(): boolean {
     const param0 = this.parameters[0]!
-    return this.setResult0(CircuitFunction.not(this.circuitState[param0]!))
+    return this.setResult0(CircuitFunction.not(this.circuitState.get(param0)!))
   }
   override get reportName(): string {
     return 'NOT'
