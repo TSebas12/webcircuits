@@ -104,7 +104,12 @@ export interface ElementBase {
   readonly id: Id
   /** Circuito (hoja o subcircuito) al que pertenece. */
   readonly circuitId: Id
+  /** Capa a la que pertenece el elemento. Por defecto, la capa "Principal". */
+  readonly layerId: Id
 }
+
+/** Identificador de la capa por defecto (original: la capa "Principal"). */
+export const DEFAULT_LAYER_ID: Id = 'principal'
 
 /**
  * Un cable.

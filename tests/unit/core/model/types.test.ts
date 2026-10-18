@@ -15,7 +15,7 @@ describe('formas del modelo', () => {
   it('un cable guarda sus dos extremos en unidades de rejilla', () => {
     const p1: GridPoint = { x: 2, y: 3 }
     const p2: GridPoint = { x: 2, y: 9 }
-    const wire: Wire = { kind: 'wire', id: 'w1', circuitId: 'c1', p1, p2, bitWidth: 1 }
+    const wire: Wire = { kind: 'wire', id: 'w1', circuitId: 'c1', layerId: 'principal', p1, p2, bitWidth: 1 }
 
     expect(wire.p2.y - wire.p1.y).toBe(6)
     expect(wire.bitWidth).toBe(1)

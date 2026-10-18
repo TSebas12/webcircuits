@@ -22,6 +22,7 @@
 
 import { deviceBounds, deviceLayout, pinPosition } from './layout'
 import type { Button, Element, Gate, GateType, GridPoint, GridRect, Id, Wire } from './types'
+import { DEFAULT_LAYER_ID } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
 export const MAIN_CIRCUIT_ID = 'main'
@@ -210,6 +211,7 @@ export class Diagram {
         kind: 'gate',
         id: this.nextId('gate'),
         circuitId: MAIN_CIRCUIT_ID,
+        layerId: DEFAULT_LAYER_ID,
         position,
         rotation: 'up',
         gateType,
@@ -238,6 +240,7 @@ export class Diagram {
         kind: 'button',
         id: this.nextId('button'),
         circuitId: MAIN_CIRCUIT_ID,
+        layerId: DEFAULT_LAYER_ID,
         position,
         rotation: 'up',
         isToggle: options.isToggle ?? false,
@@ -255,6 +258,7 @@ export class Diagram {
         kind: 'wire',
         id: this.nextId('wire'),
         circuitId: MAIN_CIRCUIT_ID,
+        layerId: DEFAULT_LAYER_ID,
         p1,
         p2,
         bitWidth,

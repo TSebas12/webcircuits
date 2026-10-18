@@ -14,7 +14,7 @@ import type {
 } from '../../../../src/core/model/types'
 
 function wire(id: string, p1: GridPoint, p2: GridPoint): Wire {
-  return { kind: 'wire', id, circuitId: 'main', p1, p2, bitWidth: 1 }
+  return { kind: 'wire', id, circuitId: 'main', layerId: 'principal', p1, p2, bitWidth: 1 }
 }
 
 /** El punto de un pin concreto. Revienta si no existe: en un test eso es un fallo, no un `undefined`. */
