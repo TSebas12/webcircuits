@@ -1,0 +1,13 @@
+# Normaliza los finales de línea a LF en todo el repositorio.
+# Evita el "churn" en Windows (Git no convierte LF → CRLF).
+* text=auto eol=lf
+
+# Binarios: no tocar
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.wav binary
+*.woff binary
+*.woff2 binary

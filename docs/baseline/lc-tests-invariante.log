@@ -1,0 +1,189 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  StrongTypeResourceGenerator started
+  StrongTypeResourceGenerator completed with 0 errors and 0 warnings.
+  Realm item generation complete witout errors.
+  LogicCircuit -> C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\bin\Debug\net10.0-windows\LogicCircuit.dll
+  LogicCircuit.UnitTest -> C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\bin\Debug\net10.0-windows\LogicCircuit.UnitTest.dll
+Test run for C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\bin\Debug\net10.0-windows\LogicCircuit.UnitTest.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+  Failed HdlTestErrors [4 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.HdlTest.HdlTestErrors threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+en-us is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.UnitTest.HdlTest.HdlTestErrors() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 108
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Failed HdlTestLocale [< 1 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.HdlTest.HdlTestLocale threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+ru is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.UnitTest.HdlTest.HdlTestLocale() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 143
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Failed ResourcesDefaultGateShapeTest [5 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.ResourcesTest.ResourcesDefaultGateShapeTest threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+en is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.App.<>c.<get_AvailableCultures>b__5_0(String s) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\App.xaml.cs:line 74
+   at System.Linq.Enumerable.ArraySelectIterator`2.MoveNext()
+   at LogicCircuit.UnitTest.ResourcesTest.ResourcesDefaultGateShapeTest() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ResourcesTest.cs:line 34
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Failed ResourcesFlowDirectionTest [< 1 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.ResourcesTest.ResourcesFlowDirectionTest threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+en is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.App.<>c.<get_AvailableCultures>b__5_0(String s) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\App.xaml.cs:line 74
+   at System.Linq.Enumerable.ArraySelectIterator`2.MoveNext()
+   at LogicCircuit.UnitTest.ResourcesTest.ResourcesFlowDirectionTest() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ResourcesTest.cs:line 46
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Failed ResourcesErrorUnknownVersionTest [1 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.ResourcesTest.ResourcesErrorUnknownVersionTest threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+en is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.App.<>c.<get_AvailableCultures>b__5_0(String s) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\App.xaml.cs:line 74
+   at System.Linq.Enumerable.ArraySelectIterator`2.MoveNext()
+   at LogicCircuit.UnitTest.ResourcesTest.ResourcesErrorUnknownVersionTest() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ResourcesTest.cs:line 61
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Failed ResourcesFileFilterTest [< 1 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.ResourcesTest.ResourcesFileFilterTest threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+en is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.App.<>c.<get_AvailableCultures>b__5_0(String s) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\App.xaml.cs:line 74
+   at System.Linq.Enumerable.ArraySelectIterator`2.MoveNext()
+   at LogicCircuit.UnitTest.ResourcesTest.ResourcesFileFilterTest() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ResourcesTest.cs:line 78
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Failed ResourcesImageFileFilterTest [< 1 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.ResourcesTest.ResourcesImageFileFilterTest threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+en is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.App.<>c.<get_AvailableCultures>b__5_0(String s) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\App.xaml.cs:line 74
+   at System.Linq.Enumerable.ArraySelectIterator`2.MoveNext()
+   at LogicCircuit.UnitTest.ResourcesTest.ResourcesImageFileFilterTest() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ResourcesTest.cs:line 94
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Failed ResourcesHelpContentTest [< 1 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.ResourcesTest.ResourcesHelpContentTest threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+en is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.App.<>c.<get_AvailableCultures>b__5_0(String s) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\App.xaml.cs:line 74
+   at System.Linq.Enumerable.ArraySelectIterator`2.MoveNext()
+   at LogicCircuit.UnitTest.ResourcesTest.ResourcesHelpContentTest() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ResourcesTest.cs:line 106
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Failed ResourcesWebSiteDownloadUriTest [< 1 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.ResourcesTest.ResourcesWebSiteDownloadUriTest threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+en is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.App.<>c.<get_AvailableCultures>b__5_0(String s) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\App.xaml.cs:line 74
+   at System.Linq.Enumerable.ArraySelectIterator`2.MoveNext()
+   at LogicCircuit.UnitTest.ResourcesTest.ResourcesWebSiteDownloadUriTest() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ResourcesTest.cs:line 118
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Failed ResourcesWebSiteUriTest [< 1 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.ResourcesTest.ResourcesWebSiteUriTest threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+en is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.App.<>c.<get_AvailableCultures>b__5_0(String s) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\App.xaml.cs:line 74
+   at System.Linq.Enumerable.ArraySelectIterator`2.MoveNext()
+   at LogicCircuit.UnitTest.ResourcesTest.ResourcesWebSiteUriTest() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ResourcesTest.cs:line 130
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Failed ResourcesTrimmedTest [< 1 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.ResourcesTest.ResourcesTrimmedTest threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+en is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.App.<>c.<get_AvailableCultures>b__5_0(String s) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\App.xaml.cs:line 74
+   at System.Linq.Enumerable.ArraySelectIterator`2.MoveNext()
+   at LogicCircuit.UnitTest.ResourcesTest.ResourcesTrimmedTest() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ResourcesTest.cs:line 143
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Failed ResourcePinTitleIs2LinesTest [< 1 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.ResourcesTest.ResourcePinTitleIs2LinesTest threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+en is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.App.<>c.<get_AvailableCultures>b__5_0(String s) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\App.xaml.cs:line 74
+   at System.Linq.Enumerable.ArraySelectIterator`2.MoveNext()
+   at LogicCircuit.UnitTest.ResourcesTest.ResourcePinTitleIs2LinesTest() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ResourcesTest.cs:line 175
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Failed FormatPlaceholdersAreTheSameTest [1 ms]
+  Error Message:
+   Test method LogicCircuit.UnitTest.ResourcesTest.FormatPlaceholdersAreTheSameTest threw exception:
+System.Globalization.CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode. See https://aka.ms/GlobalizationInvariantMode for more information. (Parameter 'name')
+en is an invalid culture identifier.
+  Stack Trace:
+     at System.Globalization.CultureInfo.GetCultureInfo(String name)
+   at LogicCircuit.App.<>c.<get_AvailableCultures>b__5_0(String s) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\App.xaml.cs:line 74
+   at System.Linq.Enumerable.ArraySelectIterator`2.MoveNext()
+   at LogicCircuit.UnitTest.ResourcesTest.FormatPlaceholdersAreTheSameTest() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ResourcesTest.cs:line 189
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+
+Failed!  - Failed:    13, Passed:   166, Skipped:     0, Total:   179, Duration: 33 s - LogicCircuit.UnitTest.dll (net10.0)

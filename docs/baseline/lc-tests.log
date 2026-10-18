@@ -1,0 +1,84 @@
+  Determinando los proyectos que se van a restaurar...
+  Todos los proyectos están actualizados para la restauración.
+  StrongTypeResourceGenerator started
+  StrongTypeResourceGenerator completed with 0 errors and 0 warnings.
+  Realm item generation complete witout errors.
+  LogicCircuit -> C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit\bin\Debug\net10.0-windows\LogicCircuit.dll
+  LogicCircuit.UnitTest -> C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\bin\Debug\net10.0-windows\LogicCircuit.UnitTest.dll
+Serie de pruebas para C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\bin\Debug\net10.0-windows\LogicCircuit.UnitTest.dll (.NETCoreApp,Version=v10.0)
+1 archivos de prueba en total coincidieron con el patrón especificado.
+  Con error FunctionTest [257 ms]
+  Mensaje de error:
+   Assertion failed. Se esperaba que la cadena coincidía con el patrón especificado.
+Unexpected parsing error: c:x1+1 c
+
+expected pattern: "Function name 'c' is conflicting with pin name"
+actual:           "Error: El nombre de la función 'c' entra en conflicto con el nombre del pin.\r\n"
+  Seguimiento de la pila:
+     at LogicCircuit.UnitTest.ExpressionParserTest.Invalid(ExpressionParser parser, TruthState state, String text, String errorPatter) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ExpressionParserTest.cs:line 41
+   at LogicCircuit.UnitTest.ExpressionParserTest.FunctionTest() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\ExpressionParserTest.cs:line 689
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+  Mensajes de salida estándar:
+ 
+ 
+ Seguimiento de depuración:
+ CircuitState: CircuitState.seed=-1230409891
+ Error: El nombre de la función 'c' entra en conflicto con el nombre del pin.
+ 
+ 
+ Mensajes de TestContext:
+ Expression: [c:x1+1 c] Expected parsing error: Error: El nombre de la función 'c' entra en conflicto con el nombre del pin.
+ 
+
+
+  Con error HdlTestTruthTables [141 ms]
+  Mensaje de error:
+   Excepción método de prueba LogicCircuit.UnitTest.HdlTest.HdlTestTruthTables: 
+System.InvalidOperationException: Failed to compare two elements in the array. ---> System.FormatException: The input string '19.7' was not in a correct format.
+  Seguimiento de la pila:
+     at System.Number.ThrowFormatException[TChar](ReadOnlySpan`1 value)
+   at System.Double.Parse(String s)
+   at LogicCircuit.UnitTest.HdlTest.<SortByNote>g__Number|8_0(String text) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 39
+   at LogicCircuit.UnitTest.HdlTest.<>c.<SortByNote>b__8_1(LogicalCircuit a, LogicalCircuit b) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 43
+   at System.Collections.Generic.ArraySortHelper`1.PickPivotAndPartition(Span`1 keys, Comparison`1 comparer)
+   at System.Collections.Generic.ArraySortHelper`1.IntroSort(Span`1 keys, Int32 depthLimit, Comparison`1 comparer)
+   at System.Collections.Generic.ArraySortHelper`1.IntrospectiveSort(Span`1 keys, Comparison`1 comparer)
+   at System.Collections.Generic.ArraySortHelper`1.Sort(Span`1 keys, Comparison`1 comparer)
+--- Fin del seguimiento de la pila de excepción interna ---
+   at System.Collections.Generic.ArraySortHelper`1.Sort(Span`1 keys, Comparison`1 comparer)
+   at System.Collections.Generic.List`1.Sort(Comparison`1 comparison)
+   at LogicCircuit.UnitTest.HdlTest.SortByNote(List`1 circuits) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 43
+   at LogicCircuit.UnitTest.HdlTest.RunTruthTableComparisonForCategory(String category, Boolean fixNames, Func`2 fixName) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 50
+   at LogicCircuit.UnitTest.HdlTest.RunTruthTableComparisonForCategory(String category) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 72
+   at LogicCircuit.UnitTest.HdlTest.HdlTestTruthTables() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 92
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+  Con error HdlTestLocale [130 ms]
+  Mensaje de error:
+   Excepción método de prueba LogicCircuit.UnitTest.HdlTest.HdlTestLocale: 
+System.InvalidOperationException: Failed to compare two elements in the array. ---> System.FormatException: The input string '19.7' was not in a correct format.
+  Seguimiento de la pila:
+     at System.Number.ThrowFormatException[TChar](ReadOnlySpan`1 value)
+   at System.Double.Parse(String s)
+   at LogicCircuit.UnitTest.HdlTest.<SortByNote>g__Number|8_0(String text) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 39
+   at LogicCircuit.UnitTest.HdlTest.<>c.<SortByNote>b__8_1(LogicalCircuit a, LogicalCircuit b) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 43
+   at System.Collections.Generic.ArraySortHelper`1.PickPivotAndPartition(Span`1 keys, Comparison`1 comparer)
+   at System.Collections.Generic.ArraySortHelper`1.IntroSort(Span`1 keys, Int32 depthLimit, Comparison`1 comparer)
+   at System.Collections.Generic.ArraySortHelper`1.Sort(Span`1 keys, Comparison`1 comparer)
+--- Fin del seguimiento de la pila de excepción interna ---
+   at System.Collections.Generic.ArraySortHelper`1.Sort(Span`1 keys, Comparison`1 comparer)
+   at System.Collections.Generic.List`1.Sort(Comparison`1 comparison)
+   at LogicCircuit.UnitTest.HdlTest.SortByNote(List`1 circuits) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 43
+   at LogicCircuit.UnitTest.HdlTest.RunTruthTableComparisonForCategory(String category, Boolean fixNames, Func`2 fixName) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 50
+   at LogicCircuit.UnitTest.HdlTest.RunTruthTableComparisonForCategory(String category) in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 72
+   at LogicCircuit.UnitTest.HdlTest.HdlTestLocale() in C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources\LogicCircuit.UnitTest\HdlTest.cs:line 144
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+
+Con error! - Con error:     3, Superado:   176, Omitido:     0, Total:   179, Duración: 35 s - LogicCircuit.UnitTest.dll (net10.0)

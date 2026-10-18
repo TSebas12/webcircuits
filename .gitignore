@@ -1,6 +1,8 @@
 # Logs
 logs
 *.log
+# ...excepto los del baseline del oráculo (son evidencia, ver docs/BASELINE-TESTS.md)
+!docs/baseline/*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
