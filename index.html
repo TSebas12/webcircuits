@@ -1,10 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>webcircuits</title>
+    <meta name="description" content="Simulador de circuitos lógicos digitales en el navegador." />
+    <title>WebCircuits</title>
+    <script>
+      // Anti-destello: fija el tema antes de que se pinte nada, para no ver un fogonazo
+      // claro al cargar en modo oscuro. Es solo una optimización — `app/theme.ts` vuelve
+      // a aplicarlo al arrancar — pero tiene que resolver igual, así que si allí cambia
+      // `resolveTheme`, cambia aquí.
+      ;(() => {
+        try {
+          const guardado = localStorage.getItem('wc-theme')
+          const oscuro =
+            guardado === 'dark' ||
+            (guardado !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.setAttribute('data-theme', oscuro ? 'dark' : 'light')
+        } catch {
+          document.documentElement.setAttribute('data-theme', 'light')
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>
