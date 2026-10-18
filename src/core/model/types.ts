@@ -72,6 +72,8 @@ export type PinSide = 'left' | 'right' | 'top' | 'bottom'
  * `Angle(Up) = 0` y dibuja la compuerta mirando a la derecha.
  */
 export type Rotation = 'up' | 'right' | 'down' | 'left'
+export type CircuitShape = 'Rectangular' | 'Display' | 'Mux' | 'Demux' | 'Alu' | 'FlipFlop'
+export type GateShape = 'Rectangular' | 'Shaped'
 
 /**
  * Tipos de compuerta (original: `CircuitProject/GateType.cs`).
