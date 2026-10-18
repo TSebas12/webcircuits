@@ -38,3 +38,7 @@ desktop.ini
 
 # Capturas de pantalla de las mediciones (no se versionan)
 bench/*.png
+
+# Circuitos propios del usuario: NO se versionan (ver el README de la carpeta)
+tests/fixtures/privados/*
+!tests/fixtures/privados/README.md
