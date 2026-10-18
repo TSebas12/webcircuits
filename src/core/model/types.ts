@@ -154,6 +154,46 @@ export interface Gate extends Device {
 }
 
 /**
+ * Un valor constante (original: `Constant`).
+ *
+ * Tiene una unica salida del ancho indicado. `value` se normaliza al ancho.
+ */
+export interface Constant extends Device {
+  readonly kind: 'constant'
+  readonly bitWidth: number
+  readonly value: number
+  readonly pinSide: PinSide
+}
+
+/**
+ * Memoria (ROM o RAM) (original: `Memory`).
+ */
+export interface Memory extends Device {
+  readonly kind: 'memory'
+  readonly addressBitWidth: number
+  readonly dataBitWidth: number
+  readonly isRom: boolean
+}
+
+/**
+ * Sensor (original: `Sensor`).
+ */
+export interface Sensor extends Device {
+  readonly kind: 'sensor'
+  readonly sensorType: string
+}
+
+/**
+ * Repartidor de bits (original: `Splitter`).
+ */
+export interface Splitter extends Device {
+  readonly kind: 'splitter'
+  readonly bitWidth: number
+  readonly splitWidth: number
+  readonly isJoin: boolean
+}
+
+/**
  * Un interruptor de entrada.
  *
  * ⚠️ En el original esto se llama `CircuitButton` (`CircuitProject/CircuitButton.cs`) y
