@@ -199,6 +199,49 @@ export interface Splitter extends Device {
 }
 
 /**
+ * Sonido (original: `Sound`). Una entrada de 1 bit.
+ */
+export interface Sound extends Device {
+  readonly kind: 'sound'
+  readonly pinSide: PinSide
+}
+
+/**
+ * Matriz gráfica (original: `GraphicsArray`).
+ */
+export interface GraphicsArray extends Device {
+  readonly kind: 'graphicsArray'
+  readonly bitWidth: number
+  readonly width: number
+  readonly height: number
+}
+
+/**
+ * Matriz de LEDs (original: `LedMatrix`).
+ */
+export interface LedMatrix extends Device {
+  readonly kind: 'ledMatrix'
+  readonly rows: number
+  readonly columns: number
+}
+
+/**
+ * Nota de texto (original: `TextNote`).
+ */
+export interface TextNote extends Device {
+  readonly kind: 'textNote'
+}
+
+/**
+ * Unión de cables (original: `Jam`): un punto donde se unen varios cables.
+ * No es un dispositivo colocado: se deriva de la posición.
+ */
+export interface Jam {
+  readonly point: GridPoint
+  readonly pinType: PinType
+}
+
+/**
  * Un interruptor de entrada.
  *
  * ⚠️ En el original esto se llama `CircuitButton` (`CircuitProject/CircuitButton.cs`) y
