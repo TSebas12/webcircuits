@@ -1,0 +1,27 @@
+{
+  "extends": "@tsconfig/svelte/tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "es2023",
+    "module": "esnext",
+    "types": ["svelte", "vite/client"],
+    "allowArbitraryExtensions": true,
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "moduleDetection": "force",
+
+    /* ── ESTRICTO (M0-07) ─────────────────────────────────────────────
+       La calidad no se negocia. Esto es lo que evita que 258 pasos
+       conviertan el proyecto en algo frágil.
+       Regla del proyecto: NADA de `any`.                                */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false
+  },
+  "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte", "tests/**/*.ts"]
+}

@@ -1,0 +1,44 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Base de estilos de WebCircuits.
+
+   Los tokens de tema (M6) vivirán aquí. OJO: el canvas NO lee variables CSS
+   (`ctx.fillStyle = 'var(--x)'` no funciona). Por eso `theme-bridge` (M2-13)
+   las traduce a JavaScript con `getComputedStyle`.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, Consolas, 'Courier New', monospace;
+
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+
+  color-scheme: light dark;
+  font: 16px/1.5 var(--font-sans);
+  color: var(--fg);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --fg: #e8e8ea;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+}
