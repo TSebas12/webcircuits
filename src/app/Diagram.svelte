@@ -1,22 +1,29 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { Canvas2DRenderer } from '../render/canvas2d'
-  import { Camera } from '../render/camera'
-  import type { RenderScene } from '../render/ir-renderer'
-  import { readTheme, watchTheme } from '../render/theme-bridge'
+  import { Editor, type Tool } from './editor'
 
-  /** Márgenes de la vista inicial, en píxeles. Deja el origen del circuito a la vista. */
-  const INITIAL_PADDING_X = 24
-  const INITIAL_PADDING_Y = 80
-
-  /** Sensibilidad de la rueda. Cuanto menor, más suave. */
-  const WHEEL_SENSITIVITY = 0.0015
+  /** Los botones de la paleta. Se colocan con un clic en el lienzo. */
+  const TOOLS: readonly { readonly id: Tool; readonly glyph: string; readonly title: string }[] = [
+    { id: 'select', glyph: '⌖', title: 'Seleccionar y mover (Esc)' },
+    { id: 'button', glyph: '⏻', title: 'Interruptor de entrada' },
+    { id: 'and', glyph: '∧', title: 'Compuerta AND' },
+    { id: 'led', glyph: '◉', title: 'LED' },
+  ]
 
   let canvasEl = $state<HTMLCanvasElement | null>(null)
+  let tool = $state<Tool>('select')
+  let powered = $state(true)
+  let hasSelection = $state(false)
+
   let fps = $state(0)
   let paintMs = $state(0)
   let zoomPct = $state(100)
-  let panning = $state(false)
+
+  /**
+   * El editor se crea en `onMount`, así que antes de eso no existe. No es `$state` a
+   * propósito: no hay nada que redibujar cuando cambia, solo hay que poder llamarlo.
+   */
+  let editor: Editor | null = null
 
   onMount(() => {
     const canvas = canvasEl
@@ -24,102 +31,98 @@
       return
     }
 
-    const camera = new Camera()
-    const renderer = new Canvas2DRenderer()
-    let theme = readTheme()
-
-    const pushScene = (): void => {
-      const scene: RenderScene = {
-        camera: camera.state,
-        theme,
-        showGrid: true,
-        items: [], // M1-08 empezará a llenarlo
-      }
-      renderer.render(scene)
-      zoomPct = Math.round(camera.zoom * 100)
-    }
-
-    renderer.init(canvas, {
+    const instance = new Editor({
       onStats: (stats) => {
         fps = stats.fps
         paintMs = stats.paintMs
       },
+      onZoom: (percent) => {
+        zoomPct = percent
+      },
+      onSelectionChange: (id) => {
+        hasSelection = id !== null
+      },
+      onPoweredChange: (value) => {
+        powered = value
+      },
     })
-
-    camera.reset(INITIAL_PADDING_X, INITIAL_PADDING_Y)
-    pushScene()
-
-    // ── Arrastrar para desplazar ─────────────────────────────────────────
-    let lastX = 0
-    let lastY = 0
-
-    const onPointerDown = (event: PointerEvent): void => {
-      if (event.button !== 0) {
-        return
-      }
-      panning = true
-      lastX = event.clientX
-      lastY = event.clientY
-      canvas.setPointerCapture(event.pointerId)
-    }
-
-    const onPointerMove = (event: PointerEvent): void => {
-      if (!panning) {
-        return
-      }
-      camera.panBy(event.clientX - lastX, event.clientY - lastY)
-      lastX = event.clientX
-      lastY = event.clientY
-      pushScene()
-    }
-
-    const onPointerUp = (event: PointerEvent): void => {
-      panning = false
-      if (canvas.hasPointerCapture(event.pointerId)) {
-        canvas.releasePointerCapture(event.pointerId)
-      }
-    }
-
-    // ── Rueda para acercar, anclada al cursor ────────────────────────────
-    // Nota: las tablets y los portátiles envían `deltaMode` en líneas, no en píxeles.
-    const onWheel = (event: WheelEvent): void => {
-      event.preventDefault()
-      const delta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY
-      const rect = canvas.getBoundingClientRect()
-      camera.zoomAt(
-        event.clientX - rect.left,
-        event.clientY - rect.top,
-        Math.exp(-delta * WHEEL_SENSITIVITY),
-      )
-      pushScene()
-    }
-
-    canvas.addEventListener('pointerdown', onPointerDown)
-    canvas.addEventListener('pointermove', onPointerMove)
-    canvas.addEventListener('pointerup', onPointerUp)
-    canvas.addEventListener('pointercancel', onPointerUp)
-    canvas.addEventListener('wheel', onWheel, { passive: false })
-
-    // El color del lienzo se recalcula solo cuando cambia el tema, nunca por fotograma.
-    const stopWatchingTheme = watchTheme(() => {
-      theme = readTheme()
-      pushScene()
-    })
+    editor = instance
+    instance.mount(canvas)
 
     return () => {
-      canvas.removeEventListener('pointerdown', onPointerDown)
-      canvas.removeEventListener('pointermove', onPointerMove)
-      canvas.removeEventListener('pointerup', onPointerUp)
-      canvas.removeEventListener('pointercancel', onPointerUp)
-      canvas.removeEventListener('wheel', onWheel)
-      stopWatchingTheme()
-      renderer.destroy()
+      instance.unmount()
+      editor = null
     }
   })
+
+  const chooseTool = (id: Tool): void => {
+    tool = id
+    editor?.setTool(id)
+  }
+
+  const togglePower = (): void => {
+    powered = !powered
+    editor?.setPowered(powered)
+  }
+
+  const clearAll = (): void => {
+    editor?.clear()
+  }
+
+  const loadExample = (): void => {
+    editor?.loadExample()
+  }
+
+  const removeSelected = (): void => {
+    editor?.removeSelected()
+  }
 </script>
 
 <div class="diagram">
-  <canvas bind:this={canvasEl} class:panning></canvas>
+  <canvas bind:this={canvasEl} class:placing={tool !== 'select'}></canvas>
+
+  <div class="toolbar" role="toolbar" aria-label="Herramientas del circuito">
+    {#each TOOLS as item (item.id)}
+      <button
+        type="button"
+        class="tool"
+        class:active={tool === item.id}
+        title={item.title}
+        aria-pressed={tool === item.id}
+        onclick={() => chooseTool(item.id)}
+      >
+        {item.glyph}
+      </button>
+    {/each}
+
+    <span class="divider"></span>
+
+    <button type="button" onclick={loadExample} title="Coloca el circuito de ejemplo">
+      Ejemplo
+    </button>
+    <button
+      type="button"
+      onclick={removeSelected}
+      disabled={!hasSelection}
+      title="Borra lo seleccionado (Supr)"
+    >
+      Borrar
+    </button>
+    <button type="button" onclick={clearAll} title="Vacía el circuito">Vaciar</button>
+
+    <span class="divider"></span>
+
+    <button
+      type="button"
+      class="power"
+      class:on={powered}
+      onclick={togglePower}
+      title="Enciende o apaga el circuito (en el original, Circuito → Encender)"
+      aria-pressed={powered}
+    >
+      {powered ? '⚡ Encendido' : '⏻ Apagado'}
+    </button>
+  </div>
 
   <div class="hud" aria-hidden="true">
     <span>{fps.toFixed(0)} FPS</span>
@@ -146,9 +149,81 @@
     touch-action: none;
   }
 
-  canvas.panning {
-    cursor: grabbing;
+  canvas.placing {
+    cursor: crosshair;
   }
+
+  /* ── Paleta ─────────────────────────────────────────────────────────── */
+
+  .toolbar {
+    position: absolute;
+    top: 0.6rem;
+    left: 0.6rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 0.55rem;
+    background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 14px rgb(0 0 0 / 8%);
+  }
+
+  .toolbar button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 0.6rem;
+    border: 1px solid transparent;
+    border-radius: 0.4rem;
+    background: transparent;
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition:
+      background-color 100ms ease,
+      border-color 100ms ease;
+  }
+
+  .toolbar button:hover:not(:disabled) {
+    background: var(--panel-bg-hover);
+  }
+
+  .toolbar .tool {
+    font-size: 1.05rem;
+  }
+
+  .toolbar .tool.active {
+    border-color: var(--wc-selection);
+    background: color-mix(in srgb, var(--wc-selection) 16%, transparent);
+  }
+
+  .toolbar button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .toolbar button:focus-visible {
+    outline: 2px solid var(--wc-selection);
+    outline-offset: 1px;
+  }
+
+  .divider {
+    width: 1px;
+    height: 1.4rem;
+    margin: 0 0.2rem;
+    background: var(--border);
+  }
+
+  .power.on {
+    color: var(--wc-state-one);
+  }
+
+  /* ── Medidas ────────────────────────────────────────────────────────── */
 
   .hud {
     position: absolute;

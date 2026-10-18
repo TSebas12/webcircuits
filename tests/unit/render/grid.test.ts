@@ -2,17 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Camera } from '../../../src/render/camera'
 import { GRID_SIZE } from '../../../src/render/geometry'
 import { MIN_DOT_SPACING, STRONG_EVERY, chooseGridStep, drawGrid } from '../../../src/render/grid'
-import type { RenderTheme } from '../../../src/render/ir-renderer'
-
-const THEME: RenderTheme = {
-  background: '#ffffff',
-  gridDot: '#d5d9e0',
-  gridDotStrong: '#aeb5c1',
-  wire: '#22252b',
-  symbolFill: '#ffffff',
-  symbolStroke: '#22252b',
-  selection: '#3b82f6',
-}
+import { TEST_THEME as THEME } from '../support/theme'
 
 /** Un rectángulo tal y como lo recibe `ctx.rect`. */
 type Rect = [x: number, y: number, width: number, height: number]

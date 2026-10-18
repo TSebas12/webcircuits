@@ -1,3 +1,5 @@
+import { drawDevice, drawPinDot, drawWire } from './draw'
+import { GRID_SIZE } from './geometry'
 import { drawGrid } from './grid'
 import type { IRenderer, RenderScene, RendererOptions, RendererStats } from './ir-renderer'
 
@@ -149,6 +151,32 @@ export class Canvas2DRenderer implements IRenderer {
       drawGrid(ctx, scene.camera, scene.theme, this.cssWidth, this.cssHeight)
     }
 
-    // M1-08 dibujará aquí las piezas de `scene.items`.
+    // Las piezas viven en unidades de rejilla, así que basta con un solo transform para
+    // todas: se pone una vez y el bucle dibuja en coordenadas del mundo.
+    const scale = GRID_SIZE * scene.camera.zoom
+    ctx.setTransform(
+      this.dpr * scale,
+      0,
+      0,
+      this.dpr * scale,
+      this.dpr * scene.camera.offsetX,
+      this.dpr * scene.camera.offsetY,
+    )
+    ctx.lineJoin = 'round'
+    ctx.lineCap = 'round'
+
+    for (const item of scene.items) {
+      switch (item.kind) {
+        case 'wire':
+          drawWire(ctx, item, scene.theme)
+          break
+        case 'device':
+          drawDevice(ctx, item, scene.theme)
+          break
+        case 'pinDot':
+          drawPinDot(ctx, item, scene.theme)
+          break
+      }
+    }
   }
 }

@@ -35,6 +35,13 @@
   --wc-symbol-fill: #ffffff;
   --wc-symbol-stroke: #22252b;
   --wc-selection: #3b82f6;
+  --wc-pin-dot: #8b93a1;
+  /* Estado de un dispositivo: apagado, encendido con 0, encendido con 1.
+     Los tres colores están sacados del original (`App.xaml`: `LedOff`, `LedOn0`,
+     `LedOn1`), sin los degradados. */
+  --wc-state-off: #b7c9b8;
+  --wc-state-zero: #5b4949;
+  --wc-state-one: #ff4a1f;
 
   font: 16px/1.5 var(--font-sans);
   color: var(--fg);
@@ -64,6 +71,10 @@
   --wc-symbol-fill: #1a1e25;
   --wc-symbol-stroke: #e7e9ee;
   --wc-selection: #60a5fa;
+  --wc-pin-dot: #6b7280;
+  --wc-state-off: #3c4a3e;
+  --wc-state-zero: #5b4949;
+  --wc-state-one: #ff5a2a;
 }
 
 * {

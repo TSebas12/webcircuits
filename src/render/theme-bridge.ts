@@ -9,6 +9,10 @@ const FALLBACK: RenderTheme = {
   symbolFill: '#ffffff',
   symbolStroke: '#22252b',
   selection: '#3b82f6',
+  pinDot: '#8b93a1',
+  stateOff: '#b7c9b8',
+  stateZero: '#5b4949',
+  stateOne: '#ff4a1f',
 }
 
 /**
@@ -36,6 +40,10 @@ export function readTheme(root: HTMLElement = document.documentElement): RenderT
     symbolFill: read('--wc-symbol-fill', FALLBACK.symbolFill),
     symbolStroke: read('--wc-symbol-stroke', FALLBACK.symbolStroke),
     selection: read('--wc-selection', FALLBACK.selection),
+    pinDot: read('--wc-pin-dot', FALLBACK.pinDot),
+    stateOff: read('--wc-state-off', FALLBACK.stateOff),
+    stateZero: read('--wc-state-zero', FALLBACK.stateZero),
+    stateOne: read('--wc-state-one', FALLBACK.stateOne),
   }
 }
 

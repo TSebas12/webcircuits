@@ -1,4 +1,5 @@
-import type { GateType, GridPoint, Rotation, Signal } from '../core/model/types'
+import type { DeviceState, GridPoint, Rotation } from '../core/model/types'
+import type { SymbolShape } from './symbols'
 import type { CameraState } from './camera'
 
 /**
@@ -11,6 +12,8 @@ import type { CameraState } from './camera'
  * `src/core/` **no importa** este fichero. Nunca.
  */
 
+export type { DeviceState }
+
 /** Colores ya resueltos a texto CSS. El renderizador no sabe nada de variables CSS. */
 export interface RenderTheme {
   readonly background: string
@@ -20,16 +23,28 @@ export interface RenderTheme {
   readonly symbolFill: string
   readonly symbolStroke: string
   readonly selection: string
+  /** Punto de un pin donde todavía no hay nada conectado. */
+  readonly pinDot: string
+  /** Símbolo apagado (sin energía en el circuito). */
+  readonly stateOff: string
+  /** Encendido, con un 0 dentro. */
+  readonly stateZero: string
+  /** Encendido, con un 1 dentro. */
+  readonly stateOne: string
 }
 
-/** Un símbolo (compuerta) listo para pintar. */
-export interface DrawGate {
-  readonly kind: 'gate'
-  readonly gateType: GateType
+/** Un símbolo (compuerta, interruptor, LED) listo para pintar. */
+export interface DrawDevice {
+  readonly kind: 'device'
+  readonly shape: SymbolShape
   /** Esquina superior izquierda, en unidades de rejilla. */
   readonly position: GridPoint
   readonly rotation: Rotation
+  /** Tamaño en unidades de rejilla. Coincide con el que calcula `core/model/layout.ts`. */
+  readonly width: number
+  readonly height: number
   readonly selected: boolean
+  readonly state: DeviceState
 }
 
 /** Un cable listo para pintar. */
@@ -37,16 +52,22 @@ export interface DrawWire {
   readonly kind: 'wire'
   readonly p1: GridPoint
   readonly p2: GridPoint
-  readonly bitWidth: number
-  readonly signal: Signal
   readonly selected: boolean
+}
+
+/** El puntito de un pin, para ver dónde se puede conectar un cable. */
+export interface DrawPinDot {
+  readonly kind: 'pinDot'
+  readonly point: GridPoint
+  /** Ya tiene un cable encima. */
+  readonly connected: boolean
 }
 
 /**
  * Pieza a dibujar.
- * Se irán añadiendo variantes (LED, interruptor, notas de texto…) sin romper nada.
+ * Se irán añadiendo variantes (notas de texto, buses…) sin romper nada.
  */
-export type DrawItem = DrawGate | DrawWire
+export type DrawItem = DrawDevice | DrawWire | DrawPinDot
 
 /** Todo lo que hace falta para pintar un fotograma. */
 export interface RenderScene {

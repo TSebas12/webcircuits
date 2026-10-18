@@ -56,7 +56,7 @@
 <div class="shell">
   <header>
     <span class="brand">WebCircuits</span>
-    <span class="hint">arrastra para mover · rueda para acercar</span>
+    <span class="hint">elige una pieza y haz clic · arrastra para mover · rueda para acercar</span>
     <span class="spacer"></span>
     <span class="version">v{version} · M1</span>
     <button

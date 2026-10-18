@@ -1,9 +1,9 @@
 /**
- * Tipos base del modelo de circuitos (M1-01).
+ * Tipos base del modelo de circuitos.
  *
- * Este módulo es **solo tipos**: ni una línea de lógica y ninguna dependencia del
- * navegador. Es la frontera más importante del proyecto: `src/core/` no puede mirar
- * jamás hacia `render/`, `app/` ni `worker/`.
+ * Este módulo es **solo tipos** (salvo un par de constantes): ni una línea de lógica y
+ * ninguna dependencia del navegador. Es la frontera más importante del proyecto:
+ * `src/core/` no puede mirar jamás hacia `render/`, `app/` ni `worker/`.
  *
  * El vocabulario sale del original en C#:
  *   `LogicCircuit-ref/Sources/LogicCircuit/CircuitProject/`
@@ -34,7 +34,7 @@ export interface GridPoint {
  * - n bits → bus: el bit menos significativo viaja en el bit 0 de la máscara
  *
  * El original permite hasta `BasePin.MaxBitWidth = 32` bits, así que cabe de sobra en
- * los operadores de bits de JavaScript (que trabajan a 32 bits).
+ * los 32 bits con los que trabajan los operadores de bits de JavaScript.
  */
 export type Signal = number
 
@@ -44,20 +44,58 @@ export const MAX_BIT_WIDTH = 32
 /** ¿El pin es una entrada, una salida, o ninguna de las dos? */
 export type PinType = 'input' | 'output' | 'none'
 
+/**
+ * Estado visual de un dispositivo.
+ *
+ * Son los tres del original (`Function/State.cs`: `Off = 0`, `On0 = 1`, `On1 = 2`), y
+ * distinguirlos importa: un LED con el circuito apagado **no** se ve igual que un LED
+ * encendido al que le llega un 0.
+ */
+export type DeviceState = 'off' | 'zero' | 'one'
+
+/** Rectángulo en unidades de rejilla. */
+export interface GridRect {
+  readonly x0: number
+  readonly y0: number
+  readonly x1: number
+  readonly y1: number
+}
+
 /** Lado del símbolo en el que se dibuja el pin. */
 export type PinSide = 'left' | 'right' | 'top' | 'bottom'
 
-/** Orientación del símbolo dentro de la rejilla. */
+/**
+ * Orientación del símbolo dentro de la rejilla (original: `Rotation`).
+ *
+ * ⚠️ Ojo con el nombre: `up` es la orientación **natural** del dibujo, que es la que
+ * apunta hacia la derecha (el pico de una AND mira a la derecha). El original define
+ * `Angle(Up) = 0` y dibuja la compuerta mirando a la derecha.
+ */
 export type Rotation = 'up' | 'right' | 'down' | 'left'
 
 /**
- * Tipos de compuerta (original: `GateType`).
+ * Tipos de compuerta (original: `CircuitProject/GateType.cs`).
  *
- * En el original hay un solo enumerado para todo: compuertas, LED, reloj, tri-estado…
- * Nosotros separamos «compuertas lógicas» de «dispositivos», que es más claro, pero
- * los nombres coinciden para que el mapeo con el formato del fichero sea directo.
+ * Se respetan **todos** los valores del enumerado original, incluidos `odd`, `even` y
+ * `probe`: existen, pero no son compuertas que se puedan colocar. Mantenerlos hace que
+ * el mapeo con el formato de fichero `.CircuitProject` sea directo.
+ *
+ * ⚠️ No hay `nand`, `nor` ni `xnor`: en el original una NAND es una `and` con
+ * `invertedOutput = true`. Así queda en el fichero, y así lo modelamos.
  */
-export type GateType = 'not' | 'or' | 'and' | 'xor' | 'nand' | 'nor' | 'xnor'
+export type GateType =
+  | 'nop'
+  | 'clock'
+  | 'not'
+  | 'or'
+  | 'and'
+  | 'xor'
+  | 'odd'
+  | 'even'
+  | 'led'
+  | 'probe'
+  | 'triState1'
+  | 'triState2'
 
 /** Base común a todo lo que vive dentro de un circuito. */
 export interface ElementBase {
@@ -66,7 +104,14 @@ export interface ElementBase {
   readonly circuitId: Id
 }
 
-/** Un cable: dos extremos sobre la rejilla. */
+/**
+ * Un cable.
+ *
+ * ⚠️ Es **solo geometría**: dos puntos de la rejilla. No guarda a qué está conectado.
+ * En el original la conectividad se **deduce** de la posición (su `ConductorMap`), y eso
+ * es lo que permite que dos cables se unan por tocarse en una esquina. Por eso el modelo
+ * no tiene un campo «pin de origen»: lo calcula el motor.
+ */
 export interface Wire extends ElementBase {
   readonly kind: 'wire'
   readonly p1: GridPoint
@@ -75,7 +120,11 @@ export interface Wire extends ElementBase {
   readonly bitWidth: number
 }
 
-/** Un pin: la conexión de un símbolo (o de la propia hoja) con el exterior. */
+/**
+ * Un pin de la propia hoja: la conexión del circuito con el exterior.
+ * No confundir con los pines de un dispositivo, que se **deducen** de su forma
+ * (ver `layout.ts`).
+ */
 export interface Pin extends ElementBase {
   readonly kind: 'pin'
   readonly pinType: PinType
@@ -83,31 +132,48 @@ export interface Pin extends ElementBase {
   readonly bitWidth: number
   readonly inverted: boolean
   readonly name: string
-  /** Orden dentro de su lado. */
-  readonly index: number
 }
 
-/**
- * Un símbolo colocado sobre la rejilla: ocupa celdas y tiene pines.
- * Es la parte común de compuertas, interruptores, LED, memorias…
- */
+/** Un símbolo colocado sobre la rejilla. */
 export interface Device extends ElementBase {
   /** Esquina superior izquierda, en unidades de rejilla. */
   readonly position: GridPoint
   readonly rotation: Rotation
-  readonly bitWidth: number
-  /** Pines que pertenecen a este símbolo. */
-  readonly pinIds: readonly Id[]
 }
 
 /** Una compuerta lógica. */
 export interface Gate extends Device {
   readonly kind: 'gate'
   readonly gateType: GateType
+  /** Cuántas entradas tiene. Para las compuertas, entre 1 y `MAX_GATE_INPUTS`. */
+  readonly inputCount: number
+  /** Salida negada: así se hace una NAND (`gateType: 'and'` + `invertedOutput`). */
+  readonly invertedOutput: boolean
 }
 
-/** Cualquier cosa que se pueda colocar en un circuito. */
-export type Element = Gate | Pin | Wire
+/**
+ * Un interruptor de entrada.
+ *
+ * ⚠️ En el original esto se llama `CircuitButton` (`CircuitProject/CircuitButton.cs`) y
+ * **no** es un «switch»: es el botón que el usuario pulsa para meter un 1 o un 0.
+ */
+export interface Button extends Device {
+  readonly kind: 'button'
+  /**
+   * `false` —que es el valor por defecto del original— lo hace **momentáneo**: está a 1
+   * mientras se pulsa y vuelve a 0 al soltar. Con `true` se queda como se lo deje.
+   */
+  readonly isToggle: boolean
+  /** Salida negada: pulsado da un 0 y suelto da un 1. */
+  readonly inverted: boolean
+}
+
+/**
+ * Cualquier cosa que se pueda colocar en un circuito.
+ *
+ * Los pines de la hoja (`Pin`) todavía no están: llegan con los subcircuitos (M2).
+ */
+export type Element = Gate | Button | Wire
 
 /**
  * Un circuito: una hoja (lo que se dibuja) o un subcircuito.
