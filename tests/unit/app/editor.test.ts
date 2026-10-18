@@ -180,6 +180,43 @@ describe('interacción con el ratón (M1-10 y M1-12)', () => {
     dispose()
   })
 
+  it('al mover una pieza, los cables pegados a sus pines van con ella', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+
+    const gate = editor.diagram.devices.find(
+      (device) => device.kind === 'gate' && device.gateType === 'and',
+    )
+    expect(gate).toBeDefined()
+    if (gate === undefined) {
+      return
+    }
+
+    // Cable de salida del AND hacia el LED: (11, 4) -> (14, 4). Su extremo en (11, 4) está
+    // pegado al pin de salida del AND, así que al mover el AND ese extremo se desplaza con él
+    // y el otro (el del LED) se queda donde estaba.
+    const wire = editor.diagram.elements.find(
+      (candidate) =>
+        candidate.kind === 'wire' &&
+        candidate.p1.x === 11 &&
+        candidate.p1.y === 4 &&
+        candidate.p2.x === 14 &&
+        candidate.p2.y === 4,
+    )
+    expect(wire).toBeDefined()
+    if (wire === undefined) {
+      return
+    }
+
+    dragFromTo(canvas, screenOf(9, 3), screenOf(6, 4))
+
+    const movedWire = editor.diagram.get(wire.id)
+    expect(movedWire?.kind === 'wire' ? movedWire.p1 : null).toEqual({ x: 8, y: 5 })
+    expect(movedWire?.kind === 'wire' ? movedWire.p2 : null).toEqual({ x: 14, y: 4 })
+
+    dispose()
+  })
+
   it('un clic sin arrastre no mueve nada: selecciona', () => {
     const { editor, canvas, dispose } = mount()
     editor.loadExample()

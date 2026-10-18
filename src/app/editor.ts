@@ -565,7 +565,41 @@ export class Editor {
     }
 
     const grid = this.gridAt(event)
-    this.diagram.move(drag.id, { x: grid.x + drag.grabOffset.x, y: grid.y + drag.grabOffset.y })
+    const device = this.diagram.get(drag.id)
+
+    if (device !== undefined && device.kind !== 'wire') {
+      const newPos = { x: grid.x + drag.grabOffset.x, y: grid.y + drag.grabOffset.y }
+      const dx = newPos.x - device.position.x
+      const dy = newPos.y - device.position.y
+
+      // Los cables pegados a la pieza van con ella: una punta que caiga justo sobre uno de
+      // sus pines se desplaza lo mismo. Es lo que hace el original (`CommitMove`): solo se
+      // mueven los extremos que coinciden con un pin del s��mbolo movido. Por eso, si el cable
+      // se partió y el pin ya no es extremo, o si el otro extremo estǭ en otra pieza, ese
+      // extremo no se mueve. Con Mayǧsculas se puede arrastrar la pieza sin arrastrar los
+      // cables (como en el original).
+      const attached =
+        dx !== 0 || dy !== 0
+          ? event.shiftKey
+            ? []
+            : attachedWires(this.diagram.elements, device)
+          : []
+      const pins = new Set(placedPins(device).map((placed) => pointKey(placed.point)))
+
+      this.diagram.move(drag.id, newPos)
+
+      for (const wire of attached) {
+        if (pins.has(pointKey(wire.p1))) {
+          this.diagram.moveWireEnd(wire.id, 1, { x: wire.p1.x + dx, y: wire.p1.y + dy })
+        }
+        if (pins.has(pointKey(wire.p2))) {
+          this.diagram.moveWireEnd(wire.id, 2, { x: wire.p2.x + dx, y: wire.p2.y + dy })
+        }
+      }
+    } else {
+      const newPos = { x: grid.x + drag.grabOffset.x, y: grid.y + drag.grabOffset.y }
+      this.diagram.move(drag.id, newPos)
+    }
   }
 
   private readonly onPointerUp = (event: PointerEvent): void => {
