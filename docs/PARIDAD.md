@@ -30,9 +30,10 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | `Runner/` | Motor de simulación | `src/core/simulate/` | M2 | 🟡 |
 | `SymbolShapes/` | Geometría de los símbolos | `src/render/symbols/` | M2 | 🟡 |
 | `Icon/` | Iconos | `src/render/icons/` | M2 | ⬜ |
-| `Editor/` | Editor, herramientas, undo/redo | `src/app/editor.ts` | M2 | ⬜ |
+| `Editor/` | Editor, herramientas, undo/redo | `src/app/editor.ts` | M2 | 🟡 |
+| `DataPersistent/SnapStore.cs` | Deshacer/rehacer por **fotos** del documento (versiones *Edit/Undo/Redo*) | `src/core/model/diagram.ts` | M2 | ✅ |
 | `DataPersistent/` | Persistencia `.CircuitProject` (XML versionado) | `src/core/persist/` | M4 | ⬜ |
-| `Schema/` | Esquemas XSD + gramáticas ANTLR | `src/core/schema/` | M4 | ⬜ |
+| `Schema/` | Esquemas XSD + gramáticas `.g4` (los `.g4` son la **especificación** de un parser que se escribe a mano: ver `expression-parser.ts`) | `src/core/schema/` | M4 | ⬜ |
 | `ColorPicker/` | Selector de color | `src/app/color-picker/` | M6 | ⬜ |
 | `Function/` | Funciones lógicas, expresiones, tablas de verdad | `src/core/function/` | M8 | ⬜ |
 | `HDL/` | Verilog: importación y exportación | `src/core/hdl/` | M9 | ⬜ |

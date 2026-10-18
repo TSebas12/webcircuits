@@ -1,9 +1,17 @@
 /**
  * El circuito que se está editando.
  *
- * Guarda los elementos y avisa cuando cambian. Hacia fuera es de solo lectura: quien lo
- * usa pide cambios y lee `elements`, nunca toca el mapa de dentro. Eso es lo que permite
- * que el lienzo, la simulación y el futuro deshacer (M2) se apoyen en el mismo sitio.
+ * Guarda los elementos, avisa cuando cambian y lleva el historial de deshacer. Hacia fuera
+ * es de solo lectura: quien lo usa pide cambios y lee `elements`, nunca toca el mapa de
+ * dentro. Eso es lo que permite que el lienzo, la simulación y el deshacer se apoyen en el
+ * mismo sitio.
+ *
+ * **El deshacer es de fotos, no de órdenes.** Cada acción apila una foto de cómo estaba el
+ * documento antes de empezarla, y deshacer es volver a ponerla. Es lo que hace el original en
+ * `DataPersistent/SnapStore.cs` (versiones de tipo *Edit/Undo/Redo*), y aquí sale casi gratis
+ * porque los elementos ya son inmutables: una foto es una lista de referencias. La alternativa
+ * —una orden con su inversa por cada tipo de cambio— sería mucho más código y un fallo
+ * distinto por cada orden que alguien escriba mal.
  *
  * De momento hay un solo circuito —la hoja principal—; los subcircuitos llegan en M2, y
  * por eso cada elemento ya lleva su `circuitId`.
@@ -18,12 +26,37 @@ import type { Button, Element, Gate, GateType, GridPoint, GridRect, Id, Wire } f
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
 export const MAIN_CIRCUIT_ID = 'main'
 
+/**
+ * Cuántas acciones se recuerdan.
+ *
+ * El original no pone tope —su `SnapStore` guarda versiones y va olvidando las anteriores a
+ * `minUndo`—, pero aquí un tope acota la memoria sin que se note: nadie deshace cien veces.
+ */
+const MAX_HISTORY = 100
+
+/**
+ * Una foto del documento: sus elementos, en orden.
+ *
+ * Se copia **la lista**, no los elementos. Cada elemento es inmutable —cualquier cambio lo
+ * sustituye por otro objeto—, así que comparar dos fotos es comparar referencias: barato y
+ * exacto, y sin clonar nada.
+ */
+type Snapshot = readonly Element[]
+
 /** El documento: los elementos colocados y nada más. */
 export class Diagram {
   private readonly items = new Map<Id, Element>()
   private readonly listeners = new Set<() => void>()
   private counter = 0
   private revisionCount = 0
+
+  /** Las fotos de antes de cada acción, la más reciente al final. */
+  private readonly undoStack: Snapshot[] = []
+  private readonly redoStack: Snapshot[] = []
+  /** La foto que se está tomando ahora mismo, mientras hay una acción abierta. */
+  private pending: Snapshot | null = null
+  /** Cuántas acciones hay abiertas a la vez: mientras sea `> 0`, todo cuenta como una. */
+  private depth = 0
 
   /**
    * Sube cada vez que algo cambia. Sirve para no recalcular de más: si el número no ha
@@ -50,6 +83,110 @@ export class Diagram {
     }
   }
 
+  // ── Deshacer y rehacer ────────────────────────────────────────────────
+
+  get canUndo(): boolean {
+    return this.undoStack.length > 0
+  }
+
+  get canRedo(): boolean {
+    return this.redoStack.length > 0
+  }
+
+  /**
+   * Abre una acción: desde aquí y hasta el `endChange` que la cierre, todos los cambios
+   * cuentan como **uno solo** para deshacer.
+   *
+   * Hace falta porque un gesto del usuario llama muchas veces al modelo: arrastrar un símbolo
+   * son decenas de `move`, uno por cada movimiento del ratón, y deshacer tiene que devolverlo
+   * a donde estaba **antes de empezar el arrastre**, no un píxel atrás. Se pueden anidar: la
+   * de dentro se funde con la de fuera.
+   */
+  beginChange(): void {
+    if (this.depth === 0) {
+      this.pending = this.elements
+    }
+    this.depth += 1
+  }
+
+  /**
+   * Cierra la acción abierta. Si de verdad ha cambiado algo se apila para deshacer; si no
+   * —un clic que no movió nada, una colocación rechazada— se tira sin dejar rastro.
+   */
+  endChange(): void {
+    if (this.depth === 0) {
+      return
+    }
+    this.depth -= 1
+    if (this.depth !== 0) {
+      return
+    }
+
+    const before = this.pending
+    this.pending = null
+    if (before === null || sameSnapshot(before, this.elements)) {
+      return
+    }
+
+    this.undoStack.push(before)
+    if (this.undoStack.length > MAX_HISTORY) {
+      this.undoStack.shift()
+    }
+    // Cualquier acción nueva invalida lo que se hubiera deshecho, como en todas partes.
+    this.redoStack.length = 0
+
+    // El aviso de dentro de la acción salió **antes** de que esto se apilara, así que quien
+    // mire `canUndo` para pintar la barra habría visto el estado viejo. Se avisa otra vez.
+    this.changed()
+  }
+
+  /** Deshace la última acción. Dice si había algo que deshacer. */
+  undo(): boolean {
+    const previous = this.undoStack.pop()
+    if (previous === undefined) {
+      return false
+    }
+    this.redoStack.push(this.elements)
+    this.restore(previous)
+    return true
+  }
+
+  /** Rehace la última acción deshecha. */
+  redo(): boolean {
+    const next = this.redoStack.pop()
+    if (next === undefined) {
+      return false
+    }
+    this.undoStack.push(this.elements)
+    this.restore(next)
+    return true
+  }
+
+  /**
+   * Deja el documento como en la foto.
+   *
+   * ⚠️ El contador de identificadores **no** se rebobina, y es a propósito: si volviera atrás,
+   * una pieza nueva podría recibir el identificador de otra que se deshizo y luego se rehizo,
+   * y acabarían dos elementos con el mismo nombre. Que solo suba lo evita para siempre.
+   */
+  private restore(snapshot: Snapshot): void {
+    this.items.clear()
+    for (const element of snapshot) {
+      this.items.set(element.id, element)
+    }
+    this.changed()
+  }
+
+  /** Envuelve una acción: la abre, la hace y la cierra, aunque reviente por el camino. */
+  private change<T>(action: () => T): T {
+    this.beginChange()
+    try {
+      return action()
+    } finally {
+      this.endChange()
+    }
+  }
+
   get(id: Id): Element | undefined {
     return this.items.get(id)
   }
@@ -68,19 +205,21 @@ export class Diagram {
   }
 
   addGate(gateType: GateType, position: GridPoint, inputCount = 2, invertedOutput = false): Gate {
-    const gate: Gate = {
-      kind: 'gate',
-      id: this.nextId('gate'),
-      circuitId: MAIN_CIRCUIT_ID,
-      position,
-      rotation: 'up',
-      gateType,
-      inputCount,
-      invertedOutput,
-    }
-    this.items.set(gate.id, gate)
-    this.changed()
-    return gate
+    return this.change(() => {
+      const gate: Gate = {
+        kind: 'gate',
+        id: this.nextId('gate'),
+        circuitId: MAIN_CIRCUIT_ID,
+        position,
+        rotation: 'up',
+        gateType,
+        inputCount,
+        invertedOutput,
+      }
+      this.items.set(gate.id, gate)
+      this.changed()
+      return gate
+    })
   }
 
   /**
@@ -94,32 +233,36 @@ export class Diagram {
     position: GridPoint,
     options: { readonly isToggle?: boolean; readonly inverted?: boolean } = {},
   ): Button {
-    const button: Button = {
-      kind: 'button',
-      id: this.nextId('button'),
-      circuitId: MAIN_CIRCUIT_ID,
-      position,
-      rotation: 'up',
-      isToggle: options.isToggle ?? false,
-      inverted: options.inverted ?? false,
-    }
-    this.items.set(button.id, button)
-    this.changed()
-    return button
+    return this.change(() => {
+      const button: Button = {
+        kind: 'button',
+        id: this.nextId('button'),
+        circuitId: MAIN_CIRCUIT_ID,
+        position,
+        rotation: 'up',
+        isToggle: options.isToggle ?? false,
+        inverted: options.inverted ?? false,
+      }
+      this.items.set(button.id, button)
+      this.changed()
+      return button
+    })
   }
 
   addWire(p1: GridPoint, p2: GridPoint, bitWidth = 1): Wire {
-    const wire: Wire = {
-      kind: 'wire',
-      id: this.nextId('wire'),
-      circuitId: MAIN_CIRCUIT_ID,
-      p1,
-      p2,
-      bitWidth,
-    }
-    this.items.set(wire.id, wire)
-    this.changed()
-    return wire
+    return this.change(() => {
+      const wire: Wire = {
+        kind: 'wire',
+        id: this.nextId('wire'),
+        circuitId: MAIN_CIRCUIT_ID,
+        p1,
+        p2,
+        bitWidth,
+      }
+      this.items.set(wire.id, wire)
+      this.changed()
+      return wire
+    })
   }
 
   /** Mueve un elemento de la rejilla. Los cables se mueven moviendo sus dos puntas. */
@@ -131,8 +274,10 @@ export class Diagram {
     if (element.position.x === position.x && element.position.y === position.y) {
       return
     }
-    this.items.set(id, { ...element, position })
-    this.changed()
+    this.change(() => {
+      this.items.set(id, { ...element, position })
+      this.changed()
+    })
   }
 
   /**
@@ -146,23 +291,29 @@ export class Diagram {
     if (element === undefined || element.kind !== 'wire') {
       return
     }
-    const next: Wire = end === 1 ? { ...element, p1: point } : { ...element, p2: point }
-    this.items.set(id, next)
-    this.changed()
+    this.change(() => {
+      const next: Wire = end === 1 ? { ...element, p1: point } : { ...element, p2: point }
+      this.items.set(id, next)
+      this.changed()
+    })
   }
 
   remove(id: Id): void {
-    if (this.items.delete(id)) {
-      this.changed()
-    }
+    this.change(() => {
+      if (this.items.delete(id)) {
+        this.changed()
+      }
+    })
   }
 
   clear(): void {
     if (this.items.size === 0) {
       return
     }
-    this.items.clear()
-    this.changed()
+    this.change(() => {
+      this.items.clear()
+      this.changed()
+    })
   }
 
   /** Los dispositivos (todo lo que no es un cable). */
@@ -193,6 +344,19 @@ export class Diagram {
     }
     return undefined
   }
+}
+
+/** ¿Las dos fotos son la misma? Los elementos son inmutables, así que basta la referencia. */
+function sameSnapshot(a: Snapshot, b: Snapshot): boolean {
+  if (a.length !== b.length) {
+    return false
+  }
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] !== b[index]) {
+      return false
+    }
+  }
+  return true
 }
 
 /**

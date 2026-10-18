@@ -10,19 +10,38 @@
  * (`MiniEngine`), la vista (`Camera`) y el dibujado (`buildScene`). Es el pegamento, y por
  * eso vive en `app/` y no en `core/` ni en `render/`.
  *
- * Interacción de M1 (el original tiene bastantes más cosas: rotar, deshacer, copiar…):
+ * Interacción (el original tiene bastantes más cosas: rotar, copiar…):
  *
- * | Gesto                            | Qué hace                          |
- * |----------------------------------|-----------------------------------|
- * | Clic en el vacío                 | quita la selección                |
- * | Arrastrar en el vacío            | mueve la vista                    |
- * | Rueda                            | acerca, anclado al cursor         |
- * | Clic en un símbolo               | lo selecciona                     |
- * | Arrastrar un símbolo             | lo mueve, pegado a la rejilla      |
- * | Clic en un interruptor           | lo pulsa                          |
- * | Arrastrar desde un pin           | tiende un cable                   |
- * | `Supr` / `Retroceso`             | borra lo seleccionado             |
- * | `Esc`                            | cancela y vuelve a «seleccionar»  |
+ * | Gesto                            | Qué hace                            |
+ * |----------------------------------|-------------------------------------|
+ * | Clic en el vacío                 | quita la selección                  |
+ * | Arrastrar en el vacío            | mueve la vista                      |
+ * | Rueda                            | acerca, anclado al cursor           |
+ * | Clic en un símbolo               | lo selecciona                       |
+ * | Arrastrar un símbolo             | lo mueve, pegado a la rejilla        |
+ * | Clic en un interruptor           | lo pulsa                            |
+ * | Arrastrar desde un pin           | tiende un cable                     |
+ * | Clic con el borrador             | borra lo que toque                  |
+ * | `Supr` / `Retroceso`             | borra lo seleccionado y sus cables  |
+ * | `Ctrl+Z` / `Ctrl+Y`              | deshace / rehace                    |
+ * | `Esc`                            | cancela y vuelve a «seleccionar»    |
+ *
+ * Los atajos de una tecla están puestos en el `title` de cada botón de la barra, que es donde
+ * se buscan: `S` seleccionar, `E` borrador, `B` interruptor, `A` compuerta, `L` LED, y `P`
+ * para la corriente. `P` es un atajo nuevo: en el original la corriente es `Ctrl+W`, que en un
+ * navegador **cierra la pestaña** y no se puede interceptar, así que se cambia por necesidad.
+ *
+ * Y dos avisos del gesto, que es donde uno se pierde:
+ *
+ * - Mientras se tiende un cable el cursor es **la flecha**, no la mano: ese gesto va a
+ *   conectar, no a mover. Lo pidió el usuario y tiene razón, porque los dos arrastres empiezan
+ *   igual.
+ * - Con una herramienta de colocación el cursor es la cruz, y con la corriente puesta, la
+ *   flecha: si nada se puede mover, una mano abierta mentiría.
+ *
+ * Los atajos **no** se comen lo que se escribe en un campo de texto (en el lienzo no hay
+ * ninguno todavía, pero los diálogos de M2 traen unos cuantos). Y con la corriente puesta solo
+ * responden `P` —para apagarla— y `Esc`: lo demás es editar, y con corriente no se edita.
  *
  * Con una herramienta de colocación activa, el clic coloca… **salvo que caiga sobre un
  * símbolo**, y entonces interactúa con él. Eso no es un capricho: la herramienta se queda
@@ -44,7 +63,7 @@ import { Diagram } from '../core/model/diagram'
 import { gateLayout, placedPins } from '../core/model/layout'
 import { connectionCounts, pointKey } from '../core/simulate/nets'
 import { MiniEngine, emptySimulationState, type SimulationState } from '../core/simulate/engine'
-import type { Button, GridPoint, Id } from '../core/model/types'
+import type { Button, Element, Gate, GridPoint, Id, Wire } from '../core/model/types'
 import { Camera } from '../render/camera'
 import { Canvas2DRenderer } from '../render/canvas2d'
 import { hitTest } from '../render/hit-test'
@@ -58,14 +77,15 @@ export type PlaceTool = 'button' | 'and' | 'led'
 /**
  * La herramienta activa.
  *
- * `select` es la de trabajo —elegir, mover y cablear— y las de colocación ponen un símbolo
- * nuevo con cada clic.
+ * `select` es la de trabajo —elegir, mover y cablear—, `erase` borra lo que se toque con un
+ * clic, y las de colocación ponen un símbolo nuevo con cada clic.
  *
  * ⚠️ **No hay herramienta de «modo prueba»**: ya existe, y es el botón de corriente. Con la
  * corriente apagada se edita; con la corriente puesta no se toca nada y el clic solo pulsa
- * interruptores. Ver [`Tool`] y `onPointerDown`.
+ * interruptores. El borrador se queda puesto hasta que se elija otra cosa, igual que las de
+ * colocación, porque es un **modo** y no una acción suelta.
  */
-export type Tool = 'select' | PlaceTool
+export type Tool = 'select' | 'erase' | PlaceTool
 
 /** A partir de cuántas unidades de rejilla un clic se convierte en un arrastre. */
 const DRAG_THRESHOLD = 0.45
@@ -87,6 +107,12 @@ const INITIAL_PADDING_Y = 80
  */
 const FREE_PIN_MIN_ZOOM = 0.5
 
+/** Si se puede deshacer y rehacer, para que la barra encienda o apague sus botones. */
+export interface HistoryState {
+  readonly canUndo: boolean
+  readonly canRedo: boolean
+}
+
 export interface EditorCallbacks {
   readonly onStats?: (stats: RendererStats) => void
   readonly onZoom?: (percent: number) => void
@@ -94,9 +120,13 @@ export interface EditorCallbacks {
   readonly onPoweredChange?: (powered: boolean) => void
   /**
    * La herramienta ha cambiado. Hace falta porque el editor también la cambia por su cuenta
-   * (con `Esc`), y si no avisara, la barra de herramientas seguiría señalando la vieja.
+   * (con `Esc` o con un atajo), y si no avisara, la barra de herramientas seguiría señalando
+   * la vieja.
    */
   readonly onToolChange?: (tool: Tool) => void
+  /** Se está tendiendo un cable: el cursor tiene que dejar de ser la mano. */
+  readonly onWiringChange?: (wiring: boolean) => void
+  readonly onHistoryChange?: (history: HistoryState) => void
 }
 
 /** Arrastrando un símbolo. */
@@ -146,6 +176,10 @@ export class Editor {
   /** Última posición del cursor en el mundo, para la previsualización del cable. */
   private cursor: GridPoint | null = null
 
+  /** Lo último que se avisó a la barra, para no repetir el mismo aviso en cada fotograma. */
+  private wiring = false
+  private history: HistoryState = { canUndo: false, canRedo: false }
+
   private stopWatchingTheme: (() => void) | null = null
   private unsubscribe: (() => void) | null = null
 
@@ -163,6 +197,14 @@ export class Editor {
 
   get selection(): Id | null {
     return this.selected.values().next().value ?? null
+  }
+
+  get canUndo(): boolean {
+    return this.diagram.canUndo
+  }
+
+  get canRedo(): boolean {
+    return this.diagram.canRedo
   }
 
   // ── Ciclo de vida ─────────────────────────────────────────────────────
@@ -241,10 +283,11 @@ export class Editor {
     this.engine.setPowered(powered)
 
     if (powered) {
-      this.drag = null
-      this.wire = null
+      // Si se enciende en mitad de un gesto, el gesto se queda a medias: se cierra la acción
+      // abierta para que lo movido hasta ahí siga siendo **una sola** para deshacer.
+      this.endDrag()
+      this.endWire()
       this.buttonPress = null
-      this.cursor = null
       this.select(null)
     }
 
@@ -253,21 +296,100 @@ export class Editor {
     this.refresh()
   }
 
+  /**
+   * Deshace la última acción. Con la corriente puesta no se edita, así que tampoco se deshace.
+   *
+   * El historial vive en el documento (`Diagram.undo`), que guarda fotos del circuito, así que
+   * aquí solo queda reaccionar: la selección puede estar apuntando a algo que ya no existe.
+   */
+  undo(): boolean {
+    if (this.engine.powered) {
+      return false
+    }
+    const done = this.diagram.undo()
+    if (done) {
+      this.afterUndoRedo()
+    }
+    return done
+  }
+
+  /** Rehace la última acción deshecha. */
+  redo(): boolean {
+    if (this.engine.powered) {
+      return false
+    }
+    const done = this.diagram.redo()
+    if (done) {
+      this.afterUndoRedo()
+    }
+    return done
+  }
+
   clear(): void {
     this.diagram.clear()
     this.engine.reset()
-    this.selected.clear()
-    this.callbacks.onSelectionChange?.(null)
+    this.select(null)
   }
 
+  /** Borra lo seleccionado, con los cables que colgaban de ello (M2-21). */
   removeSelected(): void {
     const id = this.selection
     if (id === null) {
       return
     }
-    this.diagram.remove(id)
-    this.selected.delete(id)
-    this.callbacks.onSelectionChange?.(null)
+    this.removeElement(id)
+    this.select(null)
+  }
+
+  /**
+   * Borra un elemento. Si es un dispositivo se lleva por delante los cables que colgaban de sus
+   * pines, que es lo que evita que queden cables huérfanos apuntando al vacío (M2-21).
+   *
+   * ⚠️ Un cable con un extremo suelto es **legal** en el modelo —el propio editor los crea al
+   * tender un cable a un punto libre—, así que esto no es una regla del documento sino una
+   * decisión de edición, y por eso vive aquí y no en `Diagram`.
+   */
+  private removeElement(id: Id): void {
+    const element = this.diagram.get(id)
+    if (element === undefined) {
+      return
+    }
+
+    const attached = element.kind === 'wire' ? [] : attachedWires(this.diagram.elements, element)
+
+    // La pieza y sus cables van en la **misma** acción: deshacer tiene que devolver las dos
+    // cosas de una vez, y si no, el primer `Ctrl+Z` dejaría cables colgando de un símbolo que
+    // ya ha vuelto.
+    this.diagram.beginChange()
+    try {
+      for (const wire of attached) {
+        this.diagram.remove(wire.id)
+      }
+      this.diagram.remove(id)
+    } finally {
+      this.diagram.endChange()
+    }
+  }
+
+  /** Si lo seleccionado acaba de desaparecer, se quita la selección. */
+  private forgetSelectionIfGone(): void {
+    const id = this.selection
+    if (id !== null && this.diagram.get(id) === undefined) {
+      this.select(null)
+    }
+  }
+
+  /**
+   * Lo que hay que reponer tras deshacer o rehacer.
+   *
+   * El documento ya avisa por su cuenta (`Diagram.restore` llama a `changed`), así que esto es
+   * solo lo que el documento no sabe: que la selección no puede quedarse apuntando a una pieza
+   * que la foto acaba de quitar.
+   */
+  private afterUndoRedo(): void {
+    this.forgetSelectionIfGone()
+    this.evaluate()
+    this.refresh()
   }
 
   /**
@@ -277,22 +399,29 @@ export class Editor {
    * se enciende, el corte vertical funciona de punta a punta. Las coordenadas están
    * calculadas a mano para que cada cable sea **una recta horizontal**: los pines del
    * ejemplo caen a la misma altura.
+   *
+   * Todo el ejemplo es **una sola acción** para deshacer: si fueran siete, habría que darle
+   * siete veces a `Ctrl+Z` para quitar lo que se puso de una vez.
    */
   loadExample(): void {
-    this.diagram.clear()
-    this.engine.reset()
+    this.diagram.beginChange()
+    try {
+      this.diagram.clear()
+      this.engine.reset()
 
-    this.diagram.addButton({ x: 2, y: 2 }, { isToggle: true }) // salida en (4, 3)
-    this.diagram.addButton({ x: 2, y: 4 }, { isToggle: true }) // salida en (4, 5)
-    this.diagram.addGate('and', { x: 8, y: 2 }, 2) // entradas en (8, 3) y (8, 5); salida en (11, 4)
-    this.diagram.addGate('led', { x: 14, y: 3 }, 1) // entrada en (14, 4)
+      this.diagram.addButton({ x: 2, y: 2 }, { isToggle: true }) // salida en (4, 3)
+      this.diagram.addButton({ x: 2, y: 4 }, { isToggle: true }) // salida en (4, 5)
+      this.diagram.addGate('and', { x: 8, y: 2 }, 2) // entradas en (8, 3) y (8, 5); salida en (11, 4)
+      this.diagram.addGate('led', { x: 14, y: 3 }, 1) // entrada en (14, 4)
 
-    this.diagram.addWire({ x: 4, y: 3 }, { x: 8, y: 3 })
-    this.diagram.addWire({ x: 4, y: 5 }, { x: 8, y: 5 })
-    this.diagram.addWire({ x: 11, y: 4 }, { x: 14, y: 4 })
+      this.diagram.addWire({ x: 4, y: 3 }, { x: 8, y: 3 })
+      this.diagram.addWire({ x: 4, y: 5 }, { x: 8, y: 5 })
+      this.diagram.addWire({ x: 11, y: 4 }, { x: 14, y: 4 })
+    } finally {
+      this.diagram.endChange()
+    }
 
-    this.selected.clear()
-    this.callbacks.onSelectionChange?.(null)
+    this.select(null)
   }
 
   // ── El ratón ──────────────────────────────────────────────────────────
@@ -328,6 +457,22 @@ export class Editor {
       return
     }
 
+    // El borrador: un clic se lleva lo que toque. Sobre el vacío no hay nada que borrar, así
+    // que ahí el arrastre sigue moviendo la vista (y el clic, quitando la selección).
+    if (this.tool === 'erase') {
+      if (hit !== null) {
+        this.removeElement(hit.element.id)
+        this.forgetSelectionIfGone()
+        this.refresh()
+        return
+      }
+      canvas.setPointerCapture(event.pointerId)
+      this.select(null)
+      this.pan = { lastX: event.clientX, lastY: event.clientY }
+      this.refresh()
+      return
+    }
+
     // Con una herramienta de colocación, el clic coloca… salvo que caiga sobre un símbolo,
     // y entonces se interactúa con él. Si no, la herramienta se queda pegada y pulsar un
     // interruptor recién puesto no haría nada, que es justo lo que pasaba.
@@ -339,8 +484,7 @@ export class Editor {
     canvas.setPointerCapture(event.pointerId)
 
     if (hit !== null && hit.kind === 'pin') {
-      this.wire = { from: hit.point }
-      this.cursor = world
+      this.startWire(hit.point, world)
       this.refresh()
       return
     }
@@ -360,6 +504,11 @@ export class Editor {
         },
         moved: false,
       }
+      // La acción empieza aquí, en el clic, y no cuando el símbolo se mueve por primera vez:
+      // así la foto que se guarda es la de **antes** del arrastre, que es a donde tiene que
+      // volver `Ctrl+Z`. Si el gesto acaba siendo un simple clic, no habrá cambiado nada y la
+      // acción se tira sola al cerrarla (`endDrag`).
+      this.diagram.beginChange()
       this.refresh()
       return
     }
@@ -431,8 +580,7 @@ export class Editor {
     if (this.wire !== null) {
       const end = this.snappedEnd()
       const from = this.wire.from
-      this.wire = null
-      this.cursor = null
+      this.endWire()
       if (end !== null && (end.x !== from.x || end.y !== from.y)) {
         this.diagram.addWire(from, end)
       } else {
@@ -441,7 +589,9 @@ export class Editor {
       return
     }
 
-    this.drag = null
+    // El arrastre se acaba: si de verdad movió algo, la acción queda apilada para deshacer; si
+    // fue un clic que no movió nada, se cierra vacía y no deja rastro.
+    this.endDrag()
     this.refresh()
   }
 
@@ -463,11 +613,31 @@ export class Editor {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
+    // Los atajos no pisan lo que se escribe en un campo de texto. En el lienzo todavía no hay
+    // ninguno, pero los diálogos de M2 traen unos cuantos, y esto es más barato ponerlo ahora
+    // que acordarse después.
+    if (isTextEntry(event.target) || event.altKey) {
+      return
+    }
+
+    // Deshacer y rehacer: `Ctrl+Z` y `Ctrl+Y` son los del original, que se apoya en los mandatos
+    // estándar del sistema (`ApplicationCommands.Undo/Redo` en `App.xaml.cs`). `Ctrl+Shift+Z`
+    // es de propina, porque mucha gente lo tiene en los dedos.
+    if (event.ctrlKey || event.metaKey) {
+      const key = event.key.toLowerCase()
+      if (key === 'z' || key === 'y') {
+        const done = key === 'y' || event.shiftKey ? this.redo() : this.undo()
+        if (done) {
+          event.preventDefault()
+        }
+      }
+      return
+    }
+
     if (event.key === 'Escape') {
       this.cancelButtonPress()
       if (this.wire !== null) {
-        this.wire = null
-        this.cursor = null
+        this.endWire()
         this.refresh()
       } else {
         this.setTool('select')
@@ -475,12 +645,34 @@ export class Editor {
       return
     }
 
+    // La corriente se enciende y se apaga desde cualquier modo: es el interruptor de modo. En
+    // el original esto es `Ctrl+W`, que en un navegador cierra la pestaña y no se puede
+    // interceptar, así que aquí es `P`, que se dice igual en los dos idiomas.
+    if (event.key.toLowerCase() === 'p') {
+      event.preventDefault()
+      if (!event.repeat) {
+        this.setPowered(!this.engine.powered)
+      }
+      return
+    }
+
+    // Con la corriente puesta no se edita, así que los atajos de edición no hacen nada.
+    if (this.engine.powered) {
+      return
+    }
+
     if (event.key === 'Delete' || event.key === 'Backspace') {
-      // Con la corriente puesta no se edita, así que tampoco se borra.
-      if (!this.engine.powered && this.selection !== null) {
+      if (this.selection !== null) {
         event.preventDefault()
         this.removeSelected()
       }
+      return
+    }
+
+    const tool = SHORTCUT_TOOLS[event.key.toLowerCase()]
+    if (tool !== undefined) {
+      event.preventDefault()
+      this.setTool(tool)
     }
   }
 
@@ -566,6 +758,50 @@ export class Editor {
     this.engine.setPressed(press.id, press.previous)
     this.evaluate()
     this.refresh()
+  }
+
+  /**
+   * Termina el arrastre de un símbolo, si lo había.
+   *
+   * Se llama al final del gesto y también al encender la corriente, que cancela lo que hubiera
+   * a medias: en los dos casos la acción abierta tiene que cerrarse. Si el arrastre no movió
+   * nada, `endChange` la descarta sola y el historial no se entera.
+   */
+  private endDrag(): void {
+    const dragging = this.drag !== null
+    this.drag = null
+    if (dragging) {
+      this.diagram.endChange()
+    }
+  }
+
+  /** Empieza a tender un cable desde un punto, con el cursor ya en su sitio. */
+  private startWire(from: GridPoint, cursor: GridPoint): void {
+    this.wire = { from }
+    this.cursor = cursor
+    this.emitWiring(true)
+  }
+
+  /** Termina de tender un cable, se suelte donde se suelte. */
+  private endWire(): void {
+    this.wire = null
+    this.cursor = null
+    this.emitWiring(false)
+  }
+
+  /**
+   * Avisa de si se está cableando.
+   *
+   * Cablear y arrastrar empiezan igual —apretar y tirar—, así que el cursor tiene que decir
+   * cuál de los dos gestos es: mientras se tiende un cable es **la flecha**, no la mano. Solo
+   * se avisa cuando cambia de verdad, para no tocar la barra en cada fotograma.
+   */
+  private emitWiring(wiring: boolean): void {
+    if (wiring === this.wiring) {
+      return
+    }
+    this.wiring = wiring
+    this.callbacks.onWiringChange?.(wiring)
   }
 
   private select(id: Id | null): void {
@@ -673,5 +909,71 @@ export class Editor {
     )
 
     this.callbacks.onZoom?.(Math.round(this.camera.zoom * 100))
+    this.emitHistory()
   }
+
+  /**
+   * Avisa de si se puede deshacer o rehacer.
+   *
+   * Va al final de cada `refresh` porque el historial cambia **después** de que el documento
+   * avise del cambio: la acción se apila al cerrarse, y hasta entonces el cambio ya se ha
+   * contado. Deducirlo de los avisos del documento daría un botón apagado justo cuando hay algo
+   * que deshacer. Solo se avisa cuando el par cambia, y no en cada fotograma.
+   */
+  private emitHistory(): void {
+    const canUndo = this.diagram.canUndo
+    const canRedo = this.diagram.canRedo
+    if (canUndo === this.history.canUndo && canRedo === this.history.canRedo) {
+      return
+    }
+    this.history = { canUndo, canRedo }
+    this.callbacks.onHistoryChange?.(this.history)
+  }
+}
+
+/**
+ * Los atajos de una tecla a cada herramienta. Son los mismos que anuncia el `title` de cada
+ * botón de la barra, que es donde la gente los busca: `S` seleccionar, `E` borrador, `B`
+ * interruptor, `A` compuerta AND y `L` LED.
+ */
+const SHORTCUT_TOOLS: Readonly<Record<string, Tool | undefined>> = {
+  s: 'select',
+  e: 'erase',
+  b: 'button',
+  a: 'and',
+  l: 'led',
+}
+
+/**
+ * Los cables que cuelgan de los pines de un dispositivo.
+ *
+ * Se mira pin a pin: un cable está colgando de una pieza si **una de sus dos puntas** cae justo
+ * encima de uno de sus pines. Los pines no se guardan en el dispositivo —`layout.ts` los deduce
+ * del tipo y del tamaño— así que la cuenta se hace preguntando por sitios, no por nombres.
+ */
+function attachedWires(elements: readonly Element[], device: Gate | Button): Wire[] {
+  const pins = new Set(placedPins(device).map((placed) => pointKey(placed.point)))
+  const found: Wire[] = []
+
+  for (const element of elements) {
+    if (element.kind !== 'wire') {
+      continue
+    }
+    if (pins.has(pointKey(element.p1)) || pins.has(pointKey(element.p2))) {
+      found.push(element)
+    }
+  }
+
+  return found
+}
+
+/** ¿El evento viene de un campo de texto? Entonces los atajos no pintan nada. */
+function isTextEntry(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+  if (target.isContentEditable) {
+    return true
+  }
+  return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT'
 }

@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "description": "Simulador de circuitos lógicos digitales en el navegador. Reescritura web de LogicCircuit (C#/WPF) en TypeScript y Canvas 2D, con capas y temas.",
   "license": "Apache-2.0",
-  "author": "Sebastian Aguero",
+  "author": "Sebastián Agüero",
   "keywords": [
     "logic-simulator",
     "digital-logic",

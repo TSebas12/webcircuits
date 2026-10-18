@@ -1,16 +1,16 @@
 WebCircuits
-Copyright 2026 Sebastian Aguero
+Copyright 2026 Sebastián Agüero
 
 This product is a derivative work of LogicCircuit (https://www.logiccircuit.org)
 and includes software developed by LogicCircuit.org.
 
 
 -------------------------------------------------------------------------------
-AVISO DE COPYRIGHT DE LA OBRA ORIGINAL (RETENIDO)
+RETAINED COPYRIGHT NOTICE OF THE ORIGINAL WORK
 -------------------------------------------------------------------------------
 
-Lo que sigue es el aviso que acompaña al código original, en su fichero
-"Sources/License.txt", reproducido literalmente:
+The text below is the notice that accompanies the original source code, in its
+file "Sources/License.txt", reproduced verbatim:
 
     Copyright 2026 LogicCircuit.org
 
@@ -28,64 +28,66 @@ Lo que sigue es el aviso que acompaña al código original, en su fichero
 
 
 -------------------------------------------------------------------------------
-OBRA ORIGINAL
+ORIGINAL WORK
 -------------------------------------------------------------------------------
 
-    Proyecto             LogicCircuit
-    Autoría              LogicCircuit.org
-    Web                  https://www.logiccircuit.org
-    Código               https://github.com/eugenelepekhin/LogicCircuit
-    Commit de referencia 1077664f9d9c5f18abece41ba00f5c58cd64fc00
-    Versión de referencia 2.26.09.10
-    Licencia             Apache License 2.0
-
-
--------------------------------------------------------------------------------
-DECLARACIÓN DE CAMBIOS (Apache License 2.0, apartado 4.b)
--------------------------------------------------------------------------------
-
-La obra original no incluye fichero NOTICE, de modo que este documento no
-reproduce ninguno. Existe para dos cosas que el apartado 4.b de la licencia
-exige a toda obra derivada: retener el aviso de copyright de arriba y declarar
-los cambios realizados.
-
-WebCircuits no es una copia del original: es una reimplementación. Se ha
-reescrito de C#/WPF a TypeScript sobre Canvas 2D para que se ejecute en el
-navegador en lugar de en Windows. Resumen de los cambios:
-
-1. Lenguaje y plataforma. C# y WPF (Windows) se sustituyen por TypeScript y
-   Canvas 2D (navegador). El motor de simulación usa máscaras de bits en lugar
-   de la representación del original.
-
-2. Punto de partida. El código se leyó y tradujo desde el commit fijado arriba.
-   No se ha copiado código compilado ni binarios.
-
-3. Qué se conserva del original, a propósito. El modelo de datos, la semántica
-   de simulación, el formato de fichero ".CircuitProject", la geometría de la
-   rejilla y el comportamiento de pines y compuertas son fieles al original,
-   para que los circuitos ya existentes se comporten igual.
-
-4. Qué se ha reescrito por completo. Toda la interfaz: colores, tipografías,
-   paneles, menús, iconos y animaciones son nuevos y no pretenden imitar los
-   del original.
-
-5. Funciones que el original no tiene, y que se han añadido: capas con
-   visibilidad independiente, temas y colores configurables, gestión de
-   ficheros propia del navegador, síntesis de circuito a partir de una tabla de
-   verdad, análisis de retardos de propagación, buses que no se saturan, reloj
-   determinista y modo didáctico.
-
-6. Elementos derivados directamente de la obra original. Las gramáticas ANTLR
-   (.g4) y los esquemas XSD proceden de la fuente original.
-
-7. Nombre. Se ha cambiado por "WebCircuits". Apache License 2.0 no concede
-   derechos de marca, así que seguir usando el nombre "LogicCircuit" habría
-   sido inapropiado.
+    Project            LogicCircuit
+    Authorship         LogicCircuit.org
+    Website            https://www.logiccircuit.org
+    Source             https://github.com/eugenelepekhin/LogicCircuit
+    Reference commit   1077664f9d9c5f18abece41ba00f5c58cd64fc00
+    Reference version  2.26.09.10
+    License            Apache License 2.0
 
 
 -------------------------------------------------------------------------------
-DEPENDENCIAS DE TERCEROS
+STATEMENT OF CHANGES (Apache License 2.0, section 4.b)
 -------------------------------------------------------------------------------
 
-El listado completo de dependencias, sus licencias y para qué se usa cada una
-está en "docs/THIRD-PARTY.md".
+The original work includes no NOTICE file, so this document does not reproduce
+one. It exists for the two things section 4.b of the license requires of any
+derivative work: retaining the copyright notice above and stating the changes
+made.
+
+WebCircuits is not a copy of the original: it is a reimplementation. It has
+been rewritten from C#/WPF to TypeScript on Canvas 2D so that it runs in a
+browser instead of on Windows. Summary of the changes:
+
+1. Language and platform. C# and WPF (Windows) are replaced by TypeScript and
+   Canvas 2D (browser). The simulation engine uses bit masks instead of the
+   original's representation.
+
+2. Starting point. The code was read and translated from the commit pinned
+   above. No compiled code or binaries were copied.
+
+3. What is deliberately kept from the original. The data model, the simulation
+   semantics, the ".CircuitProject" file format, the grid geometry and the
+   behaviour of pins and gates are faithful to the original, so that existing
+   circuits behave the same way.
+
+4. What has been completely rewritten. The entire interface: colours,
+   typography, panels, menus, icons and animations are new and are not meant to
+   imitate the original's.
+
+5. Features the original does not have, which have been added: layers with
+   independent visibility, configurable themes and colours, browser-native file
+   management, circuit synthesis from a truth table, propagation-delay
+   analysis, buses that do not saturate, a deterministic clock and a teaching
+   mode.
+
+6. Elements derived directly from the original work. The ANTLR grammar files
+   (.g4) and the XSD schemas come from the original source. The grammars are
+   used only as a specification for a hand-written parser: neither generated
+   code nor the ANTLR runtime is part of WebCircuits.
+
+7. Name. It has been changed to "WebCircuits". The Apache License 2.0 grants no
+   trademark rights, so continuing to use the name "LogicCircuit" would have
+   been inappropriate.
+
+
+-------------------------------------------------------------------------------
+THIRD-PARTY DEPENDENCIES
+-------------------------------------------------------------------------------
+
+The full list of dependencies, their licences and what each one is used for is
+in "docs/THIRD-PARTY.md".

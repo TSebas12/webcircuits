@@ -5,7 +5,7 @@
 // encajan, y el que se entera si alguien cambia una firma por el camino.
 
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { Editor, type EditorCallbacks, type Tool } from '../../../src/app/editor'
+import { Editor, type EditorCallbacks, type HistoryState, type Tool } from '../../../src/app/editor'
 import { GRID_SIZE } from '../../../src/render/geometry'
 import { installFakePath2D, makeFakeContext, type FakeContext } from '../support/canvas'
 
@@ -240,7 +240,7 @@ describe('interacción con el ratón (M1-10 y M1-12)', () => {
     dispose()
   })
 
-  it('`Supr` borra lo seleccionado', () => {
+  it('`Supr` borra lo seleccionado, y si es un símbolo se lleva sus cables (M2-21)', () => {
     const { editor, canvas, dispose } = mount()
     editor.loadExample()
 
@@ -258,8 +258,14 @@ describe('interacción con el ratón (M1-10 y M1-12)', () => {
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }))
 
-    expect(editor.diagram.count).toBe(before - 1)
+    // Se van el LED **y el cable que le llegaba**: el criterio de «hecho» de M2-21 es justo
+    // ese, que no queden cables huérfanos apuntando a una pieza que ya no está.
+    expect(editor.diagram.count).toBe(before - 2)
     expect(editor.diagram.get(led.id)).toBeUndefined()
+    const dangling = editor.diagram.elements.filter(
+      (element) => element.kind === 'wire' && element.p2.x === 14 && element.p2.y === 4,
+    )
+    expect(dangling).toHaveLength(0)
 
     dispose()
   })
@@ -526,6 +532,317 @@ describe('los pines se ven', () => {
     editor.setPowered(true)
 
     expect(dotCount()).toBe(0)
+
+    dispose()
+  })
+})
+
+describe('deshacer y rehacer (M2-23)', () => {
+  const undo = (): void => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }))
+  }
+  const redo = (): void => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'y', ctrlKey: true }))
+  }
+
+  it('`Ctrl+Z` deshace la última colocación y `Ctrl+Y` la repone con el mismo nombre', () => {
+    const { editor, canvas, dispose } = mount()
+
+    editor.setTool('led')
+    clickAt(canvas, 10, 10)
+    const placed = editor.diagram.devices[0]
+    expect(placed).toBeDefined()
+
+    undo()
+    expect(editor.diagram.count).toBe(0)
+
+    redo()
+    expect(editor.diagram.count).toBe(1)
+    expect(editor.diagram.devices[0]?.id).toBe(placed?.id)
+
+    dispose()
+  })
+
+  it('`Ctrl+Shift+Z` también rehace, que es donde mucha gente lo tiene en los dedos', () => {
+    const { editor, canvas, dispose } = mount()
+
+    editor.setTool('and')
+    clickAt(canvas, 10, 10)
+
+    undo()
+    expect(editor.diagram.count).toBe(0)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, shiftKey: true }))
+    expect(editor.diagram.count).toBe(1)
+
+    dispose()
+  })
+
+  it('un arrastre entero es **un** deshacer, y devuelve la pieza a su sitio', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+
+    const gate = editor.diagram.devices.find(
+      (device) => device.kind === 'gate' && device.gateType === 'and',
+    )
+    expect(gate).toBeDefined()
+    if (gate === undefined) {
+      return
+    }
+
+    dragFromTo(canvas, screenOf(9, 3), screenOf(6, 4))
+
+    undo()
+
+    // Ni un paso atrás del arrastre: la pieza vuelve a donde estaba **antes de agarrarla**, y el
+    // resto del ejemplo sigue entero.
+    const back = editor.diagram.get(gate.id)
+    expect(back?.kind === 'gate' ? back.position : null).toEqual({ x: 8, y: 2 })
+    expect(editor.diagram.count).toBe(7)
+
+    dispose()
+  })
+
+  it('cargar el ejemplo es **una sola** acción, aunque coloque siete cosas', () => {
+    const { editor, dispose } = mount()
+    editor.loadExample()
+    expect(editor.diagram.count).toBe(7)
+
+    undo()
+
+    expect(editor.diagram.count).toBe(0)
+
+    dispose()
+  })
+
+  it('con la corriente puesta no se deshace, porque tampoco se edita', () => {
+    const { editor, canvas, dispose } = mount()
+
+    editor.setTool('and')
+    clickAt(canvas, 10, 10)
+    editor.setPowered(true)
+
+    undo()
+
+    expect(editor.diagram.count).toBe(1)
+
+    dispose()
+  })
+
+  it('avisa de cuándo se puede deshacer y rehacer, para que la barra encienda sus botones', () => {
+    const history: HistoryState[] = []
+    const { editor, canvas, dispose } = mount({
+      onHistoryChange: (state) => history.push(state),
+    })
+
+    editor.setTool('led')
+    clickAt(canvas, 10, 10)
+    expect(history.at(-1)).toEqual({ canUndo: true, canRedo: false })
+
+    editor.undo()
+    expect(history.at(-1)).toEqual({ canUndo: false, canRedo: true })
+
+    dispose()
+  })
+})
+
+describe('el borrador y el borrado con cables (M2-21)', () => {
+  it('un clic se lleva lo que toca, con los cables que colgaban de ello', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+    editor.setTool('erase')
+
+    // Dentro de la AND, que va de (8,2) a (11,6): se van ella y sus tres cables.
+    clickAt(canvas, 9, 3)
+
+    expect(editor.diagram.count).toBe(3)
+    const remaining = editor.diagram.devices.filter(
+      (device) => device.kind === 'gate' && device.gateType === 'and',
+    )
+    expect(remaining).toHaveLength(0)
+
+    dispose()
+  })
+
+  it('es un modo y no una acción suelta: sigue puesto después de borrar', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+
+    editor.setTool('erase')
+    clickAt(canvas, 9, 3)
+
+    expect(editor.currentTool).toBe('erase')
+
+    dispose()
+  })
+
+  it('con el borrador, un cable se borra él solo y las piezas no se tocan', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+    editor.setTool('erase')
+    const before = editor.diagram.count
+
+    // En mitad del cable (4,3)→(8,3).
+    clickAt(canvas, 6, 3)
+
+    expect(editor.diagram.count).toBe(before - 1)
+    expect(editor.diagram.devices).toHaveLength(4)
+
+    dispose()
+  })
+
+  it('sobre el vacío no borra nada', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+    editor.setTool('erase')
+
+    clickAt(canvas, 30, 30)
+
+    expect(editor.diagram.count).toBe(7)
+
+    dispose()
+  })
+
+  it('la pieza y sus cables vuelven juntos al deshacer', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+    editor.setTool('erase')
+
+    clickAt(canvas, 9, 3)
+    expect(editor.diagram.count).toBe(3)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }))
+
+    // Cuatro cosas de una vez. Si cada una fuera su propia acción, el primer `Ctrl+Z` repondría
+    // la AND dejando los cables sin reponer (o al revés).
+    expect(editor.diagram.count).toBe(7)
+
+    dispose()
+  })
+
+  it('si lo borrado era lo seleccionado, la selección se queda limpia', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+
+    clickAt(canvas, 9, 3) // se selecciona la AND
+    expect(editor.selection).not.toBeNull()
+
+    editor.setTool('erase')
+    clickAt(canvas, 9, 3) // y se va con el borrador
+
+    expect(editor.selection).toBeNull()
+
+    dispose()
+  })
+})
+
+describe('atajos de teclado', () => {
+  function press(key: string, options: KeyboardEventInit = {}): void {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key, ...options }))
+  }
+
+  it('una tecla por herramienta: `S`, `E`, `B`, `A` y `L`', () => {
+    const { editor, dispose } = mount()
+
+    const cases: readonly (readonly [string, Tool])[] = [
+      ['e', 'erase'],
+      ['b', 'button'],
+      ['a', 'and'],
+      ['l', 'led'],
+      ['s', 'select'],
+    ]
+    for (const [key, tool] of cases) {
+      press(key)
+      expect(editor.currentTool).toBe(tool)
+    }
+
+    dispose()
+  })
+
+  it('`P` enciende y apaga la corriente desde cualquier modo', () => {
+    const { editor, dispose } = mount()
+
+    editor.setTool('led')
+    press('p')
+    expect(editor.isPowered).toBe(true)
+
+    // Con corriente el atajo de herramienta no responde, pero `P` sí: es la salida del modo.
+    press('a')
+    expect(editor.currentTool).toBe('led')
+
+    press('p')
+    expect(editor.isPowered).toBe(false)
+
+    dispose()
+  })
+
+  it('mantener pulsada la tecla de la corriente no la deja parpadeando', () => {
+    const { editor, dispose } = mount()
+
+    press('p', { repeat: true })
+    expect(editor.isPowered).toBe(false)
+
+    dispose()
+  })
+
+  it('los atajos no se comen lo que se escribe en un campo de texto', () => {
+    const { editor, dispose } = mount()
+    const input = document.createElement('input')
+    document.body.append(input)
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }))
+
+    expect(editor.currentTool).toBe('select')
+
+    input.remove()
+    dispose()
+  })
+})
+
+describe('el cursor dice qué se va a hacer', () => {
+  it('al empezar a cablear avisa, y al soltar también: es lo que pone la flecha en vez de la mano', () => {
+    const wiring: boolean[] = []
+    const { editor, canvas, dispose } = mount({ onWiringChange: (on) => wiring.push(on) })
+    editor.loadExample()
+
+    // Desde el pin de salida del primer interruptor (4,3).
+    canvas.dispatchEvent(pointer('pointerdown', screenOf(4, 3)))
+    expect(wiring).toEqual([true])
+
+    // Al moverse no se repite el aviso: es un cambio de estado, no de posición.
+    canvas.dispatchEvent(pointer('pointermove', screenOf(4, 10)))
+    expect(wiring).toEqual([true])
+
+    canvas.dispatchEvent(pointer('pointerup', screenOf(4, 10)))
+    expect(wiring).toEqual([true, false])
+
+    dispose()
+  })
+
+  it('cancelar el cable con `Esc` también termina el aviso, y no deja cable', () => {
+    const wiring: boolean[] = []
+    const { editor, canvas, dispose } = mount({ onWiringChange: (on) => wiring.push(on) })
+    editor.loadExample()
+
+    canvas.dispatchEvent(pointer('pointerdown', screenOf(4, 3)))
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+
+    expect(wiring).toEqual([true, false])
+    expect(editor.diagram.count).toBe(7)
+
+    dispose()
+  })
+
+  it('encender la corriente en mitad del gesto también lo corta', () => {
+    const wiring: boolean[] = []
+    const { editor, canvas, dispose } = mount({ onWiringChange: (on) => wiring.push(on) })
+    editor.loadExample()
+
+    canvas.dispatchEvent(pointer('pointerdown', screenOf(4, 3)))
+    editor.setPowered(true)
+
+    expect(wiring).toEqual([true, false])
+    expect(editor.diagram.count).toBe(7)
 
     dispose()
   })
