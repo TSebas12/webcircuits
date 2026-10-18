@@ -17,7 +17,14 @@
 import { GRID_SIZE } from './geometry'
 import { rotationAngle, rotationCenter } from '../core/model/layout'
 import { symbolDrawing } from './symbols'
-import type { DeviceState, DrawDevice, DrawPinDot, DrawWire, RenderTheme } from './ir-renderer'
+import type {
+  DeviceState,
+  DrawDevice,
+  DrawJunction,
+  DrawPinDot,
+  DrawWire,
+  RenderTheme,
+} from './ir-renderer'
 
 /** Grosor de trazo, en píxeles con zoom 1. El original usa 1 px. */
 const STROKE_PX = 1.5
@@ -25,8 +32,16 @@ const STROKE_PX = 1.5
 /** El mismo grosor, pero en unidades de rejilla: así sirve con cualquier zoom. */
 const STROKE = STROKE_PX / GRID_SIZE
 
-/** Radio del punto de un pin, en unidades de rejilla (original: `Symbol.PinRadius = 3`). */
+/**
+ * Radio del punto de un pin, en unidades de rejilla (original: `Symbol.PinRadius = 3`).
+ *
+ * El punto de unión usa el mismo radio, y no es casualidad: el original dibuja el *solder*
+ * con `2 * Symbol.PinRadius` de diámetro, o sea el mismo tamaño que un pin.
+ */
 const PIN_DOT_RADIUS = 3 / GRID_SIZE
+
+/** Cuánto crece un pin mientras se tiende un cable, para que se vea dónde acabar. */
+const EMPHASIZED_PIN_SCALE = 1.7
 
 /** Radio del halo del LED encendido, en píxeles de pantalla. */
 const GLOW_PX = 6
@@ -103,14 +118,34 @@ export function drawDevice(
   ctx.restore()
 }
 
+/**
+ * El punto donde se juntan tres o más cables.
+ *
+ * Va del color del cable, igual que en el original: allí `WireStroke` y `JamDirectFill` son
+ * **el mismo pincel** (`Brushes.Black`), así que la unión no se distingue del cable por
+ * color sino por ser un punto más grueso que el trazo.
+ */
+export function drawJunction(
+  ctx: CanvasRenderingContext2D,
+  junction: DrawJunction,
+  theme: RenderTheme,
+): void {
+  ctx.beginPath()
+  ctx.arc(junction.point.x, junction.point.y, PIN_DOT_RADIUS, 0, Math.PI * 2)
+  ctx.fillStyle = theme.wire
+  ctx.fill()
+}
+
 /** Dibuja el punto de un pin. */
 export function drawPinDot(
   ctx: CanvasRenderingContext2D,
   dot: DrawPinDot,
   theme: RenderTheme,
 ): void {
+  const radius = dot.emphasized === true ? PIN_DOT_RADIUS * EMPHASIZED_PIN_SCALE : PIN_DOT_RADIUS
+
   ctx.beginPath()
-  ctx.arc(dot.point.x, dot.point.y, PIN_DOT_RADIUS, 0, Math.PI * 2)
+  ctx.arc(dot.point.x, dot.point.y, radius, 0, Math.PI * 2)
   ctx.fillStyle = dot.connected ? theme.wire : theme.pinDot
   ctx.fill()
 }

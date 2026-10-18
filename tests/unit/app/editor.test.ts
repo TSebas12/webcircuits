@@ -5,7 +5,7 @@
 // encajan, y el que se entera si alguien cambia una firma por el camino.
 
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { Editor } from '../../../src/app/editor'
+import { Editor, type EditorCallbacks, type Tool } from '../../../src/app/editor'
 import { GRID_SIZE } from '../../../src/render/geometry'
 import { installFakePath2D, makeFakeContext, type FakeContext } from '../support/canvas'
 
@@ -67,7 +67,11 @@ function flushFrames(): void {
   }
 }
 
-function mount(): { editor: Editor; canvas: HTMLCanvasElement; dispose: () => void } {
+function mount(callbacks: EditorCallbacks = {}): {
+  editor: Editor
+  canvas: HTMLCanvasElement
+  dispose: () => void
+} {
   const canvas = document.createElement('canvas')
   document.body.append(canvas)
   // jsdom no implementa la captura de puntero.
@@ -75,7 +79,7 @@ function mount(): { editor: Editor; canvas: HTMLCanvasElement; dispose: () => vo
   canvas.releasePointerCapture = (): void => {}
   canvas.hasPointerCapture = (): boolean => false
 
-  const editor = new Editor()
+  const editor = new Editor(callbacks)
   editor.mount(canvas)
 
   return {
@@ -86,6 +90,18 @@ function mount(): { editor: Editor; canvas: HTMLCanvasElement; dispose: () => vo
       canvas.remove()
     },
   }
+}
+
+/** Cuántos puntos ha pedido dibujar el lienzo: pines y uniones. Los dibuja con `arc`. */
+function dotCount(): number {
+  context.calls.length = 0
+  flushFrames()
+  return context.named('arc').length
+}
+
+/** Aleja la vista lo suficiente para que los pines libres dejen de dibujarse. */
+function zoomOut(canvas: HTMLCanvasElement): void {
+  canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: 1200, bubbles: true, cancelable: true }))
 }
 
 /** Un `pointerdown`/`pointermove`/`pointerup` en píxeles de cliente. */
@@ -204,7 +220,7 @@ describe('interacción con el ratón (M1-10 y M1-12)', () => {
     dispose()
   })
 
-  it('un clic en un interruptor lo conmuta y el LED se enciende', () => {
+  it('un clic en un interruptor lo elige, y sin corriente no lo pulsa', () => {
     const { editor, canvas, dispose } = mount()
     editor.loadExample()
 
@@ -212,12 +228,14 @@ describe('interacción con el ratón (M1-10 y M1-12)', () => {
     clickAt(canvas, 3, 3)
     clickAt(canvas, 3, 5)
 
+    // Sin corriente no se pulsa nada: en modo edición el clic elige la pieza, que es lo que
+    // hace falta para poder moverla. Para probar el circuito hay que dar corriente (se
+    // comprueba más abajo, en su bloque).
+    expect(editor.selection).not.toBeNull()
+
     context.calls.length = 0
     flushFrames()
-
-    // Si la simulación llegó al LED, alguna operación de relleno usó el color de encendido.
-    const lit = context.named('fill').some((call) => call.fillStyle === '#ff4a1f')
-    expect(lit).toBe(true)
+    expect(context.named('fill').some((call) => call.fillStyle === '#ff4a1f')).toBe(false)
 
     dispose()
   })
@@ -258,9 +276,256 @@ describe('interacción con el ratón (M1-10 y M1-12)', () => {
     const placed = editor.diagram.devices[0]
     expect(placed?.kind === 'gate' ? placed.position : null).toEqual({ x: 9, y: 8 })
 
-    // Otro clic en el mismo sitio no apila nada.
+    // Otro clic en el mismo sitio no apila nada: cae sobre el símbolo, y ahí el clic
+    // interactúa con él. Se comprueba a fondo en el bloque siguiente.
     clickAt(canvas, 10, 10)
     expect(editor.diagram.count).toBe(1)
+    expect(editor.selection).toBe(placed?.id)
+
+    dispose()
+  })
+})
+
+describe('la herramienta de colocación ya no se come los clics', () => {
+  it('con ∧ puesta, un clic en un interruptor lo elige y no coloca nada', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+
+    // Éste era el fallo: la herramienta se queda puesta después de colocar, así que el clic
+    // intentaba poner otro símbolo encima, se encontraba la celda ocupada y **no hacía nada
+    // en absoluto**: ni colocaba ni elegía. El interruptor parecía muerto.
+    const before = editor.diagram.count
+    const button = editor.diagram.devices.find((device) => device.kind === 'button')
+    expect(button).toBeDefined()
+    if (button === undefined) {
+      return
+    }
+
+    editor.setTool('and')
+    clickAt(canvas, 3, 3) // centro del interruptor de arriba
+
+    expect(editor.diagram.count).toBe(before)
+    expect(editor.selection).toBe(button.id)
+
+    dispose()
+  })
+
+  it('con ∧ puesta, un clic en el vacío sí coloca', () => {
+    const { editor, canvas, dispose } = mount()
+
+    editor.setTool('and')
+    clickAt(canvas, 10, 10)
+
+    expect(editor.diagram.count).toBe(1)
+
+    dispose()
+  })
+
+  it('con ∧ puesta, un clic sobre un cable coloca igual: un cable es demasiado fino', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+
+    const before = editor.diagram.count
+    editor.setTool('and')
+
+    // (6,3) cae en mitad del cable que va del interruptor a la AND. Acertar un cable tan
+    // fino cuando se está colocando sería una molestia, así que ahí manda la herramienta.
+    clickAt(canvas, 6, 3)
+
+    expect(editor.diagram.count).toBe(before + 1)
+
+    dispose()
+  })
+})
+
+describe('los dos modos los gobierna la corriente (fidelidad del original)', () => {
+  it('arranca apagado, o sea en modo edición', () => {
+    const { editor, dispose } = mount()
+
+    // En el original `Editor.Power` es `CircuitRunner != null`: no hay corriente hasta que el
+    // usuario la enciende, así que la aplicación abre en modo edición.
+    expect(editor.isPowered).toBe(false)
+
+    dispose()
+  })
+
+  it('con la corriente apagada, el LED no se pinta encendido', () => {
+    const { editor, dispose } = mount()
+    editor.loadExample()
+
+    context.calls.length = 0
+    flushFrames()
+
+    // Éste era el susto: al abrir la aplicación todo salía con el color de «hay corriente»,
+    // y el LED en 0 es de un rojo oscuro que parece encendido. Apagada, el LED se pinta con
+    // el color de «sin corriente» y no queda ninguna duda.
+    const fills = context.named('fill').map((call) => call.fillStyle)
+    expect(fills).toContain('#b7c9b8')
+    expect(fills).not.toContain('#ff4a1f')
+
+    dispose()
+  })
+
+  it('con la corriente puesta, el clic en un interruptor lo pulsa y el LED se enciende', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+    editor.setPowered(true)
+
+    clickAt(canvas, 3, 3)
+    clickAt(canvas, 3, 5)
+
+    context.calls.length = 0
+    flushFrames()
+    expect(context.named('fill').some((call) => call.fillStyle === '#ff4a1f')).toBe(true)
+
+    dispose()
+  })
+
+  it('con la corriente puesta no se mueve, ni se coloca, ni se elige nada', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+    const before = editor.diagram.count
+
+    const gate = editor.diagram.devices.find(
+      (device) => device.kind === 'gate' && device.gateType === 'and',
+    )
+    expect(gate).toBeDefined()
+    if (gate === undefined) {
+      return
+    }
+
+    editor.setPowered(true)
+
+    // Arrastrar un símbolo no lo mueve: el gesto acaba desplazando la vista, que eso no toca
+    // el circuito. Es el `InEditMode` del original, que desactiva la edición entera.
+    dragFromTo(canvas, screenOf(9, 3), screenOf(6, 4))
+    const still = editor.diagram.get(gate.id)
+    expect(still?.kind === 'gate' ? still.position : null).toEqual({ x: 8, y: 2 })
+    expect(editor.selection).toBeNull()
+
+    // Un clic en el vacío tampoco coloca.
+    clickAt(canvas, 20, 20)
+    expect(editor.diagram.count).toBe(before)
+
+    dispose()
+  })
+
+  it('con la corriente puesta, `Supr` tampoco borra', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+
+    clickAt(canvas, 15, 4) // el LED
+    expect(editor.selection).not.toBeNull()
+
+    const before = editor.diagram.count
+    editor.setPowered(true)
+    // Dar corriente quita la selección, así que el `Supr` de después va «a ciegas»: lo que se
+    // comprueba es que la tecla no hace nada mientras el circuito corre.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }))
+
+    expect(editor.diagram.count).toBe(before)
+
+    dispose()
+  })
+
+  it('dar corriente quita la selección: si no se puede editar, nada debe verse marcado', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+
+    clickAt(canvas, 9, 3) // selecciona la AND
+    expect(editor.selection).not.toBeNull()
+
+    editor.setPowered(true)
+
+    expect(editor.selection).toBeNull()
+
+    dispose()
+  })
+
+  it('apagar y encender no olvida los interruptores: al volver, el LED sigue encendido', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+    editor.setPowered(true)
+
+    clickAt(canvas, 3, 3)
+    clickAt(canvas, 3, 5)
+
+    editor.setPowered(false)
+    editor.setPowered(true)
+
+    context.calls.length = 0
+    flushFrames()
+    expect(context.named('fill').some((call) => call.fillStyle === '#ff4a1f')).toBe(true)
+
+    dispose()
+  })
+})
+
+describe('la herramienta avisa cuando cambia', () => {
+  it('`Esc` vuelve a «seleccionar» y lo comunica, para que la barra no se quede desfasada', () => {
+    const changes: Tool[] = []
+    const { editor, dispose } = mount({ onToolChange: (value) => changes.push(value) })
+
+    editor.setTool('and')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+
+    expect(editor.currentTool).toBe('select')
+    expect(changes).toEqual(['and', 'select'])
+
+    dispose()
+  })
+
+  it('elegir la herramienta que ya está puesta no avisa de nada', () => {
+    const changes: Tool[] = []
+    const { editor, dispose } = mount({ onToolChange: (value) => changes.push(value) })
+
+    editor.setTool('select')
+
+    expect(changes).toEqual([])
+
+    dispose()
+  })
+})
+
+describe('los pines se ven', () => {
+  it('un pin libre se dibuja de cerca, desaparece de lejos y vuelve al cablearlo', () => {
+    const { editor, canvas, dispose } = mount()
+    // Un interruptor suelto: su único pin no tiene nada.
+    editor.diagram.addButton({ x: 2, y: 2 }, { isToggle: true })
+
+    expect(dotCount()).toBe(1)
+
+    zoomOut(canvas)
+    expect(dotCount()).toBe(0)
+
+    // Con un cable encima pasa a estar conectado, y entonces se dibuja a cualquier zoom.
+    editor.diagram.addWire({ x: 4, y: 3 }, { x: 9, y: 3 })
+    expect(dotCount()).toBe(1)
+
+    dispose()
+  })
+
+  it('los conectados no se pierden al alejarse, porque esos sí dicen algo', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+
+    zoomOut(canvas)
+
+    // El ejemplo tiene seis pines y los seis están cableados: los seis siguen ahí.
+    expect(dotCount()).toBe(6)
+
+    dispose()
+  })
+
+  it('con la corriente puesta no se dibuja ninguno, porque con corriente no se cablea', () => {
+    const { editor, dispose } = mount()
+    // Un interruptor suelto con su pin libre: en modo edición se ve.
+    editor.diagram.addButton({ x: 2, y: 2 }, { isToggle: true })
+    expect(dotCount()).toBe(1)
+
+    editor.setPowered(true)
+
+    expect(dotCount()).toBe(0)
 
     dispose()
   })

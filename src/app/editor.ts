@@ -23,13 +23,28 @@
  * | Arrastrar desde un pin           | tiende un cable                   |
  * | `Supr` / `Retroceso`             | borra lo seleccionado             |
  * | `Esc`                            | cancela y vuelve a «seleccionar»  |
+ *
+ * Con una herramienta de colocación activa, el clic coloca… **salvo que caiga sobre un
+ * símbolo**, y entonces interactúa con él. Eso no es un capricho: la herramienta se queda
+ * puesta después de colocar, así que si el clic se lo tragara, pulsar un interruptor recién
+ * puesto no haría nada y parecería que el programa se ha muerto.
+ *
+ * Y por encima de todo eso están los **dos modos**, que gobierna la corriente:
+ *
+ * - **Apagada (edición)**: todo lo de la tabla de arriba, y ningún dispositivo encendido.
+ *   Es como abre la aplicación, y es fiel: en el original `Editor.Power` es
+ *   `CircuitRunner != null`, así que hasta que no se enciende no hay corriente.
+ * - **Puesta (ejecución)**: el circuito corre y **no se edita nada**. El clic solo pulsa
+ *   interruptores, `Supr` no borra y las herramientas se desactivan; el resto del lienzo
+ *   sirve para desplazar la vista. Es el modo de prueba que pedía el usuario, y es el
+ *   `InEditMode` del original, que desactiva la edición entera mientras el circuito corre.
  */
 
 import { Diagram } from '../core/model/diagram'
 import { gateLayout, placedPins } from '../core/model/layout'
-import { pointKey } from '../core/simulate/nets'
+import { connectionCounts, pointKey } from '../core/simulate/nets'
 import { MiniEngine, emptySimulationState, type SimulationState } from '../core/simulate/engine'
-import type { GridPoint, Id } from '../core/model/types'
+import type { Button, GridPoint, Id } from '../core/model/types'
 import { Camera } from '../render/camera'
 import { Canvas2DRenderer } from '../render/canvas2d'
 import { hitTest } from '../render/hit-test'
@@ -37,8 +52,20 @@ import type { DrawPinDot, DrawWire, RendererStats } from '../render/ir-renderer'
 import { buildScene } from '../render/scene'
 import { readTheme, watchTheme } from '../render/theme-bridge'
 
-/** Qué se está colocando. Con «seleccionar» los clics eligen cosas en vez de crear. */
-export type Tool = 'select' | 'button' | 'and' | 'led'
+/** Qué coloca una herramienta. */
+export type PlaceTool = 'button' | 'and' | 'led'
+
+/**
+ * La herramienta activa.
+ *
+ * `select` es la de trabajo —elegir, mover y cablear— y las de colocación ponen un símbolo
+ * nuevo con cada clic.
+ *
+ * ⚠️ **No hay herramienta de «modo prueba»**: ya existe, y es el botón de corriente. Con la
+ * corriente apagada se edita; con la corriente puesta no se toca nada y el clic solo pulsa
+ * interruptores. Ver [`Tool`] y `onPointerDown`.
+ */
+export type Tool = 'select' | PlaceTool
 
 /** A partir de cuántas unidades de rejilla un clic se convierte en un arrastre. */
 const DRAG_THRESHOLD = 0.45
@@ -50,11 +77,26 @@ const WHEEL_SENSITIVITY = 0.0015
 const INITIAL_PADDING_X = 24
 const INITIAL_PADDING_Y = 80
 
+/**
+ * Por debajo de este zoom, los pines **libres** dejan de dibujarse.
+ *
+ * Un pin libre es un punto gris de 3 px: con veinte símbolos y la vista alejada son sesenta
+ * motas que no informan de nada y ensucian el dibujo. Los conectados se ven siempre, porque
+ * esos sí dicen algo. Igual que la rejilla, que también desaparece de cerca, esto es una
+ * decisión de dibujado y no afecta al modelo.
+ */
+const FREE_PIN_MIN_ZOOM = 0.5
+
 export interface EditorCallbacks {
   readonly onStats?: (stats: RendererStats) => void
   readonly onZoom?: (percent: number) => void
   readonly onSelectionChange?: (id: Id | null) => void
   readonly onPoweredChange?: (powered: boolean) => void
+  /**
+   * La herramienta ha cambiado. Hace falta porque el editor también la cambia por su cuenta
+   * (con `Esc`), y si no avisara, la barra de herramientas seguiría señalando la vieja.
+   */
+  readonly onToolChange?: (tool: Tool) => void
 }
 
 /** Arrastrando un símbolo. */
@@ -180,11 +222,32 @@ export class Editor {
   // ── Órdenes de la interfaz ────────────────────────────────────────────
 
   setTool(tool: Tool): void {
+    if (this.tool === tool) {
+      return
+    }
     this.tool = tool
+    this.callbacks.onToolChange?.(tool)
   }
 
+  /**
+   * Enciende o apaga la corriente.
+   *
+   * Es el **interruptor de modo**: con corriente el circuito corre y no se edita nada; sin
+   * ella, se edita con todo apagado. Al encender se quita la selección y se cancela lo que
+   * hubiera a medias, igual que hace el original al dar corriente (`Editor.Power` llama a
+   * `CancelMove` y `ClearSelection`).
+   */
   setPowered(powered: boolean): void {
     this.engine.setPowered(powered)
+
+    if (powered) {
+      this.drag = null
+      this.wire = null
+      this.buttonPress = null
+      this.cursor = null
+      this.select(null)
+    }
+
     this.callbacks.onPoweredChange?.(powered)
     this.evaluate()
     this.refresh()
@@ -245,14 +308,34 @@ export class Editor {
 
     const world = this.worldAt(event)
     const grid = this.gridAt(event)
+    const hit = hitTest(this.diagram.elements, world)
 
-    // Con una herramienta elegida, el clic coloca y se acabó.
-    if (this.tool !== 'select') {
+    // Modo ejecución: la corriente está puesta, así que el circuito se está probando y no
+    // se edita. Es lo que hace el original (`Editor.InEditMode => !Power`: cada manejador del
+    // ratón comprueba que se está en modo edición). Aquí el clic solo pulsa interruptores; el
+    // resto del lienzo se sigue pudiendo desplazar, que eso no toca nada.
+    if (this.engine.powered) {
+      // Un pin cuenta como su símbolo: si se acierta el pin de un interruptor, se pulsa.
+      const element = hit === null || hit.kind === 'wire' ? null : hit.element
+      canvas.setPointerCapture(event.pointerId)
+
+      if (element !== null && element.kind === 'button') {
+        this.pressButton(element)
+        this.refresh()
+      } else {
+        this.pan = { lastX: event.clientX, lastY: event.clientY }
+      }
+      return
+    }
+
+    // Con una herramienta de colocación, el clic coloca… salvo que caiga sobre un símbolo,
+    // y entonces se interactúa con él. Si no, la herramienta se queda pegada y pulsar un
+    // interruptor recién puesto no haría nada, que es justo lo que pasaba.
+    if (this.tool !== 'select' && (hit === null || hit.kind !== 'device')) {
       this.place(this.tool, grid)
       return
     }
 
-    const hit = hitTest(this.diagram.elements, world)
     canvas.setPointerCapture(event.pointerId)
 
     if (hit !== null && hit.kind === 'pin') {
@@ -265,15 +348,10 @@ export class Editor {
     if (hit !== null && hit.kind === 'device') {
       this.select(hit.element.id)
 
-      if (hit.element.kind === 'button') {
-        const previous = this.engine.isPressed(hit.element.id)
-        // Un interruptor momentáneo se pone a 1 al pulsarlo; uno que se queda, se da la
-        // vuelta. Si el gesto acaba siendo un arrastre, se deshace (más abajo).
-        this.engine.setPressed(hit.element.id, hit.element.isToggle ? !previous : true)
-        this.buttonPress = { id: hit.element.id, previous }
-        this.evaluate()
-      }
-
+      // Ojo: aquí **no** se pulsa el interruptor. En modo edición un clic elige la pieza
+      // (para moverla), y el original tampoco deja pulsar con la corriente apagada: su
+      // `ButtonControl` solo avisa al circuito si está corriendo
+      // (`FunctionButton` engancha el aviso al crearse, y el motor solo existe con corriente).
       this.drag = {
         id: hit.element.id,
         grabOffset: {
@@ -398,7 +476,8 @@ export class Editor {
     }
 
     if (event.key === 'Delete' || event.key === 'Backspace') {
-      if (this.selection !== null) {
+      // Con la corriente puesta no se edita, así que tampoco se borra.
+      if (!this.engine.powered && this.selection !== null) {
         event.preventDefault()
         this.removeSelected()
       }
@@ -408,7 +487,7 @@ export class Editor {
   // ── Lo de dentro ──────────────────────────────────────────────────────
 
   /** Coloca un símbolo nuevo, centrado en la celda donde se hizo clic. */
-  private place(tool: Exclude<Tool, 'select'>, grid: GridPoint): void {
+  private place(tool: PlaceTool, grid: GridPoint): void {
     const size = tool === 'and' ? gateLayout('and', 2) : { width: 2, height: 2 }
     const position: GridPoint = {
       x: grid.x - Math.floor(size.width / 2),
@@ -446,6 +525,19 @@ export class Editor {
       }
     }
     return false
+  }
+
+  /**
+   * Pulsa un interruptor y se acuerda de cómo estaba, para poder deshacerlo.
+   *
+   * Si el gesto acaba siendo un arrastre, la pulsación no cuenta (`cancelButtonPress`), y
+   * si el interruptor es momentáneo, se suelta al levantar el botón (`finishButtonPress`).
+   */
+  private pressButton(button: Button): void {
+    const previous = this.engine.isPressed(button.id)
+    this.engine.setPressed(button.id, button.isToggle ? !previous : true)
+    this.buttonPress = { id: button.id, previous }
+    this.evaluate()
   }
 
   private finishButtonPress(): void {
@@ -534,28 +626,35 @@ export class Editor {
     const pinDots: DrawPinDot[] = []
     const sketch: DrawWire[] = []
 
-    if (this.wire !== null) {
-      // Mientras se tiende un cable, se marcan todos los pines para ver dónde se puede
-      // terminar. Los que ya tienen cable encima se pintan de otro color.
-      const used = new Set<string>()
-      for (const element of this.diagram.elements) {
-        if (element.kind === 'wire') {
-          used.add(pointKey(element.p1))
-          used.add(pointKey(element.p2))
-        }
-      }
+    // Los pines se ven siempre que se pueda cablear; con la corriente puesta no se cablea,
+    // así que sobrarían. Y en modo edición: un pin **conectado** interesa a cualquier zoom,
+    // porque es información; uno **libre** es una mota gris, así que solo se dibuja de cerca,
+    // o mientras se tiende un cable (que entonces hay que ver dónde se puede acabar).
+    const wiring = this.wire !== null
+    const showFreePins = this.camera.state.zoom >= FREE_PIN_MIN_ZOOM
+
+    if (!this.engine.powered) {
+      const counts = connectionCounts(this.diagram.elements)
+
       for (const device of this.diagram.devices) {
         for (const placed of placedPins(device)) {
+          const connected = (counts.get(pointKey(placed.point)) ?? 0) > 1
+          if (!connected && !wiring && !showFreePins) {
+            continue
+          }
           pinDots.push({
             kind: 'pinDot',
             point: placed.point,
-            connected: used.has(pointKey(placed.point)),
+            connected,
+            emphasized: wiring,
           })
         }
       }
+    }
 
+    if (wiring) {
       const end = this.snappedEnd()
-      if (end !== null) {
+      if (end !== null && this.wire !== null) {
         sketch.push({ kind: 'wire', p1: this.wire.from, p2: end, selected: false })
       }
     }

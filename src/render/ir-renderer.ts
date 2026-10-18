@@ -59,15 +59,29 @@ export interface DrawWire {
 export interface DrawPinDot {
   readonly kind: 'pinDot'
   readonly point: GridPoint
-  /** Ya tiene un cable encima. */
+  /** Ya tiene algo apoyado: un cable o otro pin. */
   readonly connected: boolean
+  /** Grande y destacado: se está tendiendo un cable y aquí se puede terminar. */
+  readonly emphasized?: boolean
+}
+
+/**
+ * El punto donde se juntan tres o más cables.
+ *
+ * En el original se llama *solder* y va el primero de todos, en `Z = 0`
+ * (`EditorDiagram.UpdateSolders`): es un remache que une cables, así que se pinta **debajo**
+ * incluso del cable.
+ */
+export interface DrawJunction {
+  readonly kind: 'junction'
+  readonly point: GridPoint
 }
 
 /**
  * Pieza a dibujar.
  * Se irán añadiendo variantes (notas de texto, buses…) sin romper nada.
  */
-export type DrawItem = DrawDevice | DrawWire | DrawPinDot
+export type DrawItem = DrawDevice | DrawWire | DrawJunction | DrawPinDot
 
 /** Todo lo que hace falta para pintar un fotograma. */
 export interface RenderScene {

@@ -52,6 +52,28 @@ describe('de modelo a piezas de dibujo', () => {
     expect(kinds).toEqual(['wire', 'device', 'device', 'device'])
   })
 
+  it('el punto de unión sale el primero de todos, por debajo incluso de los cables', () => {
+    const diagram = new Diagram()
+    // Tres cables que acaban en el mismo punto: eso es una unión de verdad, no un codo.
+    diagram.addWire({ x: 5, y: 0 }, { x: 0, y: 0 })
+    diagram.addWire({ x: 5, y: 0 }, { x: 9, y: 0 })
+    diagram.addWire({ x: 5, y: 0 }, { x: 5, y: 6 })
+
+    const items = sceneOf(diagram).items
+
+    // En el original el remache va en `Z = 0`, así que sale antes que los cables (Z = 1).
+    expect(items[0]).toEqual({ kind: 'junction', point: { x: 5, y: 0 } })
+    expect(items.filter((item) => item.kind === 'wire')).toHaveLength(3)
+  })
+
+  it('dos cables que se encuentran no llevan punto de unión', () => {
+    const diagram = new Diagram()
+    diagram.addWire({ x: 0, y: 0 }, { x: 5, y: 0 })
+    diagram.addWire({ x: 5, y: 0 }, { x: 5, y: 4 })
+
+    expect(sceneOf(diagram).items.some((item) => item.kind === 'junction')).toBe(false)
+  })
+
   it('cada símbolo lleva su tamaño, que es el que manda la geometría del modelo', () => {
     const devices = sceneOf(slice()).items.filter(
       (item): item is DrawDevice => item.kind === 'device',

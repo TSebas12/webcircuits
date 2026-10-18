@@ -10,6 +10,7 @@
  */
 
 import { deviceLayout } from '../core/model/layout'
+import { junctionPoints } from '../core/simulate/nets'
 import type { DeviceState, Element, Id } from '../core/model/types'
 import type { CameraState } from './camera'
 import type {
@@ -39,7 +40,13 @@ export interface SceneOptions {
 export function buildScene(options: SceneOptions): RenderScene {
   const items: DrawItem[] = []
 
-  // Primero los cables y después los símbolos: en el original el cable tiene Z = 1, así
+  // El punto de unión va el primero de todos: en el original está en `Z = 0`, por debajo
+  // incluso de los cables, porque es el remache que los une y no una pieza que va encima.
+  for (const point of junctionPoints(options.elements)) {
+    items.push({ kind: 'junction', point })
+  }
+
+  // Después los cables y luego los símbolos: en el original el cable tiene Z = 1, así
   // que un símbolo siempre tapa el cable que le entra por debajo.
   for (const element of options.elements) {
     if (element.kind === 'wire') {

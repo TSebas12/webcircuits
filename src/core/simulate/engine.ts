@@ -51,7 +51,17 @@ export function emptySimulationState(): SimulationState {
 export class MiniEngine {
   /** Qué interruptores están pulsados. Es lo único que el motor recuerda del usuario. */
   private readonly pressed = new Map<Id, boolean>()
-  private poweredFlag = true
+
+  /**
+   * ¿Está encendido el circuito?
+   *
+   * ⚠️ Nace **apagado**, y es fiel al original: allí `Editor.Power` se define como
+   * `CircuitRunner != null` (`Editor/Editor.cs:46`), así que no hay corriente hasta que el
+   * usuario la enciende, y `InEditMode` es `!Power`. La aplicación **abre en modo edición**,
+   * con todo sin corriente; al cargar un fichero se apaga otra vez, explícitamente
+   * (`Mainframe.File.cs:124`).
+   */
+  private poweredFlag = false
 
   /** ¿Está encendido el circuito? (original: menú Circuito → Encender, `Ctrl+W`). */
   get powered(): boolean {

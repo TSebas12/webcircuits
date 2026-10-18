@@ -1,4 +1,4 @@
-import { drawDevice, drawPinDot, drawWire } from './draw'
+import { drawDevice, drawJunction, drawPinDot, drawWire } from './draw'
 import { GRID_SIZE } from './geometry'
 import { drawGrid } from './grid'
 import type { IRenderer, RenderScene, RendererOptions, RendererStats } from './ir-renderer'
@@ -167,6 +167,9 @@ export class Canvas2DRenderer implements IRenderer {
 
     for (const item of scene.items) {
       switch (item.kind) {
+        case 'junction':
+          drawJunction(ctx, item, scene.theme)
+          break
         case 'wire':
           drawWire(ctx, item, scene.theme)
           break

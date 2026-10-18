@@ -1,7 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { GRID_SIZE } from '../../../src/render/geometry'
-import { drawDevice, drawPinDot, drawWire } from '../../../src/render/draw'
-import type { DrawDevice, DrawPinDot, DrawWire } from '../../../src/render/ir-renderer'
+import { drawDevice, drawJunction, drawPinDot, drawWire } from '../../../src/render/draw'
+import type {
+  DrawDevice,
+  DrawJunction,
+  DrawPinDot,
+  DrawWire,
+} from '../../../src/render/ir-renderer'
 import { installFakePath2D, makeFakeContext } from '../support/canvas'
 import { TEST_THEME as THEME } from '../support/theme'
 
@@ -149,5 +154,37 @@ describe('dibujar un punto de pin', () => {
     const taken = makeFakeContext()
     drawPinDot(taken.ctx, { ...dot, connected: true }, THEME)
     expect(taken.named('fill')[0]?.fillStyle).toBe(THEME.wire)
+  })
+
+  it('mientras se tiende un cable se dibuja más grande, para ver dónde acabar', () => {
+    const calm = makeFakeContext()
+    drawPinDot(calm.ctx, dot, THEME)
+    const plainRadius = Number(calm.named('arc')[0]?.args[2])
+
+    const wiring = makeFakeContext()
+    drawPinDot(wiring.ctx, { ...dot, emphasized: true }, THEME)
+
+    expect(Number(wiring.named('arc')[0]?.args[2])).toBeGreaterThan(plainRadius)
+  })
+})
+
+describe('dibujar el punto de unión', () => {
+  const junction: DrawJunction = { kind: 'junction', point: { x: 5, y: 0 } }
+
+  it('es un círculo del mismo tamaño que un pin, en el punto exacto', () => {
+    const { ctx, named } = makeFakeContext()
+    drawJunction(ctx, junction, THEME)
+
+    // El original lo dibuja con `2 * Symbol.PinRadius` de diámetro: el mismo que un pin.
+    expect(named('arc')[0]?.args).toEqual([5, 0, 3 / GRID_SIZE, 0, Math.PI * 2])
+  })
+
+  it('va del color del cable, como en el original', () => {
+    const { ctx, named } = makeFakeContext()
+    drawJunction(ctx, junction, THEME)
+
+    // En el original `WireStroke` y `JamDirectFill` son el mismo pincel (`Brushes.Black`),
+    // así que la unión no se distingue del cable por color sino por ser más gruesa.
+    expect(named('fill')[0]?.fillStyle).toBe(THEME.wire)
   })
 })
