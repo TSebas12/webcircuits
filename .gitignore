@@ -35,3 +35,6 @@ stats.html
 # Sistema
 Thumbs.db
 desktop.ini
+
+# Capturas de pantalla de las mediciones (no se versionan)
+bench/*.png
