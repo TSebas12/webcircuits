@@ -90,7 +90,9 @@ export function buildScene(options: SceneOptions): RenderScene {
     items.push(...options.pinDots)
   }
   if (options.sketch !== undefined) {
-    items.push(...options.sketch)
+    for (const wire of options.sketch) {
+      items.push({ ...wire, overlay: true })
+    }
   }
 
   return {

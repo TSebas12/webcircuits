@@ -53,6 +53,13 @@ export interface DrawWire {
   readonly p1: GridPoint
   readonly p2: GridPoint
   readonly selected: boolean
+  /**
+   * Es un cable **provisional** (el que se está tendiendo), no del circuito.
+   *
+   * Vive en la capa de encima: cambia a cada movimiento del ratón, así que no puede formar
+   * parte de la capa cacheada (M2-17).
+   */
+  readonly overlay?: boolean
 }
 
 /** El puntito de un pin, para ver dónde se puede conectar un cable. */
@@ -82,6 +89,17 @@ export interface DrawJunction {
  * Se irán añadiendo variantes (notas de texto, buses…) sin romper nada.
  */
 export type DrawItem = DrawDevice | DrawWire | DrawJunction | DrawPinDot
+
+/**
+ * ¿La pieza vive en la **capa de encima**?
+ *
+ * La capa de encima cambia con el ratón y se dibuja siempre del natural. La de abajo
+ * (cables, uniones y símbolos) es estable y es la que se cachea (M2-17). Los pines y el
+ * cable provisional están en la de encima; lo demás, en la de abajo.
+ */
+export function isOverlayItem(item: DrawItem): boolean {
+  return item.kind === 'pinDot' || (item.kind === 'wire' && item.overlay === true)
+}
 
 /** Todo lo que hace falta para pintar un fotograma. */
 export interface RenderScene {

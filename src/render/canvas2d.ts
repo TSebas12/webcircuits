@@ -1,7 +1,17 @@
+import { cullItems } from './culling'
 import { drawDevice, drawJunction, drawPinDot, drawWire } from './draw'
 import { GRID_SIZE } from './geometry'
 import { drawGrid } from './grid'
-import type { IRenderer, RenderScene, RendererOptions, RendererStats } from './ir-renderer'
+import { StaticLayerCache } from './layer-cache'
+import {
+  isOverlayItem,
+  type DrawItem,
+  type IRenderer,
+  type RenderScene,
+  type RendererOptions,
+  type RendererStats,
+  type RenderTheme,
+} from './ir-renderer'
 
 /** Cada cuánto se informan las medidas, en milisegundos. */
 const STATS_INTERVAL_MS = 500
@@ -26,6 +36,9 @@ export class Canvas2DRenderer implements IRenderer {
   private scene: RenderScene | null = null
   private dirty = true
   private rafId = 0
+
+  /** La capa estática cacheada (M2-17). */
+  private readonly layerCache = new StaticLayerCache()
 
   private onStats: ((stats: RendererStats) => void) | undefined
 
@@ -93,6 +106,7 @@ export class Canvas2DRenderer implements IRenderer {
     this.canvas = null
     this.ctx = null
     this.scene = null
+    this.layerCache.clear()
     this.onStats = undefined
     this.dirty = true
   }
@@ -151,8 +165,55 @@ export class Canvas2DRenderer implements IRenderer {
       drawGrid(ctx, scene.camera, scene.theme, this.cssWidth, this.cssHeight)
     }
 
-    // Las piezas viven en unidades de rejilla, así que basta con un solo transform para
-    // todas: se pone una vez y el bucle dibuja en coordenadas del mundo.
+    // Dos capas (M2-17): abajo lo estable (cables, uniones, símbolos), que se cachea; encima
+    // los pines y el cable provisional, que cambian con el ratón y se dibujan del natural.
+    const staticItems: DrawItem[] = []
+    const overlayItems: DrawItem[] = []
+    for (const item of scene.items) {
+      if (isOverlayItem(item)) {
+        overlayItems.push(item)
+      } else {
+        staticItems.push(item)
+      }
+    }
+
+    // La caché se pinta en píxeles de dispositivo. Si el circuito no cabe (o el entorno no
+    // sabe pegar imágenes), se cae al dibujado directo con recorte de vista.
+    const cached = this.layerCache.paint(
+      ctx,
+      staticItems,
+      scene.camera,
+      this.dpr,
+      scene.theme,
+      this.cssWidth,
+      this.cssHeight,
+    )
+    if (!cached) {
+      this.applyWorldTransform(scene)
+      for (const item of cullItems(staticItems, scene.camera, this.cssWidth, this.cssHeight)) {
+        paintItem(ctx, item, scene.theme)
+      }
+    }
+
+    if (overlayItems.length > 0) {
+      this.applyWorldTransform(scene)
+      for (const item of cullItems(overlayItems, scene.camera, this.cssWidth, this.cssHeight)) {
+        paintItem(ctx, item, scene.theme)
+      }
+    }
+  }
+
+  /**
+   * Deja el contexto transformado a **unidades de rejilla**.
+   *
+   * Así el dibujado escribe coordenadas del mundo y no sabe nada de píxeles ni de zoom. Se
+   * pone una vez por capa, no por pieza.
+   */
+  private applyWorldTransform(scene: RenderScene): void {
+    const ctx = this.ctx
+    if (ctx === null) {
+      return
+    }
     const scale = GRID_SIZE * scene.camera.zoom
     ctx.setTransform(
       this.dpr * scale,
@@ -164,22 +225,23 @@ export class Canvas2DRenderer implements IRenderer {
     )
     ctx.lineJoin = 'round'
     ctx.lineCap = 'round'
+  }
+}
 
-    for (const item of scene.items) {
-      switch (item.kind) {
-        case 'junction':
-          drawJunction(ctx, item, scene.theme)
-          break
-        case 'wire':
-          drawWire(ctx, item, scene.theme)
-          break
-        case 'device':
-          drawDevice(ctx, item, scene.theme)
-          break
-        case 'pinDot':
-          drawPinDot(ctx, item, scene.theme)
-          break
-      }
-    }
+/** Pinta una pieza suelta. Reutilizado por las dos capas. */
+function paintItem(ctx: CanvasRenderingContext2D, item: DrawItem, theme: RenderTheme): void {
+  switch (item.kind) {
+    case 'junction':
+      drawJunction(ctx, item, theme)
+      break
+    case 'wire':
+      drawWire(ctx, item, theme)
+      break
+    case 'device':
+      drawDevice(ctx, item, theme)
+      break
+    case 'pinDot':
+      drawPinDot(ctx, item, theme)
+      break
   }
 }
