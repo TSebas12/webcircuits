@@ -66,7 +66,7 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | `GraphicsArrayTest` | Rejilla gráfica / culling | `tests/unit/render/graphics-array.test.ts` | ⬜ |
 | `VisualElementLoadTest` | Carga de elementos visuales | `tests/unit/render/visual-elements.test.ts` | ⬜ |
 | `ConductorMapTest` | Rasgos de los conductores | `tests/unit/render/conductor-map.test.ts` | ⬜ |
-| `ExpressionParserTest` | Parser de expresiones (ANTLR) | `tests/unit/function/expression-parser.test.ts` | ⬜ |
+| `ExpressionParserTest` | Parser de expresiones de filtro | `tests/unit/core/expression-parser.test.ts` | ✅ |
 | `FunctionTest` | Funciones lógicas | `tests/unit/function/function.test.ts` | ⬜ |
 | `HdlTest` | Verilog: ida y vuelta | `tests/unit/hdl/hdl.test.ts` | ⬜ |
 | `EnumHelperTest` | Utilidades de enumerados | `tests/unit/core/enum-helper.test.ts` | ⬜ |
