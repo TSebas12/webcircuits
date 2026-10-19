@@ -1,86 +1,90 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import type { Editor } from './editor'
+  import { deviceBounds } from '../core/model/layout'
+
   let { editor }: { editor: Editor | null } = $props()
   let canvasEl = $state<HTMLCanvasElement | null>(null)
-  // revision tracked implicitly
 
-  const draw = () => {
+  /**
+   * Redibuja el minimapa.
+   *
+   * Se llama cuando el editor avisa de un repintado (documento o cámara), no por un
+   * temporizador: antes esto era un `setInterval` que además asignaba una variable de estado
+   * inexistente (`revision`), lo que reventaba en cada tick.
+   */
+  const draw = (): void => {
     const canvas = canvasEl
     if (!canvas || !editor) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     const dpr = window.devicePixelRatio || 1
-    const cssW = canvas.clientWidth
-    const cssH = canvas.clientHeight
+    const cssW = canvas.clientWidth || 120
+    const cssH = canvas.clientHeight || 90
     canvas.width = Math.round(cssW * dpr)
     canvas.height = Math.round(cssH * dpr)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, cssW, cssH)
-    ctx.fillStyle = 'rgba(120,120,120,0.4)'
 
-    const elements = editor.diagram.elements as { kind: string; position?: { x: number; y: number }; p1?: { x: number; y: number }; p2?: { x: number; y: number } }[]
-    // bounds
+    const elements = editor.diagram.elements
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
     for (const el of elements) {
       if (el.kind === 'wire') {
-        minX = Math.min(minX, el.p1!.x, el.p2!.x)
-        minY = Math.min(minY, el.p1!.y, el.p2!.y)
-        maxX = Math.max(maxX, el.p1!.x, el.p2!.x)
-        maxY = Math.max(maxY, el.p1!.y, el.p2!.y)
-      } else if (el.position) {
-        minX = Math.min(minX, el.position.x)
-        minY = Math.min(minY, el.position.y)
-        maxX = Math.max(maxX, el.position.x + 2)
-        maxY = Math.max(maxY, el.position.y + 2)
+        minX = Math.min(minX, el.p1.x, el.p2.x)
+        minY = Math.min(minY, el.p1.y, el.p2.y)
+        maxX = Math.max(maxX, el.p1.x, el.p2.x)
+        maxY = Math.max(maxY, el.p1.y, el.p2.y)
+      } else {
+        const box = deviceBounds(el)
+        minX = Math.min(minX, box.x0)
+        minY = Math.min(minY, box.y0)
+        maxX = Math.max(maxX, box.x1)
+        maxY = Math.max(maxY, box.y1)
       }
     }
-    if (!isFinite(minX)) return
+    if (!isFinite(minX)) {
+      minX = 0; minY = 0; maxX = 1; maxY = 1
+    }
     const pad = 1
     minX -= pad; minY -= pad; maxX += pad; maxY += pad
-    const scaleX = cssW / ((maxX - minX) * 18)
-    const scaleY = cssH / ((maxY - minY) * 18)
-    const scale = Math.min(scaleX, scaleY)
+    const grid = 18
+    const scale = Math.min(cssW / ((maxX - minX) * grid), cssH / ((maxY - minY) * grid))
+    const toX = (gx: number): number => (gx - minX) * grid * scale
+    const toY = (gy: number): number => (gy - minY) * grid * scale
 
-    const toX = (gx: number) => (gx - minX) * 18 * scale
-    const toY = (gy: number) => (gy - minY) * 18 * scale
-
-    // draw elements
+    ctx.fillStyle = 'rgba(120,120,120,0.45)'
     for (const el of elements) {
       if (el.kind === 'wire') {
         ctx.strokeStyle = 'rgba(120,120,120,0.6)'
         ctx.lineWidth = 1
         ctx.beginPath()
-        ctx.moveTo(toX(el.p1!.x), toY(el.p1!.y))
-        ctx.lineTo(toX(el.p2!.x), toY(el.p2!.y))
+        ctx.moveTo(toX(el.p1.x), toY(el.p1.y))
+        ctx.lineTo(toX(el.p2.x), toY(el.p2.y))
         ctx.stroke()
-      } else if (el.position) {
-        ctx.fillRect(toX(el.position.x), toY(el.position.y), 2 * 18 * scale, 2 * 18 * scale)
+      } else {
+        const box = deviceBounds(el)
+        ctx.fillRect(toX(box.x0), toY(box.y0), Math.max(1, (box.x1 - box.x0) * grid * scale), Math.max(1, (box.y1 - box.y0) * grid * scale))
       }
     }
 
-    // viewport rect
+    // Rectángulo del viewport, con el tamaño real del lienzo (antes estaba fijado a 800×600).
     const cam = editor.cameraState
-    const cssW2 = 800
-    const cssH2 = 600
-    const scale0 = 18 * cam.zoom
-    const vx0 = (-cam.offsetX) / scale0
-    const vy0 = (-cam.offsetY) / scale0
-    const vx1 = (cssW2 - cam.offsetX) / scale0
-    const vy1 = (cssH2 - cam.offsetY) / scale0
-    ctx.strokeStyle = 'rgba(60,120,220,0.8)'
+    const view = editor.viewportSize
+    const scale0 = grid * cam.zoom
+    const vx0 = -cam.offsetX / scale0
+    const vy0 = -cam.offsetY / scale0
+    const vx1 = (view.width - cam.offsetX) / scale0
+    const vy1 = (view.height - cam.offsetY) / scale0
+    ctx.strokeStyle = 'rgba(60,120,220,0.85)'
     ctx.lineWidth = 1.5
-    ctx.strokeRect(toX(vx0), toY(vy0), (vx1 - vx0) * 18 * scale, (vy1 - vy0) * 18 * scale)
+    ctx.strokeRect(toX(vx0), toY(vy0), (vx1 - vx0) * grid * scale, (vy1 - vy0) * grid * scale)
   }
 
-  // redraw periodically
-  import { onMount } from 'svelte'
   onMount(() => {
-    const t = setInterval(() => {
-      revision = editor?.diagram?.revision ?? 0
-      draw()
-    }, 500)
+    if (!editor) return
+    const stop = editor.subscribeView(draw)
     draw()
-    return () => clearInterval(t)
+    return stop
   })
 </script>
 
@@ -98,5 +102,9 @@
     background: color-mix(in srgb, var(--panel-bg) 80%, transparent);
     z-index: 8;
     pointer-events: none;
+  }
+
+  @media (max-width: 768px) {
+    .minimap { display: none }
   }
 </style>

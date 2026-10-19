@@ -229,3 +229,49 @@ describe('lo que el documento no hace por su cuenta', () => {
     expect(button.id).not.toBe(gate.id)
   })
 })
+
+describe('la vista del editor y los datos guardados', () => {
+  it('los pines y subcircuitos viajan en `storedElements` aunque el lienzo no los dibuje', () => {
+    const diagram = new Diagram()
+    diagram.addGate('and', { x: 0, y: 0 }, 2)
+    diagram.addPin({ x: 0, y: 4 })
+
+    expect(diagram.storedElements).toHaveLength(2)
+    // `elements` es la vista dibujable: solo compuertas, interruptores y cables.
+    expect(diagram.elements).toHaveLength(1)
+    expect(diagram.elements[0]!.kind).toBe('gate')
+  })
+
+  it('los elementos creados llevan el `circuitId` del diagrama, no siempre el principal', () => {
+    const diagram = new Diagram('sub-1')
+    const gate = diagram.addGate('and', { x: 0, y: 0 }, 2)
+    expect(gate.circuitId).toBe('sub-1')
+  })
+
+  it('un pin nuevo sale con el lado y el tipo en minúscula (no «Input»/«Left»)', () => {
+    const diagram = new Diagram()
+    const pin = diagram.addPin({ x: 0, y: 0 })
+    expect(pin.pinType).toBe('input')
+    expect(pin.side).toBe('left')
+  })
+
+  it('importar un elemento reserva su número para que una pieza nueva no lo reutilice', () => {
+    const diagram = new Diagram()
+    diagram.importElement({
+      kind: 'gate',
+      id: 'gate-7',
+      circuitId: 'main',
+      layerId: 'principal',
+      position: { x: 0, y: 0 },
+      rotation: 'up',
+      gateType: 'and',
+      inputCount: 2,
+      bitWidth: 1,
+      invertedOutput: false,
+    })
+
+    const created = diagram.addGate('and', { x: 4, y: 0 })
+    expect(created.id).not.toBe('gate-7')
+    expect(diagram.count).toBe(2)
+  })
+})

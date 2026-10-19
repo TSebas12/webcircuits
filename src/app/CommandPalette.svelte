@@ -1,8 +1,16 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import type { Editor } from './editor'
-  let { editor, onClose }: { editor: Editor | null; onClose: () => void } = $props()
+
+  let { editor, onClose, extra = [] }: {
+    editor: Editor | null
+    onClose: () => void
+    extra?: readonly { readonly label: string; readonly action: () => void }[]
+  } = $props()
   let query = $state('')
-  const commands = [
+  let inputEl = $state<HTMLInputElement | null>(null)
+
+  const baseCommands = [
     { label: 'Rotar selección', action: () => editor?.rotateSelection(true) },
     { label: 'Duplicar', action: () => editor?.duplicate() },
     { label: 'Borrar selección', action: () => editor?.removeSelected() },
@@ -11,16 +19,30 @@
     { label: 'Vaciar lienzo', action: () => editor?.clear() },
     { label: 'Encender/apagar corriente', action: () => editor?.setPowered(!editor?.isPowered) },
   ]
+  const commands = $derived([...baseCommands, ...extra])
   const filtered = $derived(
     query.trim() === ''
       ? commands
-      : commands.filter((c) => c.label.toLowerCase().includes(query.toLowerCase()))
+      : commands.filter((c) => c.label.toLowerCase().includes(query.toLowerCase())),
   )
+
+  // Foco al abrir, sin `autofocus` (que la accesibilidad marca como mala práctica).
+  onMount(() => inputEl?.focus())
 </script>
 
-<div class="backdrop" onclick={onClose} role="presentation">
-  <div class="panel" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Paleta de comandos">
-    <input autofocus placeholder="Buscar comando..." bind:value={query} />
+<svelte:window onkeydown={(e) => e.key === 'Escape' && onClose()} />
+
+<div class="backdrop" onclick={onClose} onkeydown={(e) => e.key === 'Escape' && onClose()} role="presentation">
+  <div
+    class="panel"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Paleta de comandos"
+    tabindex="-1"
+    onclick={(e) => e.stopPropagation()}
+    onkeydown={(e) => e.stopPropagation()}
+  >
+    <input bind:this={inputEl} placeholder="Buscar comando..." bind:value={query} />
     <ul>
       {#each filtered as c (c.label)}
         <li>

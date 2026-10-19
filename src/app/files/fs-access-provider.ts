@@ -52,7 +52,7 @@ export class FsAccessProvider implements IFileProvider {
     try {
       const handle = await (window as unknown as { showSaveFilePicker: (o?: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
         suggestedName,
-        types: [{ description: 'WebCircuits', accept: { 'application/json': ['.json'] } }],
+        types: [{ description: 'WebCircuits', accept: { 'application/json': ['.json', '.CircuitProject'] } }],
       })
       const writable = await handle.createWritable()
       await writable.write(content)

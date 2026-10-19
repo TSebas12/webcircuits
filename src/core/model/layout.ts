@@ -24,15 +24,16 @@
  */
 
 import type {
-  Button,
   Circuit,
-  Gate,
+  Constant,
   GateType,
   GridPoint,
   GridRect,
+  Id,
   Pin,
   PinSide,
   PinType,
+  PlacedElement,
   Rotation,
   Splitter,
 } from './types'
@@ -357,6 +358,22 @@ export function splitterLayout(splitter: Splitter): SymbolLayout {
 }
 
 /**
+ * La forma de una **constante** (original: `Constant.CircuitSymbolWidth/Height` +
+ * `BasePin`). Es una cajita 2×2 con una única salida asomando por el lado que diga
+ * `pinSide`.
+ */
+export function constantLayout(constant: Constant): SymbolLayout {
+  const specs: PinSpec[] = [
+    { side: constant.pinSide, type: 'output', bitWidth: Math.max(1, constant.bitWidth), inverted: false },
+  ]
+  const base = defaultSymbolSize(specs)
+  return symbolLayout(specs, {
+    width: Math.max(MIN_SYMBOL_SIZE, base.width),
+    height: Math.max(MIN_SYMBOL_SIZE, base.height),
+  })
+}
+
+/**
  * La forma con la que se dibuja un **subcircuito** cuando se coloca (original:
  * `LogicalCircuit.CircuitSymbolWidth/Height`).
  *
@@ -378,20 +395,51 @@ export function circuitSymbolLayout(pins: readonly PinSpec[]): SymbolLayout {
 }
 
 /**
+ * Una forma vacía: 2×2 y sin pines.
+ *
+ * Es el respaldo para los dispositivos que el editor todavía no sabe dibujar (memorias,
+ * sensores, notas…). Así las cuentas de caja y de clic no revientan con ellos, aunque no se
+ * pinten; el día que tengan símbolo propio, se cambia aquí y aparece en todas partes.
+ */
+const EMPTY_LAYOUT: SymbolLayout = {
+  width: MIN_SYMBOL_SIZE,
+  height: MIN_SYMBOL_SIZE,
+  pins: [],
+}
+
+/**
  * La forma de un dispositivo colocado.
  *
  * Es la traducción de `Circuit.SymbolWidth/Height` del original: cada símbolo sabe cuánto
  * mide y dónde tiene sus pines, y todo lo demás (cables, clic, simulación) se apoya en
  * esto en vez de repetir las cuentas.
  *
- * Solo los que el editor sabe colocar hoy: las compuertas y el interruptor. Los pines de
- * hoja y los subcircuitos tienen su propia función, porque necesitan saber a qué circuito
- * representan.
+ * Un **subcircuito** necesita saber a qué circuito representa para conocer sus pines; por eso
+ * `resolveCircuit` es opcional: donde no haya proyecto a mano (por ejemplo, al girar desde el
+ * modelo) se cae a la caja vacía.
  */
-export function deviceLayout(device: Gate | Button): SymbolLayout {
-  return device.kind === 'gate'
-    ? gateLayout(device.gateType, device.inputCount, device.invertedOutput)
-    : buttonLayout(device.inverted)
+export function deviceLayout(
+  device: PlacedElement,
+  resolveCircuit?: (id: Id) => Circuit | undefined,
+): SymbolLayout {
+  switch (device.kind) {
+    case 'gate':
+      return gateLayout(device.gateType, device.inputCount, device.invertedOutput)
+    case 'button':
+      return buttonLayout(device.inverted)
+    case 'pin':
+      return placedPinLayout(device) ?? EMPTY_LAYOUT
+    case 'constant':
+      return constantLayout(device)
+    case 'splitter':
+      return splitterLayout(device)
+    case 'circuit': {
+      const circuit = resolveCircuit?.(device.targetCircuitId)
+      return circuit ? circuitInstanceLayout(circuit) : EMPTY_LAYOUT
+    }
+    default:
+      return EMPTY_LAYOUT
+  }
 }
 
 /**
@@ -406,8 +454,11 @@ export interface PlacedPin {
   readonly point: GridPoint
 }
 
-export function placedPins(device: Gate | Button): PlacedPin[] {
-  const layout = deviceLayout(device)
+export function placedPins(
+  device: PlacedElement,
+  resolveCircuit?: (id: Id) => Circuit | undefined,
+): PlacedPin[] {
+  const layout = deviceLayout(device, resolveCircuit)
   return layout.pins.map((pin) => ({
     pin,
     point: pinPosition(device.position, device.rotation, layout, pin),
@@ -421,8 +472,11 @@ export function placedPins(device: Gate | Button): PlacedPin[] {
  * giro de 180° se sale a coordenadas negativas. Se gira cada esquina con la misma regla
  * que los pines y se toma el rectángulo que las contiene.
  */
-export function deviceBounds(device: Gate | Button): GridRect {
-  const layout = deviceLayout(device)
+export function deviceBounds(
+  device: PlacedElement,
+  resolveCircuit?: (id: Id) => Circuit | undefined,
+): GridRect {
+  const layout = deviceLayout(device, resolveCircuit)
   const corners: readonly GridPoint[] = [
     { x: 0, y: 0 },
     { x: layout.width, y: 0 },

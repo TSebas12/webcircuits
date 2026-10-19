@@ -8,6 +8,7 @@
     storeThemeChoice,
     type ThemeChoice,
   } from './app/theme'
+  import { SETTINGS_EVENT } from './app/settings'
 
   const version = '0.0.0'
 
@@ -47,8 +48,14 @@
     show(readThemeChoice())
     systemTheme.addEventListener('change', onSystemChange)
 
+    // El panel de Preferencias guarda el tema en el mismo sitio que este botón: si cambia
+    // desde allí, hay que reflejarlo sin recargar.
+    const onSettings = (): void => show(readThemeChoice())
+    window.addEventListener(SETTINGS_EVENT, onSettings)
+
     return () => {
       systemTheme?.removeEventListener('change', onSystemChange)
+      window.removeEventListener(SETTINGS_EVENT, onSettings)
     }
   })
 </script>

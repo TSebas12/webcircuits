@@ -2,11 +2,22 @@
   import { loadSettings, saveSettings, type Settings } from './settings'
   let { onClose }: { onClose: () => void } = $props()
   let s = $state<Settings>(loadSettings())
-  const apply = () => { saveSettings(s); onClose() }
+  const apply = (): void => {
+    saveSettings(s)
+    onClose()
+  }
 </script>
 
-<div class="backdrop" onclick={onClose} role="presentation">
-  <div class="panel" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Preferencias">
+<div class="backdrop" onclick={onClose} onkeydown={(e) => e.key === 'Escape' && onClose()} role="presentation">
+  <div
+    class="panel"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Preferencias"
+    tabindex="-1"
+    onclick={(e) => e.stopPropagation()}
+    onkeydown={(e) => e.stopPropagation()}
+  >
     <h2>Preferencias</h2>
     <label>Tema
       <select bind:value={s.theme}>

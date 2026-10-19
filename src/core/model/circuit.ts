@@ -14,7 +14,7 @@
  * que en M1/M2. Si en M4 el fichero exige guardarlos, se generan al exportar.
  */
 
-import type { Element, Id } from './types'
+import type { Id, StoredElement } from './types'
 import { Diagram, MAIN_CIRCUIT_ID } from './diagram'
 
 /** Nombre por defecto del circuito principal, como en el original. */
@@ -26,15 +26,21 @@ export class Circuit {
   /** El documento editable de este nivel: lleva el historial de deshacer de este circuito. */
   readonly diagram: Diagram
 
-  constructor(id: Id, name: string, diagram: Diagram = new Diagram()) {
+  constructor(id: Id, name: string, diagram: Diagram = new Diagram(id)) {
     this.id = id
     this.name = name
     this.diagram = diagram
   }
 
-  /** Los elementos del circuito: vista viva del diagrama (no una copia). */
-  get elements(): Element[] {
-    return this.diagram.elements
+  /**
+   * Los elementos del circuito en el **orden del fichero** (creación), no en el de dibujo.
+   *
+   * Es lo que guardan y cargan los ficheros, y el orden importa: numera los pines de un
+   * repartidor y casa las puntas de un subcircuito con las de la hoja que representa. Para
+   * dibujar está `diagram.elements`, que sí va ordenado por capa.
+   */
+  get elements(): readonly StoredElement[] {
+    return this.diagram.storedElements
   }
 }
 
@@ -50,7 +56,7 @@ export class CircuitProject {
 
   constructor(name = 'Sin título') {
     this.name = name
-    const mainDiagram = new Diagram()
+    const mainDiagram = new Diagram(MAIN_CIRCUIT_ID)
     const main = new Circuit(MAIN_CIRCUIT_ID, MAIN_CIRCUIT_NAME, mainDiagram)
     this.circuits.set(main.id, main)
     this._currentCircuitId = main.id
@@ -91,7 +97,7 @@ export class CircuitProject {
   createCircuit(options: CreateCircuitOptions = {}): Circuit {
     this.counter += 1
     const id: Id = `circuit-${this.counter}`
-    const diagram = new Diagram()
+    const diagram = new Diagram(id)
     const circuit = new Circuit(id, options.name ?? `Circuit ${this.counter}`, diagram)
     this.circuits.set(id, circuit)
     this.versionCount += 1

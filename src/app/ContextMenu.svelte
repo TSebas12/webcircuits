@@ -16,11 +16,17 @@
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') onClose()
   }
+
+  // Se coloca en píxeles de **viewport** (`clientX/Y`), así que el menú va `fixed`. Con
+  // `absolute`, si algún ancestro tenía `position`, el menú aparecía desplazado. Además se
+  // recorta contra el borde para que no se salga de la pantalla.
+  const left = $derived(Math.max(0, Math.min(x, window.innerWidth - 200)))
+  const top = $derived(Math.max(0, Math.min(y, window.innerHeight - items.length * 34 - 16)))
 </script>
 
 <svelte:window onkeydown={onKey} onclick={onClose} />
 
-<div class="ctx" style="left:{x}px; top:{y}px;" role="menu">
+<div class="ctx" style="left:{left}px; top:{top}px;" role="menu">
   {#each items as item, i (i)}
     <button
       type="button"
@@ -37,7 +43,7 @@
 
 <style>
   .ctx {
-    position: absolute;
+    position: fixed;
     z-index: 20;
     min-width: 12rem;
     padding: 0.3rem;

@@ -26,7 +26,7 @@ import { circuitIndex, type SymbolIndex } from '../core/model/symbol'
 import { FunctionButton } from '../core/function/devices'
 import { State } from '../core/function/state'
 import { CircuitError } from '../core/circuit-error'
-import type { Circuit, DeviceState, Element, Id, Signal } from '../core/model/types'
+import type { Circuit, DeviceState, Id, Signal, StoredElement, Wire } from '../core/model/types'
 import type { CircuitState } from '../core/simulate/circuit-state'
 import type { SimulationState } from '../core/simulate/engine'
 
@@ -84,7 +84,7 @@ export class Simulation {
 
   /** La firma del documento que se aplanó, para saber cuándo hay que rehacerlo. */
   private signature = ''
-  private elements: readonly Element[] = []
+  private elements: readonly StoredElement[] = []
 
   private clockTimer: ReturnType<typeof setInterval> | null = null
   private refreshFrame: number | null = null
@@ -106,6 +106,28 @@ export class Simulation {
   /** Lo que hay que pintar ahora mismo. */
   get snapshot(): SimulationState {
     return { devices: this.devices, nets: new Map<string, Signal>(), powered: this.poweredFlag }
+  }
+
+  /**
+   * El valor de un cable, para la sonda: 1 si lleva corriente, 0 si no, o `null` si no se
+   * puede saber (circuito apagado o cable sin conexión).
+   *
+   * ⚠️ **Los cables no tienen estado propio**: quien lo tiene son los bits de los símbolos a
+   * los que tocan. Por eso se pregunta al mapa por los índices del cable y se lee el estado
+   * por índice. Antes esto leía un mapa `nets` que siempre estaba vacío, así que la sonda
+   * marcaba 0 siempre.
+   */
+  probeValue(wire: Wire): number | null {
+    const state = this.state
+    const runner = this.runner
+    if (state === null || runner === null) {
+      return null
+    }
+    const indexes = runner.circuitMap.stateIndexes(wire)
+    if (indexes.length === 0) {
+      return null
+    }
+    return state.get(indexes[0]!) === State.On1 ? 1 : 0
   }
 
   /**
@@ -150,7 +172,7 @@ export class Simulation {
    * Con la corriente apagada no se simula nada: todo queda apagado, que es como se abre la
    * aplicación y como se dibuja el modo edición.
    */
-  evaluate(elements: readonly Element[]): SimulationState {
+  evaluate(elements: readonly StoredElement[]): SimulationState {
     this.elements = elements
 
     if (!this.poweredFlag) {
@@ -190,7 +212,7 @@ export class Simulation {
 
   // ── Aplanar ──────────────────────────────────────────────────────────────────────────
 
-  private build(elements: readonly Element[], signature: string): void {
+  private build(elements: readonly StoredElement[], signature: string): void {
     this.drop()
 
     const circuit: Circuit = { id: MAIN_CIRCUIT_ID, name: 'Main', elements }
@@ -231,7 +253,7 @@ export class Simulation {
     index: SymbolIndex,
     runner: CircuitRunner,
     state: CircuitState,
-    elements: readonly Element[],
+    elements: readonly StoredElement[],
   ): void {
     this.buttons.clear()
     this.inverted.clear()
@@ -368,7 +390,7 @@ export class Simulation {
 }
 
 /** Todos los dispositivos apagados: es lo que se ve con la corriente quitada. */
-function allOff(elements: readonly Element[]): Map<Id, DeviceState> {
+function allOff(elements: readonly StoredElement[]): Map<Id, DeviceState> {
   const devices = new Map<Id, DeviceState>()
   for (const element of elements) {
     if (element.kind !== 'wire') {
@@ -385,6 +407,6 @@ function allOff(elements: readonly Element[]): Map<Id, DeviceState> {
  * cable cambia lo que se simula, pero el editor no deja tocar nada con la corriente puesta
  * (y si algún día lo permite, la firma tiene que incluir la posición y los cables).
  */
-function signatureOf(elements: readonly Element[]): string {
+function signatureOf(elements: readonly StoredElement[]): string {
   return elements.map((element) => element.id).join(',')
 }

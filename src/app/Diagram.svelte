@@ -8,8 +8,10 @@
   import SettingsPanel from './SettingsPanel.svelte'
   import CommandPalette from './CommandPalette.svelte'
   import { deserializeProject, serializeProject } from '../core/persist/json'
-  import { importCircuitProject } from '../core/persist/circuitproject'
+  import { exportCircuitProject, importCircuitProject } from '../core/persist/circuitproject'
+  import { loadSettings, SETTINGS_EVENT } from './settings'
   import { IdbProvider } from './files/idb-provider'
+  import { createFileProvider } from './files/provider-factory'
   import { addRecent } from './files/recents'
   import { saveVersion } from './files/versions'
   import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS, PIECE_GROUPS, PIECES } from './palette'
@@ -139,6 +141,16 @@
     circuitPath = instance.circuitPath
     dirty = instance.dirty
 
+    // Preferencias del usuario (M4-10): rejilla, imán y autoguardado. Sin esto, el panel de
+    // Preferencias guardaba los valores y no pasaba nada.
+    const applySettings = (): void => {
+      const settings = loadSettings()
+      instance.setShowGrid(settings.gridVisible)
+      instance.setSnapToGrid(settings.snapToGrid)
+    }
+    applySettings()
+    window.addEventListener(SETTINGS_EVENT, applySettings)
+
     const idb = new IdbProvider()
 
     // Compartir por link (M4-22): si la URL tiene un proyecto en el hash, cargarlo.
@@ -173,25 +185,35 @@
       })
     }
 
-    // Autoguardado periódico (M4-17): cada 30 s si hay cambios.
-    const autosaveTimer = setInterval(() => {
+    // Autoguardado periódico (M4-17): cada 30 s si hay cambios y el usuario lo tiene puesto.
+    const autosave = (): void => {
       if (editor !== instance) return
       if (!instance.dirty) return
+      if (!loadSettings().autosaveEnabled) return
       const payload = serializeProject(instance.project)
       idb.save(payload, 'autosave').catch(() => {})
-    }, 30000)
+    }
+    const autosaveTimer = setInterval(autosave, 30000)
 
     // Guardar al ocultar la pestaña.
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      if (!(e.ctrlKey || e.metaKey)) return
+      const key = e.key.toLowerCase()
+      if (key === 'k') {
         e.preventDefault()
         showCommandPalette = !showCommandPalette
+      } else if (key === 's') {
+        e.preventDefault()
+        void saveFile()
+      } else if (key === 'o') {
+        e.preventDefault()
+        void openFile()
       }
     }
     window.addEventListener('keydown', onKey)
 
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden' && editor === instance && instance.dirty) {
+      if (document.visibilityState === 'hidden' && editor === instance && instance.dirty && loadSettings().autosaveEnabled) {
         const payload = serializeProject(instance.project)
         idb.save(payload, 'autosave').catch(() => {})
       }
@@ -201,33 +223,73 @@
     return () => {
       clearInterval(autosaveTimer)
       window.removeEventListener('keydown', onKey)
+      window.removeEventListener(SETTINGS_EVENT, applySettings)
       document.removeEventListener('visibilitychange', onVisibility)
       instance.unmount()
       editor = null
     }
   })
 
-  const handleDrop = async (e: DragEvent): Promise<void> => {
-    e.preventDefault()
-    const file = e.dataTransfer?.files?.[0]
-    if (!file || editor === null) return
-    const text = await file.text()
+  /**
+   * La puerta a los ficheros del sistema (M4-12..15).
+   *
+   * Se elige una vez el proveedor: File System Access si el navegador lo tiene (Chrome/Edge),
+   * y si no, descarga/subida por `<input type="file">` y `<a download>`, que funciona en todos.
+   */
+  const files = createFileProvider()
+
+  /**
+   * Carga en el editor el texto de un fichero, sea JSON nuestro o `.CircuitProject` del
+   * original. Se decide por el nombre y, si no está claro, por el contenido.
+   */
+  const openText = (name: string, text: string): void => {
+    if (editor === null) return
     try {
-      let project
-      if (file.name.endsWith('.CircuitProject') || text.trim().startsWith('<')) {
-        project = importCircuitProject(text)
-      } else {
-        project = deserializeProject(text)
-      }
+      const project =
+        name.endsWith('.CircuitProject') || name.endsWith('.xml') || text.trimStart().startsWith('<')
+          ? importCircuitProject(text)
+          : deserializeProject(text)
       editor.loadProject(project)
       editor.markSaved()
       dirty = editor.dirty
       isEmpty = editor.elementCount === 0
-      addRecent(file.name)
+      addRecent(name)
     } catch (err) {
       openError = err instanceof Error ? err.message : 'Fichero no válido'
       setTimeout(() => (openError = null), 4000)
     }
+  }
+
+  const handleDrop = async (e: DragEvent): Promise<void> => {
+    e.preventDefault()
+    const file = e.dataTransfer?.files?.[0]
+    if (!file) return
+    openText(file.name, await file.text())
+  }
+
+  /** Abre el diálogo del sistema y carga lo que se elija. */
+  const openFile = async (): Promise<void> => {
+    if (editor === null) return
+    const picked = await files.open()
+    if (picked !== null) {
+      openText(picked.name, picked.content)
+    }
+  }
+
+  /** Guarda el proyecto como JSON. Marca el documento como guardado. */
+  const saveFile = async (): Promise<void> => {
+    if (editor === null) return
+    const handle = await files.save(serializeProject(editor.project), `${editor.project.name || 'circuito'}.json`)
+    // Si el usuario canceló el diálogo, no se ha guardado nada: no se marca como guardado.
+    if (handle === null) return
+    editor.markSaved()
+    dirty = editor.dirty
+  }
+
+  /** Exporta el proyecto al `.CircuitProject` (XML) del original. */
+  const exportXml = async (): Promise<void> => {
+    if (editor === null) return
+    await files.save(exportCircuitProject(editor.project), `${editor.project.name || 'circuito'}.CircuitProject`)
   }
 
   const chooseTool = (id: Tool): void => {
@@ -360,6 +422,12 @@
   {/if}
 
   <div class="toolbar" role="toolbar" aria-label="Herramientas del circuito">
+    <button type="button" class="tool" onclick={openFile} title="Abrir un circuito (Ctrl+O)" aria-label="Abrir">📂</button>
+    <button type="button" class="tool" onclick={saveFile} title="Guardar el circuito (Ctrl+S)" aria-label="Guardar" disabled={!dirty}>💾</button>
+    <button type="button" class="tool" onclick={exportXml} title="Exportar al formato del original (.CircuitProject)" aria-label="Exportar XML">⬇</button>
+
+    <span class="divider"></span>
+
     {#each TOOLS as item (item.id)}
       <button
         type="button"
@@ -536,11 +604,12 @@
       <p class="empty-title">Lienzo vacío</p>
       <p class="hint">Elige una pieza de la paleta y haz clic, o arrastra un fichero aquí.</p>
       <div class="empty-actions">
+        <button type="button" onclick={openFile}>Abrir…</button>
         <button type="button" onclick={loadExample}>Ejemplo</button>
         <button type="button" onclick={() => editor?.fitToContent()}>Encuadrar</button>
       </div>
       <p class="empty-shortcuts">
-        <kbd>S</kbd> seleccionar · <kbd>E</kbd> borrar · <kbd>R</kbd> rotar · <kbd>P</kbd> corriente · <kbd>Ctrl+K</kbd> comandos
+        <kbd>S</kbd> seleccionar · <kbd>E</kbd> borrar · <kbd>R</kbd> rotar · <kbd>P</kbd> corriente · <kbd>Ctrl+K</kbd> comandos · <kbd>Ctrl+O</kbd> abrir
       </p>
     </div>
   {/if}
@@ -588,7 +657,15 @@
   {/if}
 
   {#if showCommandPalette && editor}
-    <CommandPalette {editor} onClose={() => (showCommandPalette = false)} />
+    <CommandPalette
+      {editor}
+      onClose={() => (showCommandPalette = false)}
+      extra={[
+        { label: 'Abrir circuito…', action: () => void openFile() },
+        { label: 'Guardar circuito', action: () => void saveFile() },
+        { label: 'Exportar a .CircuitProject (XML)', action: () => void exportXml() },
+      ]}
+    />
   {/if}
 
   {#if !powered && tool === 'erase'}
@@ -967,7 +1044,6 @@
   @media (max-width: 768px) {
     .palette { width: 10rem; font-size: 0.75rem }
     .toolbar { flex-wrap: wrap; gap: 0.2rem }
-    .minimap { display: none }
   }
 
   .hud {

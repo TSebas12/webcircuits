@@ -328,11 +328,15 @@ export interface Button extends Device {
 }
 
 /**
- * Cualquier cosa que se pueda colocar en un circuito.
+ * **Lo que el editor sabe colocar y dibujar hoy**: compuertas, interruptores y cables.
  *
- * Los pines de la hoja y los subcircuitos son elementos del modelo (`PlacedElement`) pero
- * todavía **no** de esta lista: el editor aún no sabe colocarlos, así que no pueden
- * aparecer en un documento. El mapa de simulación sí los entiende (ver `PlacedElement`).
+ * No es «todo lo que puede haber en un documento» —eso es `StoredElement`—, sino el
+ * subconjunto con el que el lienzo y el editor trabajan de verdad. Los pines de hoja, los
+ * subcircuitos, los repartidores y las constantes existen en el modelo y **viajan en los
+ * ficheros** (`StoredElement`), pero todavía no se dibujan ni se editan: por eso `Diagram`
+ * los guarda y los expone por una vista aparte (`storedElements`), y `elements` sigue
+ * devolviendo solo este subconjunto. Así el día que llegue su símbolo (M2-05/M2-12) no hay
+ * que reescribir el editor: se amplía `Element` y se toca un solo sitio.
  */
 export type Element = Gate | Button | Wire
 

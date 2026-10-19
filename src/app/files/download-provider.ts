@@ -11,17 +11,25 @@ export class DownloadProvider implements IFileProvider {
       const input = document.createElement('input')
       input.type = 'file'
       input.accept = '.json,.CircuitProject,.xml,.txt'
+      // Si el usuario cierra el diálogo sin elegir, `change` no salta nunca y la promesa se
+      // quedaría colgada para siempre. `cancel` (soportado en navegadores modernos) lo evita.
+      const finish = (value: { name: string; content: string } | null): void => {
+        input.onchange = null
+        input.oncancel = null
+        resolve(value)
+      }
       input.onchange = () => {
         const file = input.files?.[0]
         if (!file) {
-          resolve(null)
+          finish(null)
           return
         }
         const reader = new FileReader()
-        reader.onload = () => resolve({ name: file.name, content: String(reader.result ?? '') })
-        reader.onerror = () => resolve(null)
+        reader.onload = () => finish({ name: file.name, content: String(reader.result ?? '') })
+        reader.onerror = () => finish(null)
         reader.readAsText(file)
       }
+      input.oncancel = () => finish(null)
       input.click()
     })
   }

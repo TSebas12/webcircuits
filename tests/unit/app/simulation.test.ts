@@ -202,4 +202,21 @@ describe('tener el circuito en marcha', () => {
 
     expect(simulation.isPressed('b1')).toBe(false)
   })
+
+  it('la sonda lee el valor del cable (1 encendido, 0 apagado)', () => {
+    const simulation = new Simulation()
+    const elements = ledCircuit()
+    const cable = elements.find((e): e is Wire => e.kind === 'wire')!
+
+    // Apagado no se puede saber.
+    expect(simulation.probeValue(cable)).toBeNull()
+
+    simulation.setPowered(true)
+    simulation.evaluate(elements)
+    expect(simulation.probeValue(cable)).toBe(0)
+
+    simulation.setPressed('b1', true)
+    simulation.evaluate(elements)
+    expect(simulation.probeValue(cable)).toBe(1)
+  })
 })

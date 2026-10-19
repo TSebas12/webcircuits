@@ -1,246 +1,364 @@
 /**
  * Importador/exportador `.CircuitProject` (XML) del original (M4-07, M4-08).
+ *
+ * **El formato del original es de atributos.** Desde la versión 2.0.0.14 el esquema
+ * (`Schema/CircuitProject.xml`) escribe cada campo como un atributo del elemento, no como un
+ * hijo con texto. Este módulo lee **las dos formas** —la de atributos y la vieja de hijos—,
+ * porque hay ficheros de las dos épocas por ahí, y **escribe la de atributos**, que es la que
+ * el original entiende.
+ *
+ * ⚠️ En el original **una compuerta no se guarda**: no hay tabla `Gate` en el fichero (es
+ * `Persistent="False"`). Un símbolo de compuerta es un `<CircuitSymbol>` cuyo `CircuitId` es
+ * un GUID que **codifica** el tipo (`GG`), el número de entradas (`II`) y la inversión de la
+ * salida (`VV`). Los pines, constantes, repartidores e interruptores sí tienen su tabla, y su
+ * símbolo apunta a ella por `CircuitId`. Por eso al importar hay que ir preguntando por cada
+ * tabla, y al exportar hay que emitir la tabla correcta además del símbolo.
  */
 
 import { CircuitProject } from '../model/circuit'
 import { MAIN_CIRCUIT_ID } from '../model/diagram'
-import type { GateType } from '../model/types'
+import { DEFAULT_LAYER_ID } from '../model/types'
+import type { GateType, PinSide, PinType, Rotation, StoredElement } from '../model/types'
 
-const NS = 'http://LogicCircuit.net/2.0.0.7/CircuitProject.xsd'
+const NS = 'http://LogicCircuit.net/2.0.0.15/CircuitProject.xsd'
 
-const GATE_TYPES: GateType[] = [
+/**
+ * El tipo de compuerta va codificado en el GUID. El índice es el del `enum GateType` del
+ * original, que **no** es el mismo que el nuestro: ahí `0` es `Nop` y `8` es `Led`.
+ */
+const GATE_GUIDS: readonly (GateType | null)[] = [
   'nop', 'clock', 'not', 'or', 'and', 'xor', 'odd', 'even', 'led', 'probe', 'triState1', 'triState2',
 ]
 
-function text(parent: globalThis.Element, tag: string): string | null {
-  const el = parent.getElementsByTagNameNS(NS, tag)[0] ?? parent.getElementsByTagName(tag)[0]
-  return el ? el.textContent?.trim() ?? null : null
+const PIN_TYPES: Readonly<Record<string, PinType>> = {
+  none: 'none', input: 'input', output: 'output',
+  '0': 'none', '1': 'input', '2': 'output',
 }
 
-function num(parent: globalThis.Element, tag: string, fallback = 0): number {
-  const v = text(parent, tag)
-  return v === null ? fallback : Number(v)
+const PIN_SIDES: Readonly<Record<string, PinSide>> = {
+  left: 'left', top: 'top', right: 'right', bottom: 'bottom',
+  '0': 'left', '1': 'top', '2': 'right', '3': 'bottom',
+}
+
+const ROTATIONS: Readonly<Record<string, Rotation>> = {
+  up: 'up', right: 'right', down: 'down', left: 'left',
+  '0': 'up', '1': 'right', '2': 'down', '3': 'left',
+}
+
+// ── Lectura de XML, con soporte para atributos y para hijos con texto ──────
+
+function children(el: globalThis.Element, local: string): globalThis.Element[] {
+  const ns = Array.from(el.getElementsByTagNameNS('*', local))
+  if (ns.length > 0) return ns
+  return Array.from(el.getElementsByTagName(local))
+}
+
+/** Lee `name`: primero como atributo; si no, como hijo con texto (formato viejo). */
+function attr(el: globalThis.Element, name: string): string | null {
+  if (el.hasAttribute(name)) return el.getAttribute(name)
+  const child = children(el, name)[0]
+  return child ? child.textContent?.trim() ?? null : null
+}
+
+function numAttr(el: globalThis.Element, name: string, fallback = 0): number {
+  const v = attr(el, name)
+  if (v === null || v === '') return fallback
+  const n = Number(v)
+  return Number.isFinite(n) ? n : fallback
+}
+
+function boolAttr(el: globalThis.Element, name: string, fallback = false): boolean {
+  const v = attr(el, name)
+  if (v === null || v === '') return fallback
+  return v.toLowerCase() === 'true'
 }
 
 function decodeGateGuid(guid: string): { gateType: GateType; inputCount: number; invertedOutput: boolean } | null {
-  const hex = guid.replace(/-/g, '')
+  const hex = guid.replace(/-/g, '').toLowerCase()
   if (hex.length !== 32) return null
-  const t = parseInt(hex.slice(26, 28), 16)
-  const ic = parseInt(hex.slice(28, 30), 16)
-  const inv = parseInt(hex.slice(30, 32), 16)
-  if (t < 0 || t >= GATE_TYPES.length) return null
-  const gateType = GATE_TYPES[t]!
-  if (gateType === 'nop') return null
+  const t = Number.parseInt(hex.slice(26, 28), 16)
+  const ic = Number.parseInt(hex.slice(28, 30), 16)
+  const inv = Number.parseInt(hex.slice(30, 32), 16)
+  const gateType = GATE_GUIDS[t]
+  if (gateType === null || gateType === undefined || gateType === 'nop') return null
   return { gateType, inputCount: Math.max(1, ic || 1), invertedOutput: inv === 1 }
 }
 
+// ── Importar ───────────────────────────────────────────────────────────────
+
+/**
+ * Lee un `.CircuitProject` del original y lo trae a nuestro modelo.
+ *
+ * Se leen **primero** las tablas de dispositivos (pines, constantes, repartidores,
+ * interruptores) y los circuitos, y **después** los símbolos, porque un símbolo solo apunta
+ * por `CircuitId` a una de esas tablas. Si se recorriera el XML en orden, un símbolo podría
+ * llegar antes que su tabla y se perdería.
+ */
 export function importCircuitProject(xml: string): CircuitProject {
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
   const root = doc.documentElement
-  const NS_LOCAL = root.namespaceURI ?? NS
 
-  function q(tag: string): globalThis.Element[] {
-    const a = Array.from(root.getElementsByTagNameNS(NS_LOCAL, tag))
-    if (a.length > 0) return a as unknown as globalThis.Element[]
-    return Array.from(root.getElementsByTagName(tag)) as unknown as globalThis.Element[]
-  }
-
-  const circuits = new Map<string, { name: string }>()
-  let mainId = ''
-  const projectEl = q('Project')[0]
+  // Nombres de los circuitos, para crear los `Circuit` con su nombre real.
+  const circuitNames = new Map<string, string>()
+  let mainSourceId = ''
+  const projectEl = children(root, 'Project')[0]
   if (projectEl) {
-    mainId = text(projectEl, 'LogicalCircuitId') ?? ''
+    mainSourceId = attr(projectEl, 'LogicalCircuitId') ?? ''
   }
-  for (const lc of q('LogicalCircuit')) {
-    const id = text(lc, 'LogicalCircuitId')!
-    const name = text(lc, 'Name') ?? (id === mainId ? 'Main' : 'Circuit')
-    circuits.set(id, { name })
+  for (const lc of children(root, 'LogicalCircuit')) {
+    const id = attr(lc, 'LogicalCircuitId')
+    if (id === null) continue
+    const name = attr(lc, 'Name') ?? (id === mainSourceId ? 'Main' : '')
+    circuitNames.set(id, name || (id === mainSourceId ? 'Main' : 'Circuit'))
+  }
+  // El circuito de arranque es el principal; si el fichero no lo dice, vale cualquiera.
+  if (!circuitNames.has(mainSourceId)) {
+    mainSourceId = circuitNames.keys().next().value as string | undefined ?? ''
   }
 
   const project = new CircuitProject('Importado')
-
-  const circuitMap = new Map<string, ReturnType<CircuitProject['circuit']>>()
-  const mainCircuit = project.circuit(project.currentCircuitId)!
-  if (mainId && circuits.has(mainId)) {
-    mainCircuit.name = circuits.get(mainId)!.name
+  const mainCircuit = project.circuit(MAIN_CIRCUIT_ID)!
+  const idMap = new Map<string, string>()
+  idMap.set(mainSourceId, MAIN_CIRCUIT_ID)
+  if (circuitNames.has(mainSourceId)) {
+    mainCircuit.name = circuitNames.get(mainSourceId)!
   }
-  circuitMap.set(mainId, mainCircuit)
-
-  for (const [id, info] of circuits) {
-    if (id === mainId) continue
-    const created = project.createCircuit({ name: info.name })
-    circuitMap.set(id, created)
+  for (const [id, name] of circuitNames) {
+    if (id === mainSourceId) continue
+    idMap.set(id, project.createCircuit({ name }).id)
   }
 
-  const pinMap = new Map<string, { circuitId: string; name: string; pinType: string; side: string; bitWidth: number }>()
-  for (const pin of q('Pin')) {
-    pinMap.set(text(pin, 'PinId')!, {
-      circuitId: text(pin, 'CircuitId')!,
-      name: text(pin, 'Name') ?? '',
-      pinType: text(pin, 'PinType') ?? 'Input',
-      side: text(pin, 'PinSide') ?? 'Left',
-      bitWidth: num(pin, 'BitWidth', 1) || 1,
+  // Tablas de dispositivos, indexadas por el id del circuito-símbolo que las representa.
+  interface PinInfo { side: PinSide; pinType: PinType; bitWidth: number; inverted: boolean; name: string }
+  const pins = new Map<string, PinInfo>()
+  for (const pin of children(root, 'Pin')) {
+    const id = attr(pin, 'PinId')
+    if (id === null) continue
+    pins.set(id, {
+      side: PIN_SIDES[(attr(pin, 'PinSide') ?? 'left').toLowerCase()] ?? 'left',
+      pinType: PIN_TYPES[(attr(pin, 'PinType') ?? 'input').toLowerCase()] ?? 'input',
+      bitWidth: Math.max(1, numAttr(pin, 'BitWidth', 1)),
+      inverted: boolAttr(pin, 'Inverted'),
+      name: attr(pin, 'Name') ?? '',
     })
   }
 
-  const constantMap = new Map<string, { value: number; bitWidth: number }>()
-  for (const c of q('Constant')) {
-    constantMap.set(text(c, 'ConstantId')!, {
-      value: num(c, 'Value', 0),
-      bitWidth: num(c, 'BitWidth', 1) || 1,
+  interface ConstantInfo { bitWidth: number; value: number; pinSide: PinSide }
+  const constants = new Map<string, ConstantInfo>()
+  for (const c of children(root, 'Constant')) {
+    const id = attr(c, 'ConstantId')
+    if (id === null) continue
+    constants.set(id, {
+      bitWidth: Math.max(1, numAttr(c, 'BitWidth', 1)),
+      value: numAttr(c, 'Value', 0),
+      pinSide: PIN_SIDES[(attr(c, 'PinSide') ?? 'right').toLowerCase()] ?? 'right',
     })
   }
 
-  const splitterMap = new Map<string, { bitWidth: number; pinCount: number; clockwise: boolean }>()
-  for (const sp of q('Splitter')) {
-    splitterMap.set(text(sp, 'SplitterId')!, {
-      bitWidth: num(sp, 'BitWidth', 4) || 4,
-      pinCount: num(sp, 'PinCount', 4) || 4,
-      clockwise: text(sp, 'Clockwise') !== 'false',
+  interface SplitterInfo { bitWidth: number; pinCount: number; clockwise: boolean }
+  const splitters = new Map<string, SplitterInfo>()
+  for (const sp of children(root, 'Splitter')) {
+    const id = attr(sp, 'SplitterId')
+    if (id === null) continue
+    splitters.set(id, {
+      bitWidth: Math.max(1, numAttr(sp, 'BitWidth', 2)),
+      pinCount: Math.max(2, numAttr(sp, 'PinCount', 2)),
+      clockwise: boolAttr(sp, 'Clockwise', true),
     })
   }
 
-  for (const w of q('Wire')) {
-    const lcId = text(w, 'LogicalCircuitId')!
-    const circuit = circuitMap.get(lcId)
-    if (!circuit) continue
-    const x1 = num(w, 'X1'), y1 = num(w, 'Y1'), x2 = num(w, 'X2'), y2 = num(w, 'Y2')
-    circuit.diagram.addWire({ x: x1, y: y1 }, { x: x2, y: y2 }, 1)
+  interface ButtonInfo { isToggle: boolean; inverted: boolean }
+  const buttons = new Map<string, ButtonInfo>()
+  for (const b of children(root, 'CircuitButton')) {
+    const id = attr(b, 'CircuitButtonId')
+    if (id === null) continue
+    buttons.set(id, { isToggle: boolAttr(b, 'IsToggle'), inverted: boolAttr(b, 'Inverted') })
   }
 
-  for (const sym of q('CircuitSymbol')) {
-    const lcId = text(sym, 'LogicalCircuitId')!
-    const circuit = circuitMap.get(lcId)
-    if (!circuit) continue
-    const cid = text(sym, 'CircuitId')!
-    const x = num(sym, 'X'), y = num(sym, 'Y')
-    const rot = (text(sym, 'Rotation') ?? 'Up').toLowerCase()
-    const rotation = rot === 'right' ? 'right' : rot === 'down' ? 'down' : rot === 'left' ? 'left' : 'up'
+  const ownerOf = (sourceId: string | null): string => idMap.get(sourceId ?? '') ?? MAIN_CIRCUIT_ID
 
-    const pin = pinMap.get(cid)
-    if (pin) {
-      circuit.diagram.addPin({ x, y }, { pinType: pin.pinType as 'Input' | 'Output', side: pin.side as 'Left' | 'Top' | 'Right' | 'Bottom', bitWidth: pin.bitWidth, name: pin.name })
-      continue
-    }
-    const cst = constantMap.get(cid)
-    if (cst) {
-      circuit.diagram.addConstant({ x, y }, { bitWidth: cst.bitWidth, value: cst.value, pinSide: 'Right' })
-      continue
-    }
-    const sp = splitterMap.get(cid)
-    if (sp) {
-      circuit.diagram.addSplitter({ x, y }, { bitWidth: sp.bitWidth, pinCount: sp.pinCount, clockwise: sp.clockwise })
-      continue
-    }
-    if (circuits.has(cid) && cid !== mainId) {
-      circuit.diagram.addCircuitInstance({ x, y }, cid)
-      continue
-    }
-    const gate = decodeGateGuid(cid)
-    if (gate) {
-      const g = circuit.diagram.addGate(gate.gateType, { x, y }, gate.inputCount, gate.invertedOutput)
-      if (rotation !== 'up') {
-        const order = ['up', 'right', 'down', 'left']
-        const from = order.indexOf('up')
-        const to = order.indexOf(rotation)
-        const steps = (to - from + 4) % 4
-        for (let i = 0; i < steps; i++) circuit.diagram.rotate(g.id, true)
-      }
+  // 2) Colocar cada símbolo en su circuito.
+  for (const sym of children(root, 'CircuitSymbol')) {
+    const target = attr(sym, 'CircuitId')
+    if (target === null) continue
+    const circuit = project.circuit(ownerOf(attr(sym, 'LogicalCircuitId')))
+    if (circuit === undefined) continue
+    const id = attr(sym, 'CircuitSymbolId') ?? `${circuit.id}-sym-${sym.getAttribute('X')}-${sym.getAttribute('Y')}`
+    const position = { x: numAttr(sym, 'X'), y: numAttr(sym, 'Y') }
+    const rotation = ROTATIONS[(attr(sym, 'Rotation') ?? 'up').toLowerCase()] ?? 'up'
+    const base = { id, circuitId: circuit.id, layerId: DEFAULT_LAYER_ID, position, rotation }
+
+    const element = symbolElement(target, base, pins, constants, splitters, buttons, idMap)
+    if (element) {
+      circuit.diagram.importElement(element)
     }
   }
 
-  project.openCircuit(mainId && circuitMap.has(mainId) ? mainId : MAIN_CIRCUIT_ID)
+  // 3) Cables.
+  for (const w of children(root, 'Wire')) {
+    const circuit = project.circuit(ownerOf(attr(w, 'LogicalCircuitId')))
+    if (circuit === undefined) continue
+    const wire: StoredElement = {
+      kind: 'wire',
+      id: attr(w, 'WireId') ?? `wire-${w.getAttribute('X1')}-${w.getAttribute('Y1')}-${w.getAttribute('X2')}-${w.getAttribute('Y2')}`,
+      circuitId: circuit.id,
+      layerId: DEFAULT_LAYER_ID,
+      p1: { x: numAttr(w, 'X1'), y: numAttr(w, 'Y1') },
+      p2: { x: numAttr(w, 'X2'), y: numAttr(w, 'Y2') },
+      bitWidth: 1,
+    }
+    circuit.diagram.importElement(wire)
+  }
+
+  project.openCircuit(MAIN_CIRCUIT_ID)
   return project
 }
 
+type SymbolBase = {
+  readonly id: string
+  readonly circuitId: string
+  readonly layerId: string
+  readonly position: { readonly x: number; readonly y: number }
+  readonly rotation: Rotation
+}
+
+/** Traduce el `CircuitId` de un símbolo a la pieza que representa (gate, pin, subcircuito…). */
+function symbolElement(
+  target: string,
+  base: SymbolBase,
+  pins: Map<string, { side: PinSide; pinType: PinType; bitWidth: number; inverted: boolean; name: string }>,
+  constants: Map<string, { bitWidth: number; value: number; pinSide: PinSide }>,
+  splitters: Map<string, { bitWidth: number; pinCount: number; clockwise: boolean }>,
+  buttons: Map<string, { isToggle: boolean; inverted: boolean }>,
+  idMap: Map<string, string>,
+): StoredElement | null {
+  const pin = pins.get(target)
+  if (pin) {
+    return { kind: 'pin', ...base, ...pin }
+  }
+  const constant = constants.get(target)
+  if (constant) {
+    return { kind: 'constant', ...base, ...constant }
+  }
+  const splitter = splitters.get(target)
+  if (splitter) {
+    return { kind: 'splitter', ...base, ...splitter }
+  }
+  const button = buttons.get(target)
+  if (button) {
+    return { kind: 'button', ...base, bitWidth: 1, ...button }
+  }
+  const circuitId = idMap.get(target)
+  if (circuitId !== undefined) {
+    return { kind: 'circuit', ...base, targetCircuitId: circuitId }
+  }
+  const gate = decodeGateGuid(target)
+  if (gate) {
+    return { kind: 'gate', ...base, gateType: gate.gateType, inputCount: gate.inputCount, bitWidth: 1, invertedOutput: gate.invertedOutput }
+  }
+  return null
+}
+
+// ── Exportar ───────────────────────────────────────────────────────────────
+
+/** El GUID que codifica una compuerta (tipo, entradas y salida invertida). */
+function gateGuid(gateType: GateType, inputCount: number, invertedOutput: boolean): string {
+  const t = GATE_GUIDS.indexOf(gateType)
+  const type = (t < 0 ? 0 : t).toString(16).padStart(2, '0')
+  const inputs = Math.max(1, inputCount).toString(16).padStart(2, '0')
+  const inv = invertedOutput ? '01' : '00'
+  return `00000000-0000-0000-0000-000000${type}${inputs}${inv}`
+}
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/**
+ * Escribe el proyecto en el formato de atributos del original.
+ *
+ * Se agrupa por tablas, como el original: primero los circuitos, luego las piezas que son a
+ * la vez circuito (pines, constantes, repartidores, interruptores) y por último los símbolos
+ * colocados y los cables, que las referencian. Así el fichero se puede volver a cargar
+ * respetando las claves ajenas.
+ */
 export function exportCircuitProject(project: CircuitProject): string {
   const lines: string[] = []
-  lines.push('<?xml version="1.0" encoding="utf-8"?>')
+  lines.push('<?xml version="1.0" encoding="utf-8" standalone="yes"?>')
   lines.push(`<lc:CircuitProject xmlns:lc="${NS}">`)
-  lines.push('  <lc:Project>')
-  lines.push(`    <lc:LogicalCircuitId>${project.currentCircuitId}</lc:LogicalCircuitId>`)
-  lines.push('  </lc:Project>')
+  lines.push(`  <lc:Project ProjectId="${escapeXml(MAIN_CIRCUIT_ID)}" LogicalCircuitId="${escapeXml(project.currentCircuitId)}" />`)
+
   for (const c of project.circuitsList) {
-    lines.push('  <lc:LogicalCircuit>')
-    lines.push(`    <lc:LogicalCircuitId>${c.id}</lc:LogicalCircuitId>`)
-    lines.push(`    <lc:Name>${escapeXml(c.name)}</lc:Name>`)
-    lines.push('  </lc:LogicalCircuit>')
+    lines.push(`  <lc:LogicalCircuit LogicalCircuitId="${escapeXml(c.id)}" Name="${escapeXml(c.name)}" />`)
+  }
+
+  // Piezas que son a la vez circuito (tienen tabla propia).
+  for (const c of project.circuitsList) {
     for (const el of c.elements) {
       if (el.kind === 'pin') {
-        lines.push('  <lc:Pin>')
-        lines.push(`    <lc:PinId>${el.id}</lc:PinId>`)
-        lines.push(`    <lc:CircuitId>${c.id}</lc:CircuitId>`)
-        lines.push(`    <lc:Name>${escapeXml(el.name)}</lc:Name>`)
-        lines.push(`    <lc:PinType>${el.pinType}</lc:PinType>`)
-        lines.push(`    <lc:PinSide>${el.side}</lc:PinSide>`)
-        lines.push(`    <lc:BitWidth>${el.bitWidth}</lc:BitWidth>`)
-        lines.push('  </lc:Pin>')
+        lines.push(
+          `  <lc:Pin PinId="${escapeXml(el.id)}" CircuitId="${escapeXml(c.id)}"` +
+            pinAttrs(el.pinType, el.side, el.bitWidth, el.inverted) +
+            ` Name="${escapeXml(el.name)}" JamNotation="${escapeXml(el.name)}" />`,
+        )
       } else if (el.kind === 'constant') {
-        lines.push('  <lc:Constant>')
-        lines.push(`    <lc:ConstantId>${el.id}</lc:ConstantId>`)
-        lines.push(`    <lc:Value>${el.value}</lc:Value>`)
-        lines.push(`    <lc:BitWidth>${el.bitWidth}</lc:BitWidth>`)
-        lines.push('  </lc:Constant>')
+        lines.push(
+          `  <lc:Constant ConstantId="${escapeXml(el.id)}" BitWidth="${el.bitWidth}" Value="${el.value}"` +
+            (el.pinSide === 'right' ? '' : ` PinSide="${sideName(el.pinSide)}"`) +
+            ' />',
+        )
       } else if (el.kind === 'splitter') {
-        lines.push('  <lc:Splitter>')
-        lines.push(`    <lc:SplitterId>${el.id}</lc:SplitterId>`)
-        lines.push(`    <lc:BitWidth>${el.bitWidth}</lc:BitWidth>`)
-        lines.push(`    <lc:PinCount>${el.pinCount}</lc:PinCount>`)
-        lines.push(`    <lc:Clockwise>${el.clockwise}</lc:Clockwise>`)
-        lines.push('  </lc:Splitter>')
-      } else if (el.kind === 'wire') {
-        lines.push('  <lc:Wire>')
-        lines.push(`    <lc:WireId>${el.id}</lc:WireId>`)
-        lines.push(`    <lc:LogicalCircuitId>${c.id}</lc:LogicalCircuitId>`)
-        lines.push(`    <lc:X1>${el.p1.x}</lc:X1>`)
-        lines.push(`    <lc:Y1>${el.p1.y}</lc:Y1>`)
-        lines.push(`    <lc:X2>${el.p2.x}</lc:X2>`)
-        lines.push(`    <lc:Y2>${el.p2.y}</lc:Y2>`)
-        lines.push('  </lc:Wire>')
-      }
-    }
-    for (const el of c.elements) {
-      if (el.kind === 'gate') {
-        const gateGuid = `00000000-0000-0000-0000-000000${GATE_TYPES.indexOf(el.gateType).toString(16).padStart(2, '0')}${el.inputCount.toString(16).padStart(2, '0')}${el.invertedOutput ? '01' : '00'}`
-        lines.push('  <lc:CircuitSymbol>')
-        lines.push(`    <lc:CircuitSymbolId>${el.id}</lc:CircuitSymbolId>`)
-        lines.push(`    <lc:CircuitId>${gateGuid}</lc:CircuitId>`)
-        lines.push(`    <lc:LogicalCircuitId>${c.id}</lc:LogicalCircuitId>`)
-        lines.push(`    <lc:X>${el.position.x}</lc:X>`)
-        lines.push(`    <lc:Y>${el.position.y}</lc:Y>`)
-        lines.push('  </lc:CircuitSymbol>')
+        lines.push(
+          `  <lc:Splitter SplitterId="${escapeXml(el.id)}" BitWidth="${el.bitWidth}" PinCount="${el.pinCount}" Clockwise="${el.clockwise}" />`,
+        )
       } else if (el.kind === 'button') {
-        const buttonGuid = `00000000-0000-0000-0000-000000090100`
-        lines.push('  <lc:CircuitSymbol>')
-        lines.push(`    <lc:CircuitSymbolId>${el.id}</lc:CircuitSymbolId>`)
-        lines.push(`    <lc:CircuitId>${buttonGuid}</lc:CircuitId>`)
-        lines.push(`    <lc:LogicalCircuitId>${c.id}</lc:LogicalCircuitId>`)
-        lines.push(`    <lc:X>${el.position.x}</lc:X>`)
-        lines.push(`    <lc:Y>${el.position.y}</lc:Y>`)
-        lines.push('  </lc:CircuitSymbol>')
-      } else if (el.kind === 'pin' || el.kind === 'constant' || el.kind === 'splitter') {
-        lines.push('  <lc:CircuitSymbol>')
-        lines.push(`    <lc:CircuitSymbolId>${el.id}</lc:CircuitSymbolId>`)
-        lines.push(`    <lc:CircuitId>${el.id}</lc:CircuitId>`)
-        lines.push(`    <lc:LogicalCircuitId>${c.id}</lc:LogicalCircuitId>`)
-        lines.push(`    <lc:X>${el.position.x}</lc:X>`)
-        lines.push(`    <lc:Y>${el.position.y}</lc:Y>`)
-        lines.push('  </lc:CircuitSymbol>')
-      } else if (el.kind === 'circuit') {
-        lines.push('  <lc:CircuitSymbol>')
-        lines.push(`    <lc:CircuitSymbolId>${el.id}</lc:CircuitSymbolId>`)
-        lines.push(`    <lc:CircuitId>${el.targetCircuitId}</lc:CircuitId>`)
-        lines.push(`    <lc:LogicalCircuitId>${c.id}</lc:LogicalCircuitId>`)
-        lines.push(`    <lc:X>${el.position.x}</lc:X>`)
-        lines.push(`    <lc:Y>${el.position.y}</lc:Y>`)
-        lines.push('  </lc:CircuitSymbol>')
+        lines.push(
+          `  <lc:CircuitButton CircuitButtonId="${escapeXml(el.id)}" IsToggle="${el.isToggle}" Inverted="${el.inverted}" />`,
+        )
       }
     }
   }
+
+  // Símbolos colocados y cables.
+  for (const c of project.circuitsList) {
+    for (const el of c.elements) {
+      if (el.kind === 'wire') {
+        lines.push(
+          `  <lc:Wire WireId="${escapeXml(el.id)}" LogicalCircuitId="${escapeXml(c.id)}" X1="${el.p1.x}" Y1="${el.p1.y}" X2="${el.p2.x}" Y2="${el.p2.y}" />`,
+        )
+      } else if (el.kind === 'gate' || el.kind === 'button' || el.kind === 'pin' || el.kind === 'constant' || el.kind === 'splitter' || el.kind === 'circuit') {
+        const symbolId = `${el.id}-sym`
+        const rotation = el.rotation === 'up' ? '' : ` Rotation="${rotationName(el.rotation)}"`
+        const targetSource =
+          el.kind === 'gate' ? gateGuid(el.gateType, el.inputCount, el.invertedOutput) : el.kind === 'circuit' ? el.targetCircuitId : el.id
+        lines.push(
+          `  <lc:CircuitSymbol CircuitSymbolId="${escapeXml(symbolId)}" CircuitId="${escapeXml(targetSource)}" LogicalCircuitId="${escapeXml(c.id)}" X="${el.position.x}" Y="${el.position.y}"${rotation} />`,
+        )
+      }
+    }
+  }
+
   lines.push('</lc:CircuitProject>')
   return lines.join('\n')
 }
 
-function escapeXml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+function pinAttrs(pinType: PinType, side: PinSide, bitWidth: number, inverted: boolean): string {
+  let out = ''
+  if (pinType !== 'input') out += ` PinType="${pinType === 'none' ? 'None' : 'Output'}"`
+  if (side !== 'left') out += ` PinSide="${sideName(side)}"`
+  if (bitWidth !== 1) out += ` BitWidth="${bitWidth}"`
+  if (inverted) out += ' Inverted="true"'
+  return out
+}
+
+function sideName(side: PinSide): string {
+  return side.charAt(0).toUpperCase() + side.slice(1)
+}
+
+function rotationName(rotation: Rotation): string {
+  return rotation.charAt(0).toUpperCase() + rotation.slice(1)
 }

@@ -62,11 +62,11 @@
 import { Diagram, MAIN_CIRCUIT_ID } from '../core/model/diagram'
 import { DEFAULT_LAYER_ID } from '../core/model/types'
 import { CircuitProject } from '../core/model/circuit'
-import { placedPins } from '../core/model/layout'
+import { deviceBounds, placedPins } from '../core/model/layout'
 import { connectionCounts, pointKey } from '../core/simulate/nets'
 import { Simulation } from './simulation'
 import type { SimulationState } from '../core/simulate/engine'
-import type { Button, Element, Gate, GridPoint, Id, Wire } from '../core/model/types'
+import type { Button, Gate, GridPoint, Id, PlacedElement, StoredElement, Wire } from '../core/model/types'
 import { Camera } from '../render/camera'
 import { Canvas2DRenderer } from '../render/canvas2d'
 import { hitTest } from '../render/hit-test'
@@ -209,6 +209,10 @@ export class Editor {
   private sim: SimulationState = this.simulation.snapshot
 
   private tool: Tool = 'select'
+  /** ¿Se dibuja la rejilla? Lo decide la preferencia del usuario (M4-10). */
+  private showGrid = true
+  /** ¿Se imanta el puntero a la rejilla? Lo decide la preferencia del usuario (M4-10). */
+  private snapToGrid = true
   /**
    * Cuántas entradas tendrá la próxima compuerta que se coloque.
    *
@@ -235,6 +239,7 @@ export class Editor {
 
   private stopWatchingTheme: (() => void) | null = null
   private unsubscribe: (() => void) | null = null
+  private readonly viewListeners = new Set<() => void>()
 
   constructor(callbacks: EditorCallbacks = {}) {
     this.callbacks = callbacks
@@ -253,12 +258,33 @@ export class Editor {
   }
 
   get elementCount(): number {
-    return this.diagram.elements.length
+    return this.diagram.count
+  }
+
+  /**
+   * Avisa de cada repintado (cambio de documento o de cámara).
+   *
+   * Lo usa el minimapa para no ir preguntando: se redibuja cuando de verdad cambia algo.
+   */
+  subscribeView(listener: () => void): () => void {
+    this.viewListeners.add(listener)
+    return () => {
+      this.viewListeners.delete(listener)
+    }
   }
 
   /** Estado de la cámara (para minimap). */
   get cameraState(): { zoom: number; offsetX: number; offsetY: number } {
     return this.camera.state
+  }
+
+  /** Tamaño del lienzo en píxeles CSS (para el rectángulo del minimapa). */
+  get viewportSize(): { width: number; height: number } {
+    const canvas = this.canvas
+    if (canvas === null) {
+      return { width: 800, height: 600 }
+    }
+    return { width: canvas.clientWidth, height: canvas.clientHeight }
   }
 
   /** Id del elemento seleccionado (o null). */
@@ -273,6 +299,11 @@ export class Editor {
     if (rect === undefined) return null
     const world = this.camera.toWorld(clientX - rect.left, clientY - rect.top)
     return hitTest(this.diagram.visibleElements, world)
+  }
+
+  /** El valor de un cable para la sonda (1/0), o `null` si no se puede saber. */
+  probeValue(wire: Wire): number | null {
+    return this.simulation.probeValue(wire)
   }
 
   private savedRevision = 0
@@ -290,10 +321,27 @@ export class Editor {
   loadProject(project: CircuitProject): void {
     this.project = project
     this.circuitPathIds = [MAIN_CIRCUIT_ID]
+    this.selected.clear()
     this.savedRevision = this.diagram.revision
+    this.followDiagram()
     this.evaluate()
     this.refresh()
     this.callbacks.onCircuitChange?.(this.circuitPath)
+  }
+
+  /**
+   * Se pone a escuchar **el diagrama actual**.
+   *
+   * Al cargar un proyecto o cambiar de circuito, el diagrama es otro objeto; si no se
+   * resuscribe, el editor se queda escuchando el viejo y deja de repintar y de simular el
+   * que se está viendo. (Ese era un fallo real de M3/M4.)
+   */
+  private followDiagram(): void {
+    this.unsubscribe?.()
+    this.unsubscribe = this.diagram.subscribe(() => {
+      this.evaluate()
+      this.refresh()
+    })
   }
 
   /** Encuadra todo el contenido en el viewport. */
@@ -310,10 +358,13 @@ export class Editor {
         maxX = Math.max(maxX, el.p1.x, el.p2.x)
         maxY = Math.max(maxY, el.p1.y, el.p2.y)
       } else {
-        minX = Math.min(minX, el.position.x)
-        minY = Math.min(minY, el.position.y)
-        maxX = Math.max(maxX, el.position.x + 2)
-        maxY = Math.max(maxY, el.position.y + 2)
+        // La caja real del símbolo (giro incluido), no un 2×2 a ojo: una compuerta de alto 4
+        // o un símbolo girado se salían del encuadre.
+        const box = deviceBounds(el)
+        minX = Math.min(minX, box.x0)
+        minY = Math.min(minY, box.y0)
+        maxX = Math.max(maxX, box.x1)
+        maxY = Math.max(maxY, box.y1)
       }
     }
     const padding = 2
@@ -362,10 +413,7 @@ export class Editor {
     })
 
     // Cualquier cambio del documento se recalcula y se repinta en un solo sitio.
-    this.unsubscribe = this.diagram.subscribe(() => {
-      this.evaluate()
-      this.refresh()
-    })
+    this.followDiagram()
 
     this.camera.reset(INITIAL_PADDING_X, INITIAL_PADDING_Y)
     this.evaluate()
@@ -490,14 +538,17 @@ export class Editor {
     for (const id of [...this.selected]) {
       const device = this.diagram.get(id)
       if (device === undefined || device.kind === 'wire') continue
-      const oldPins = placedPins(device as Gate | Button)
+      const oldPins = placedPins(device)
       const oldPoints = oldPins.map((p) => p.point)
+      // ⚠️ Los cables hay que buscarlos **antes** de girar: en cuanto el símbolo gira, sus
+      // pines se mueven y los cables siguen en los viejos, así que preguntar por los pines
+      // nuevos no encontraría ninguno. (Ese era el fallo: girar dejaba los cables atrás.)
+      const attached = attachedWires(this.diagram.elements, device)
       this.diagram.rotate(id, clockwise)
       const newDevice = this.diagram.get(id)
       if (newDevice === undefined || newDevice.kind === 'wire') continue
-      const newPins = placedPins(newDevice as Gate | Button)
+      const newPins = placedPins(newDevice)
       // Mover los cables adjuntos: cada extremo que estaba en un pin viejo va al pin nuevo.
-      const attached = attachedWires(this.diagram.elements, newDevice as Gate | Button)
       const pinMap = new Map<string, GridPoint>()
       for (let i = 0; i < oldPoints.length && i < newPins.length; i++) {
         pinMap.set(pointKey(oldPoints[i]!), newPins[i]!.point)
@@ -539,10 +590,11 @@ export class Editor {
 
   /** Pega el portapapeles con un offset de +1,+1 (M2-24). */
   paste(): void {
-    if (this.clipboard === null || this.clipboard.elements.length === 0) return
+    const clip = this.clipboard
+    if (clip === null || clip.elements.length === 0) return
     this.diagram.beginChange()
     const idMap = new Map<Id, Id>()
-    for (const el of this.clipboard.elements) {
+    for (const el of clip.elements) {
       let newId: Id
       if (el.kind === 'gate') {
         const g = this.diagram.addGate(el.gateType, { x: el.position.x + 1, y: el.position.y + 1 }, el.inputCount, el.invertedOutput, el.bitWidth)
@@ -553,12 +605,13 @@ export class Editor {
       }
       idMap.set(el.id, newId)
     }
-    for (const w of this.clipboard.wires) {
-      const p1OnSelected = this.clipboard.elements.some((e) =>
-        placedPins(e).some((pp) => pointKey(pp.point) === pointKey(w.p1)),
-      )
-      const newP1 = p1OnSelected ? { x: w.p1.x + 1, y: w.p1.y + 1 } : w.p1
-      const newP2 = { x: w.p2.x + 1, y: w.p2.y + 1 }
+    for (const w of clip.wires) {
+      // Un extremo que colgaba de una pieza copiada se desplaza con ella; uno suelto se queda
+      // donde estaba. (Antes el segundo extremo se desplazaba siempre, aunque estuviera suelto.)
+      const onCopied = (point: GridPoint): boolean =>
+        clip.elements.some((e) => placedPins(e).some((pp) => pointKey(pp.point) === pointKey(point)))
+      const newP1 = onCopied(w.p1) ? { x: w.p1.x + 1, y: w.p1.y + 1 } : w.p1
+      const newP2 = onCopied(w.p2) ? { x: w.p2.x + 1, y: w.p2.y + 1 } : w.p2
       this.diagram.addWire(newP1, newP2, w.bitWidth)
     }
     this.diagram.endChange()
@@ -577,13 +630,28 @@ export class Editor {
   }
 
   /** Borra lo seleccionado, con los cables que colgaban de ello (M2-21). */
+  /**
+   * Borra **todo** lo seleccionado.
+   *
+   * Todos los elementos y sus cables van en **una sola** acción de deshacer: si se borrara
+   * uno por uno, cada `Ctrl+Z` devolvería una pieza y haría falta deshacer tantas veces como
+   * piezas había. (Antes solo borraba la primera de la selección múltiple.)
+   */
   removeSelected(): void {
-    const id = this.selection
-    if (id === null) {
+    if (this.selected.size === 0) {
       return
     }
-    this.removeElement(id)
+    const ids = [...this.selected]
+    this.diagram.beginChange()
+    try {
+      for (const id of ids) {
+        this.removeElement(id)
+      }
+    } finally {
+      this.diagram.endChange()
+    }
     this.select(null)
+    this.forgetSelectionIfGone()
   }
 
   /**
@@ -708,6 +776,7 @@ export class Editor {
     this.selected.clear()
     this.forgetSelectionIfGone()
     this.callbacks.onCircuitChange?.(this.circuitPathIds)
+    this.followDiagram()
     this.evaluate()
     this.refresh()
     return true
@@ -722,6 +791,7 @@ export class Editor {
     this.selected.clear()
     this.forgetSelectionIfGone()
     this.callbacks.onCircuitChange?.(this.circuitPathIds)
+    this.followDiagram()
     this.evaluate()
     this.refresh()
     return true
@@ -894,8 +964,8 @@ export class Editor {
       }
       // Sonda: solo sobre cables, para no costar nada cuando no aplica.
       if (hit?.kind === 'wire') {
-        const w = hit.element as { id: string; p1: { x: number; y: number }; bitWidth?: number }
-        const value = this.sim.nets.get(`${w.p1.x},${w.p1.y}`) ?? 0
+        const w = hit.element
+        const value = this.probeValue(w) ?? 0
         this.callbacks.onHoverChange?.(w.id, value, w.bitWidth ?? 1, event.clientX, event.clientY)
       } else {
         this.callbacks.onHoverChange?.(null, null, 1, event.clientX, event.clientY)
@@ -1256,7 +1326,9 @@ export class Editor {
     if (hit !== null && hit.kind === 'pin') {
       return hit.point
     }
-    return { x: Math.round(cursor.x), y: Math.round(cursor.y) }
+    return this.snapToGrid
+      ? { x: Math.round(cursor.x), y: Math.round(cursor.y) }
+      : { x: cursor.x, y: cursor.y }
   }
 
   private worldAt(event: PointerEvent): GridPoint {
@@ -1274,11 +1346,30 @@ export class Editor {
       return { x: 0, y: 0 }
     }
     const rect = canvas.getBoundingClientRect()
-    return this.camera.toGrid(event.clientX - rect.left, event.clientY - rect.top)
+    const raw = this.camera.toWorld(event.clientX - rect.left, event.clientY - rect.top)
+    // Con el imán puesto se redondea a la intersección; sin él, la pieza queda donde se suelta.
+    return this.snapToGrid ? { x: Math.round(raw.x), y: Math.round(raw.y) } : raw
+  }
+
+  /** Aplica la preferencia de rejilla visible. */
+  setShowGrid(visible: boolean): void {
+    if (visible === this.showGrid) {
+      return
+    }
+    this.showGrid = visible
+    this.refresh()
+  }
+
+  /** Aplica la preferencia de imán a la rejilla. */
+  setSnapToGrid(snap: boolean): void {
+    this.snapToGrid = snap
   }
 
   private evaluate(): void {
-    this.sim = this.simulation.evaluate(this.diagram.visibleElements)
+    // La simulación ve **todos** los elementos, no solo los dibujables: un pin de hoja o un
+    // subcircuito importados cuentan aunque el lienzo todavía no sepa pintarlos. Y no se
+    // filtra por capas: ocultar una capa es cosa de la vista, no del circuito.
+    this.sim = this.simulation.evaluate(this.diagram.storedElements)
   }
 
   /**
@@ -1348,7 +1439,7 @@ export class Editor {
         selected: this.selected,
         camera: this.camera.state,
         theme: this.theme,
-        showGrid: true,
+        showGrid: this.showGrid,
         pinDots,
         sketch,
       }),
@@ -1382,6 +1473,10 @@ export class Editor {
 
     this.callbacks.onZoom?.(Math.round(this.camera.zoom * 100))
     this.emitHistory()
+
+    for (const listener of this.viewListeners) {
+      listener()
+    }
   }
 
   /**
@@ -1426,7 +1521,7 @@ const SHORTCUT_TOOLS: Readonly<Record<string, Tool | undefined>> = {
  * encima de uno de sus pines. Los pines no se guardan en el dispositivo —`layout.ts` los deduce
  * del tipo y del tamaño— así que la cuenta se hace preguntando por sitios, no por nombres.
  */
-function attachedWires(elements: readonly Element[], device: Gate | Button): Wire[] {
+function attachedWires(elements: readonly StoredElement[], device: PlacedElement): Wire[] {
   const pins = new Set(placedPins(device).map((placed) => pointKey(placed.point)))
   const found: Wire[] = []
 

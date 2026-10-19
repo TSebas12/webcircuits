@@ -21,7 +21,7 @@
  */
 
 import { deviceBounds, deviceLayout, pinPosition } from './layout'
-import type { Button, CircuitInstance, Constant, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Pin, PinSide, PinType, Rotation, Splitter, Wire } from './types'
+import type { Button, CircuitInstance, Constant, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Pin, PinSide, PinType, Rotation, Splitter, StoredElement, Wire } from './types'
 import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
@@ -36,21 +36,37 @@ export const MAIN_CIRCUIT_ID = 'main'
 const MAX_HISTORY = 100
 
 /**
- * Una foto del documento: sus elementos, en orden.
+ * Una foto del documento: sus elementos y sus capas.
  *
- * Se copia **la lista**, no los elementos. Cada elemento es inmutable —cualquier cambio lo
- * sustituye por otro objeto—, así que comparar dos fotos es comparar referencias: barato y
- * exacto, y sin clonar nada.
+ * Se copian **las listas**, no los elementos. Cada elemento y cada capa son inmutables
+ * —cualquier cambio los sustituye por otro objeto—, así que comparar dos fotos es comparar
+ * referencias: barato y exacto, y sin clonar nada.
+ *
+ * ⚠️ Las capas van incluidas a propósito: sin ellas, deshacer una operación de capas
+ * (crear, borrar, renombrar, mover a otra, mostrar/ocultar) no restauraba nada y dejaba el
+ * modelo a medias. Eso era un fallo real de M5-19.
  */
-type Snapshot = readonly Element[]
+interface Snapshot {
+  readonly elements: readonly StoredElement[]
+  readonly layers: readonly Layer[]
+}
 
-/** El documento: los elementos colocados y nada más. */
+/** El documento: los elementos colocados, sus capas y nada más. */
 export class Diagram {
-  private readonly items = new Map<Id, Element>()
+  private readonly items = new Map<Id, StoredElement>()
   private layers: Layer[] = [{ id: DEFAULT_LAYER_ID, name: 'Principal', visible: true, locked: false, color: '#888888', opacity: 1 }]
   private readonly listeners = new Set<() => void>()
   private counter = 0
+  private layerCounter = 0
   private revisionCount = 0
+
+  /**
+   * El circuito al que pertenece este diagrama. Todo lo que se cree aquí lleva este
+   * `circuitId`, para que un elemento de un subcircuito no diga que es de la hoja principal.
+   * (Antes se grababa siempre `MAIN_CIRCUIT_ID`, y eso rompía la jerarquía al simular y al
+   * guardar.)
+   */
+  constructor(private readonly circuitId: Id = MAIN_CIRCUIT_ID) {}
 
   /** Las fotos de antes de cada acción, la más reciente al final. */
   private readonly undoStack: Snapshot[] = []
@@ -68,21 +84,54 @@ export class Diagram {
     return this.revisionCount
   }
 
-  /** Todos los elementos, en orden de creación, ordenados por capa (z-order). */
-  get elements(): Element[] {
-    const layerOrder = new Map(this.layers.map((l, i) => [l.id, i]))
-    return [...this.items.values()].sort((a, b) => {
-      const la = layerOrder.get(a.layerId) ?? 0
-      const lb = layerOrder.get(b.layerId) ?? 0
-      if (la !== lb) return la - lb
-      return 0
-    })
+  /**
+   * **Todos** los elementos guardados, en orden de creación (el del fichero).
+   *
+   * Es la vista que usan la simulación y la persistencia: les da igual si el editor sabe
+   * dibujar un pin o un repartidor, y el orden de creación importa (numera los pines de un
+   * repartidor y las puntas de un subcircuito).
+   */
+  get storedElements(): StoredElement[] {
+    return [...this.items.values()]
   }
 
-  /** Solo los elementos de capas visibles. */
+  /**
+   * Los elementos que el editor sabe dibujar (compuertas, interruptores y cables),
+   * ordenados por capa (z-order) y, dentro de una capa, por orden de creación.
+   *
+   * El orden por capa es lo que pinta «una capa encima de otra»: la primera del array se
+   * dibuja debajo. `Array.prototype.sort` es estable desde ES2019, así que dentro de cada
+   * capa se respeta el orden de creación sin necesidad de desempatar a mano.
+   */
+  get elements(): Element[] {
+    return this.drawables(this.storedElements)
+  }
+
+  /** Solo los elementos dibujables de capas visibles, ordenados por capa. */
   get visibleElements(): Element[] {
     const visible = new Set(this.layers.filter((l) => l.visible).map((l) => l.id))
-    return [...this.items.values()].filter((e) => visible.has(e.layerId))
+    return this.drawables(this.storedElements.filter((e) => visible.has(e.layerId)))
+  }
+
+  /**
+   * Ordena por capa y se queda con lo que el lienzo sabe pintar.
+   *
+   * Se filtra **antes** de ordenar para no pagar el `sort` por elementos que luego se
+   * tiran, y se hace en una sola pasada de asignación de orden en vez de un `find` por
+   * comparación (que sería O(n·capas·log n)).
+   */
+  private drawables(items: readonly StoredElement[]): Element[] {
+    const layerOrder = new Map<Id, number>()
+    this.layers.forEach((layer, index) => layerOrder.set(layer.id, index))
+    const result: Element[] = []
+    for (const item of items) {
+      if (item.kind === 'gate' || item.kind === 'button' || item.kind === 'wire') {
+        result.push(item)
+      }
+    }
+    return result.sort(
+      (a, b) => (layerOrder.get(a.layerId) ?? 0) - (layerOrder.get(b.layerId) ?? 0),
+    )
   }
 
   get count(): number {
@@ -118,7 +167,7 @@ export class Diagram {
    */
   beginChange(): void {
     if (this.depth === 0) {
-      this.pending = this.elements
+      this.pending = this.snapshot()
     }
     this.depth += 1
   }
@@ -138,7 +187,7 @@ export class Diagram {
 
     const before = this.pending
     this.pending = null
-    if (before === null || sameSnapshot(before, this.elements)) {
+    if (before === null || sameSnapshot(before, this.snapshot())) {
       return
     }
 
@@ -160,7 +209,7 @@ export class Diagram {
     if (previous === undefined) {
       return false
     }
-    this.redoStack.push(this.elements)
+    this.redoStack.push(this.snapshot())
     this.restore(previous)
     return true
   }
@@ -171,9 +220,14 @@ export class Diagram {
     if (next === undefined) {
       return false
     }
-    this.undoStack.push(this.elements)
+    this.undoStack.push(this.snapshot())
     this.restore(next)
     return true
+  }
+
+  /** La foto del estado actual. Copia las listas para que nadie las pueda mutar por detrás. */
+  private snapshot(): Snapshot {
+    return { elements: this.storedElements, layers: [...this.layers] }
   }
 
   /**
@@ -185,9 +239,10 @@ export class Diagram {
    */
   private restore(snapshot: Snapshot): void {
     this.items.clear()
-    for (const element of snapshot) {
+    for (const element of snapshot.elements) {
       this.items.set(element.id, element)
     }
+    this.layers = [...snapshot.layers]
     this.changed()
   }
 
@@ -201,7 +256,7 @@ export class Diagram {
     }
   }
 
-  get(id: Id): Element | undefined {
+  get(id: Id): StoredElement | undefined {
     return this.items.get(id)
   }
 
@@ -209,6 +264,18 @@ export class Diagram {
   private nextId(prefix: string): Id {
     this.counter += 1
     return `${prefix}-${this.counter}`
+  }
+
+  /**
+   * Sube el contador interno para que un identificador importado (`gate-7`) no vuelva a
+   * salir. Sin esto, cargar un fichero y colocar una pieza después podía reutilizar el id
+   * de una pieza ya cargada y **machacarla**.
+   */
+  private reserveId(id: Id): void {
+    const n = Number.parseInt(id.slice(id.lastIndexOf('-') + 1), 10)
+    if (Number.isFinite(n) && n > this.counter) {
+      this.counter = n
+    }
   }
 
   private changed(): void {
@@ -229,7 +296,7 @@ export class Diagram {
       const gate: Gate = {
         kind: 'gate',
         id: this.nextId('gate'),
-        circuitId: MAIN_CIRCUIT_ID,
+        circuitId: this.circuitId,
         layerId: DEFAULT_LAYER_ID,
         position,
         rotation: 'up',
@@ -259,7 +326,7 @@ export class Diagram {
       const button: Button = {
         kind: 'button',
         id: this.nextId('button'),
-        circuitId: MAIN_CIRCUIT_ID,
+        circuitId: this.circuitId,
         layerId: DEFAULT_LAYER_ID,
         position,
         rotation: 'up',
@@ -282,12 +349,12 @@ export class Diagram {
       const pin: Pin = {
         kind: 'pin',
         id: this.nextId('pin'),
-        circuitId: MAIN_CIRCUIT_ID,
+        circuitId: this.circuitId,
         layerId: DEFAULT_LAYER_ID,
         position,
         rotation: 'up',
-        pinType: options.pinType ?? 'Input',
-        side: options.side ?? 'Left',
+        pinType: options.pinType ?? 'input',
+        side: options.side ?? 'left',
         bitWidth: Math.max(1, Math.min(options.bitWidth ?? 1, MAX_BIT_WIDTH)),
         inverted: options.inverted ?? false,
         name: options.name ?? '',
@@ -307,13 +374,13 @@ export class Diagram {
       const constant: Constant = {
         kind: 'constant',
         id: this.nextId('constant'),
-        circuitId: MAIN_CIRCUIT_ID,
+        circuitId: this.circuitId,
         layerId: DEFAULT_LAYER_ID,
         position,
         rotation: 'up',
         bitWidth: Math.max(1, Math.min(options.bitWidth ?? 1, MAX_BIT_WIDTH)),
         value: options.value ?? 0,
-        pinSide: options.pinSide ?? 'Right',
+        pinSide: options.pinSide ?? 'right',
       }
       this.items.set(constant.id, constant)
       this.changed()
@@ -330,7 +397,7 @@ export class Diagram {
       const splitter: Splitter = {
         kind: 'splitter',
         id: this.nextId('splitter'),
-        circuitId: MAIN_CIRCUIT_ID,
+        circuitId: this.circuitId,
         layerId: DEFAULT_LAYER_ID,
         position,
         rotation: 'up',
@@ -353,7 +420,7 @@ export class Diagram {
       const instance: CircuitInstance = {
         kind: 'circuit',
         id: this.nextId('circuit'),
-        circuitId: MAIN_CIRCUIT_ID,
+        circuitId: this.circuitId,
         layerId: DEFAULT_LAYER_ID,
         position,
         rotation: 'up',
@@ -370,21 +437,60 @@ export class Diagram {
     return this.layers
   }
 
-  /** Reemplaza la lista de capas (carga de ficheros). */
+  /**
+   * Reemplaza la lista de capas (carga de ficheros).
+   *
+   * Se **normaliza** antes de guardar: si el fichero no trae la capa por defecto, se añade
+   * al principio, y cualquier elemento que apunte a una capa inexistente se queda en la
+   * principal en vez de desaparecer (una capa oculta o inexistente lo volvía invisible).
+   */
   setLayers(layers: readonly Layer[]): void {
-    this.layers = [...layers]
+    const next = layers.map((l) => ({ ...l }))
+    if (!next.some((l) => l.id === DEFAULT_LAYER_ID)) {
+      next.unshift({ id: DEFAULT_LAYER_ID, name: 'Principal', visible: true, locked: false, color: '#888888', opacity: 1 })
+    }
+    for (const layer of next) {
+      this.reserveLayerId(layer.id)
+    }
+    const ids = new Set(next.map((l) => l.id))
+    for (const [id, el] of this.items) {
+      if (!ids.has(el.layerId)) {
+        this.items.set(id, { ...el, layerId: DEFAULT_LAYER_ID })
+      }
+    }
+    this.layers = next
     this.changed()
   }
 
   /** Crea una capa nueva. */
   createLayer(name = 'Nueva capa'): Layer {
-    const id: Id = `layer-${this.layers.length}`
-    const layer: Layer = { id, name, visible: true, locked: false, color: '#888888', opacity: 1 }
+    const layer: Layer = {
+      id: this.nextLayerId(),
+      name,
+      visible: true,
+      locked: false,
+      color: '#888888',
+      opacity: 1,
+    }
     this.change(() => {
       this.layers = [...this.layers, layer]
       this.changed()
     })
     return layer
+  }
+
+  /** Un identificador de capa nuevo. Nunca reutiliza uno borrado. */
+  private nextLayerId(): Id {
+    this.layerCounter += 1
+    return `layer-${this.layerCounter}`
+  }
+
+  /** Sube el contador de capas si el id importado (`layer-3`) es mayor que el actual. */
+  private reserveLayerId(id: Id): void {
+    const n = Number.parseInt(id.slice(id.lastIndexOf('-') + 1), 10)
+    if (Number.isFinite(n) && n > this.layerCounter) {
+      this.layerCounter = n
+    }
   }
 
   renameLayer(id: Id, name: string): void {
@@ -424,12 +530,26 @@ export class Diagram {
     })
   }
 
-  /** Duplica una capa: copia todos sus elementos a una nueva capa. */
+  /**
+   * Duplica una capa: crea una capa nueva y copia todos los elementos de la origen.
+   *
+   * Todo va en **una sola** acción de deshacer: crear la capa y copiar los elementos son el
+   * mismo gesto del usuario, así que deshacerlo de golpe es lo correcto. (Antes se hacía en
+   * dos `change` separados y deshacer solo devolvía la mitad.)
+   */
   duplicateLayer(id: Id): Layer | null {
     const src = this.layers.find((l) => l.id === id)
     if (!src) return null
-    const newLayer = this.createLayer(`${src.name} (copia)`)
+    const newLayer: Layer = {
+      id: this.nextLayerId(),
+      name: `${src.name} (copia)`,
+      visible: src.visible,
+      locked: false,
+      color: src.color,
+      opacity: src.opacity,
+    }
     this.change(() => {
+      this.layers = [...this.layers, newLayer]
       for (const el of this.items.values()) {
         if (el.layerId === id) {
           const copy = { ...el, id: this.nextId(el.kind), layerId: newLayer.id }
@@ -476,8 +596,12 @@ export class Diagram {
     return this.layers.find((l) => l.id === layerId)?.locked ?? false
   }
 
-  /** Importa un elemento ya construido (para carga de ficheros). No crea id nuevo. */
-  importElement(element: Element): void {
+  /**
+   * Importa un elemento ya construido (para carga de ficheros). No crea id nuevo, pero
+   * reserva su número para que una pieza nueva no lo reutilice.
+   */
+  importElement(element: StoredElement): void {
+    this.reserveId(element.id)
     this.items.set(element.id, element)
     this.changed()
   }
@@ -487,7 +611,7 @@ export class Diagram {
       const wire: Wire = {
         kind: 'wire',
         id: this.nextId('wire'),
-        circuitId: MAIN_CIRCUIT_ID,
+        circuitId: this.circuitId,
         layerId: DEFAULT_LAYER_ID,
         p1,
         p2,
@@ -526,7 +650,10 @@ export class Diagram {
         ? (idx + 1) % rotations.length
         : (idx + rotations.length - 1) % rotations.length
       const newRotation = rotations[nextIdx] as Rotation
-      const layout = deviceLayout(element as Gate | Button)
+      // El recolocado solo tiene sentido para símbolos que ya se dibujan; el resto de
+      // dispositivos aún no se editan, así que se gira sin más (su caja es 2×2).
+      const layout =
+        element.kind === 'gate' || element.kind === 'button' ? deviceLayout(element) : { width: 2, height: 2, pins: [] }
       const w = layout.width
       const h = layout.height
       const dx = Math.round((w - h) / 2)
@@ -576,12 +703,15 @@ export class Diagram {
     })
   }
 
-  /** Los dispositivos (todo lo que no es un cable). */
+  /**
+   * Los dispositivos que el editor dibuja y edita hoy (compuertas e interruptores) en capas
+   * visibles. Los pines, repartidores y subcircuitos no entran todavía: no tienen símbolo.
+   */
   get devices(): (Gate | Button)[] {
     const visible = new Set(this.layers.filter((l) => l.visible).map((l) => l.id))
     const result: (Gate | Button)[] = []
     for (const item of this.items.values()) {
-      if (item.kind !== 'wire' && visible.has(item.layerId)) {
+      if ((item.kind === 'gate' || item.kind === 'button') && visible.has(item.layerId)) {
         result.push(item)
       }
     }
@@ -607,8 +737,12 @@ export class Diagram {
   }
 }
 
-/** ¿Las dos fotos son la misma? Los elementos son inmutables, así que basta la referencia. */
+/** ¿Las dos fotos son la misma? Elementos y capas son inmutables: basta la referencia. */
 function sameSnapshot(a: Snapshot, b: Snapshot): boolean {
+  return sameRefs(a.elements, b.elements) && sameRefs(a.layers, b.layers)
+}
+
+function sameRefs<T>(a: readonly T[], b: readonly T[]): boolean {
   if (a.length !== b.length) {
     return false
   }

@@ -6,7 +6,7 @@ import type { Circuit } from '../model/circuit'
 import { CircuitProject } from '../model/circuit'
 import { MAIN_CIRCUIT_ID } from '../model/diagram'
 import { DEFAULT_LAYER_ID } from '../model/types'
-import type { Element, GridPoint, Layer } from '../model/types'
+import type { GridPoint, Layer, PinSide, PinType, StoredElement } from '../model/types'
 
 export const FORMAT_NAME = 'webcircuits'
 export const FORMAT_VERSION = 1
@@ -32,7 +32,7 @@ function point(p: GridPoint): { x: number; y: number } {
   return { x: p.x, y: p.y }
 }
 
-function serializeElement(el: Element): SerializedElement {
+function serializeElement(el: StoredElement): SerializedElement {
   const base = {
     kind: el.kind,
     id: el.id,
@@ -90,7 +90,35 @@ function asPoint(v: unknown): GridPoint {
   return { x: o.x, y: o.y }
 }
 
-function deserializeElement(raw: SerializedElement): Element {
+const PIN_TYPES: Readonly<Record<string, PinType>> = {
+  input: 'input',
+  output: 'output',
+  none: 'none',
+  Input: 'input',
+  Output: 'output',
+  None: 'none',
+}
+
+const PIN_SIDES: Readonly<Record<string, PinSide>> = {
+  left: 'left',
+  right: 'right',
+  top: 'top',
+  bottom: 'bottom',
+  Left: 'left',
+  Right: 'right',
+  Top: 'top',
+  Bottom: 'bottom',
+}
+
+function asPinType(v: unknown): PinType {
+  return PIN_TYPES[String(v)] ?? 'input'
+}
+
+function asPinSide(v: unknown): PinSide {
+  return PIN_SIDES[String(v)] ?? 'right'
+}
+
+function deserializeElement(raw: SerializedElement): StoredElement {
   const base = {
     id: raw.id as string,
     circuitId: raw.circuitId as string,
@@ -103,7 +131,7 @@ function deserializeElement(raw: SerializedElement): Element {
       p1: asPoint(raw.p1),
       p2: asPoint(raw.p2),
       bitWidth: (raw.bitWidth as number) ?? 1,
-    } as Element
+    }
   }
   const position = asPoint(raw.position)
   const rotation = raw.rotation as 'up' | 'right' | 'down' | 'left'
@@ -117,7 +145,7 @@ function deserializeElement(raw: SerializedElement): Element {
         inputCount: raw.inputCount as number,
         bitWidth: (raw.bitWidth as number) ?? 1,
         invertedOutput: (raw.invertedOutput as boolean) ?? false,
-      } as Element
+      }
     case 'button':
       return {
         kind: 'button',
@@ -125,25 +153,25 @@ function deserializeElement(raw: SerializedElement): Element {
         bitWidth: (raw.bitWidth as number) ?? 1,
         isToggle: (raw.isToggle as boolean) ?? false,
         inverted: (raw.inverted as boolean) ?? false,
-      } as Element
+      }
     case 'pin':
       return {
         kind: 'pin',
         ...deviceBase,
-        pinType: (raw.pinType as 'Input' | 'Output') ?? 'Input',
-        side: (raw.side as 'Left' | 'Top' | 'Right' | 'Bottom') ?? 'Left',
+        pinType: asPinType(raw.pinType),
+        side: asPinSide(raw.side),
         bitWidth: (raw.bitWidth as number) ?? 1,
         inverted: (raw.inverted as boolean) ?? false,
         name: (raw.name as string) ?? '',
-      } as Element
+      }
     case 'constant':
       return {
         kind: 'constant',
         ...deviceBase,
         bitWidth: (raw.bitWidth as number) ?? 1,
         value: (raw.value as number) ?? 0,
-        pinSide: (raw.pinSide as 'Left' | 'Top' | 'Right' | 'Bottom') ?? 'Right',
-      } as Element
+        pinSide: asPinSide(raw.pinSide),
+      }
     case 'splitter':
       return {
         kind: 'splitter',
@@ -151,52 +179,72 @@ function deserializeElement(raw: SerializedElement): Element {
         bitWidth: (raw.bitWidth as number) ?? 1,
         pinCount: (raw.pinCount as number) ?? 2,
         clockwise: (raw.clockwise as boolean) ?? true,
-      } as Element
+      }
     case 'circuit':
       return {
         kind: 'circuit',
         ...deviceBase,
         targetCircuitId: raw.targetCircuitId as string,
-      } as Element
+      }
     default:
       throw new Error(`Elemento desconocido: ${raw.kind}`)
   }
 }
 
+/**
+ * Carga un proyecto del formato nativo.
+ *
+ * Los circuitos se crean **primero** todos y después se rellenan, para poder reescribir las
+ * referencias entre ellos (`circuitId` y el `targetCircuitId` de un subcircuito): al cargar,
+ * cada circuito recibe un id nuevo, y sin este reescrito los subcircuitos apuntarían a ids
+ * que ya no existen. Era un fallo silencioso de M4-11.
+ */
 export function deserializeProject(json: string): CircuitProject {
   const data = JSON.parse(json) as SerializedProject
   if (data.format !== FORMAT_NAME) {
     throw new Error(`Formato desconocido: ${data.format}`)
   }
-  if (data.version !== FORMAT_VERSION) {
-    throw new Error(`Versión no soportada: ${data.version} (se esperaba ${FORMAT_VERSION})`)
+  if (data.version > FORMAT_VERSION) {
+    throw new Error(`Versión no soportada: ${data.version} (esta versión llega a ${FORMAT_VERSION})`)
   }
   const project = new CircuitProject(data.name)
-  const main = project.circuit(project.currentCircuitId)!
-  for (const el of [...main.diagram.elements]) {
-    main.diagram.remove(el.id)
-  }
-  const idMap = new Map<string, string>()
+  const mainId = MAIN_CIRCUIT_ID
+  const idMap = new Map<string, string>([[mainId, mainId]])
+
+  // 1) Crear todos los circuitos y mapear id viejo → id nuevo.
   for (const sc of data.circuits) {
-    if (sc.id === MAIN_CIRCUIT_ID || sc.id === project.currentCircuitId) {
-      for (const el of sc.elements) {
-        const e = deserializeElement(el)
-        main.diagram.importElement({ ...e, circuitId: main.id } as Element)
+    if (sc.id === mainId) {
+      continue
+    }
+    const created = project.createCircuit({ name: sc.name })
+    idMap.set(sc.id, created.id)
+  }
+
+  // 2) Rellenar cada circuito ya con el mapa completo (las referencias cruzadas ya resuelven).
+  for (const sc of data.circuits) {
+    const circuit = project.circuit(idMap.get(sc.id) ?? mainId)
+    if (circuit === undefined) {
+      continue
+    }
+    for (const el of sc.elements) {
+      const mapped = {
+        ...deserializeElement(el),
+        circuitId: circuit.id,
+      } as StoredElement
+      if (mapped.kind === 'circuit') {
+        const target = idMap.get(mapped.targetCircuitId)
+        circuit.diagram.importElement(target ? { ...mapped, targetCircuitId: target } : mapped)
+      } else {
+        circuit.diagram.importElement(mapped)
       }
-      if (sc.layers) main.diagram.setLayers(sc.layers as Layer[])
-    } else {
-      const created = project.createCircuit({ name: sc.name })
-      idMap.set(sc.id, created.id)
-      for (const el of sc.elements) {
-        const e = deserializeElement(el)
-        created.diagram.importElement({ ...e, circuitId: created.id } as Element)
-      }
-      if (sc.layers) created.diagram.setLayers(sc.layers as Layer[])
+    }
+    if (sc.layers) {
+      circuit.diagram.setLayers(sc.layers as Layer[])
     }
   }
-  if (data.currentCircuitId && data.currentCircuitId !== project.currentCircuitId) {
-    const mapped = idMap.get(data.currentCircuitId) ?? data.currentCircuitId
-    project.openCircuit(mapped)
+
+  if (data.currentCircuitId) {
+    project.openCircuit(idMap.get(data.currentCircuitId) ?? mainId)
   }
   return project
 }

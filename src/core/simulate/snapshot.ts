@@ -23,7 +23,7 @@ import type { CircuitState } from './circuit-state'
 import { State } from '../function/state'
 import type { CircuitMap } from './circuit-map'
 import type { SymbolIndex } from '../model/symbol'
-import type { DeviceState, Element, Id } from '../model/types'
+import type { DeviceState, Id, StoredElement } from '../model/types'
 
 /**
  * El estado visual de cada dispositivo del circuito, por identificador.
@@ -35,7 +35,7 @@ export function devicesSnapshot(
   index: SymbolIndex,
   map: CircuitMap,
   state: CircuitState,
-  elements: readonly Element[],
+  elements: readonly StoredElement[],
 ): Map<Id, DeviceState> {
   const devices = new Map<Id, DeviceState>()
   for (const element of elements) {
