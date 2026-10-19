@@ -4,6 +4,7 @@
   import ContextMenu, { type MenuItem } from './ContextMenu.svelte'
   import Inspector from './Inspector.svelte'
   import Minimap from './Minimap.svelte'
+  import LayersPanel from './LayersPanel.svelte'
   import SettingsPanel from './SettingsPanel.svelte'
   import CommandPalette from './CommandPalette.svelte'
   import { deserializeProject, serializeProject } from '../core/persist/json'
@@ -44,6 +45,7 @@
   let contextMenu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null)
   let showSettings = $state(false)
   let showCommandPalette = $state(false)
+  let showLayers = $state(false)
   let canUndo = $state(false)
   let canRedo = $state(false)
   /** Se está tendiendo un cable: el cursor deja de ser la mano y pasa a ser la flecha. */
@@ -410,6 +412,15 @@
     >
       ⚙
     </button>
+    <button
+      type="button"
+      class="tool"
+      onclick={() => (showLayers = !showLayers)}
+      title="Capas"
+      aria-label="Capas"
+    >
+      📚
+    </button>
 
     <button
       type="button"
@@ -562,6 +573,10 @@
 
   {#if hasSelection && editor}
     <Inspector {editor} />
+  {/if}
+
+  {#if showLayers && editor}
+    <LayersPanel {editor} />
   {/if}
 
   {#if editor}

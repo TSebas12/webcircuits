@@ -60,6 +60,7 @@
  */
 
 import { Diagram, MAIN_CIRCUIT_ID } from '../core/model/diagram'
+import { DEFAULT_LAYER_ID } from '../core/model/types'
 import { CircuitProject } from '../core/model/circuit'
 import { placedPins } from '../core/model/layout'
 import { connectionCounts, pointKey } from '../core/simulate/nets'
@@ -271,7 +272,7 @@ export class Editor {
     const rect = this.canvas?.getBoundingClientRect()
     if (rect === undefined) return null
     const world = this.camera.toWorld(clientX - rect.left, clientY - rect.top)
-    return hitTest(this.diagram.elements, world)
+    return hitTest(this.diagram.visibleElements, world)
   }
 
   private savedRevision = 0
@@ -739,7 +740,15 @@ export class Editor {
 
     const world = this.worldAt(event)
     const grid = this.gridAt(event)
-    const hit = hitTest(this.diagram.elements, world)
+    const hit = hitTest(this.diagram.visibleElements, world)
+
+    // Capa bloqueada: no se edita.
+    if (hit !== null && hit.kind !== 'wire' && this.diagram.isLayerLocked(hit.element.layerId ?? DEFAULT_LAYER_ID)) {
+      return
+    }
+    if (hit !== null && hit.kind === 'wire' && this.diagram.isLayerLocked(hit.element.layerId)) {
+      return
+    }
 
     // Modo ejecución: la corriente está puesta, así que el circuito se está probando y no
     // se edita. Es lo que hace el original (`Editor.InEditMode => !Power`: cada manejador del
@@ -874,7 +883,7 @@ export class Editor {
       // Al pasar por encima de un pin, el cursor deja de ser la mano: ahí se cablea,
       // no se mueve. Así se distingue el gesto antes de apretar.
       const world = this.worldAt(event)
-      const hit = hitTest(this.diagram.elements, world)
+      const hit = hitTest(this.diagram.visibleElements, world)
       if (this.canvas !== null) {
         if (this.tool !== 'select') {
         // Con una herramienta puesta, el cursor es la cruz incluso sobre un pin.
@@ -1243,7 +1252,7 @@ export class Editor {
       return null
     }
 
-    const hit = hitTest(this.diagram.elements, cursor)
+    const hit = hitTest(this.diagram.visibleElements, cursor)
     if (hit !== null && hit.kind === 'pin') {
       return hit.point
     }
@@ -1269,7 +1278,7 @@ export class Editor {
   }
 
   private evaluate(): void {
-    this.sim = this.simulation.evaluate(this.diagram.elements)
+    this.sim = this.simulation.evaluate(this.diagram.visibleElements)
   }
 
   /**
@@ -1298,7 +1307,7 @@ export class Editor {
     // Los pines conectados se ven siempre (incluso con la corriente puesta), porque son
     // información del cableado. Los libres solo tienen sentido editando: con corriente
     // sobran, y en edición se ocultan si no hay zoom suficiente para no ser ruido.
-    const counts = connectionCounts(this.diagram.elements)
+    const counts = connectionCounts(this.diagram.visibleElements)
 
     for (const device of this.diagram.devices) {
       for (const placed of placedPins(device)) {
@@ -1334,7 +1343,7 @@ export class Editor {
 
     this.renderer.render(
       buildScene({
-        elements: this.diagram.elements,
+        elements: this.diagram.visibleElements,
         states: this.sim.devices,
         selected: this.selected,
         camera: this.camera.state,

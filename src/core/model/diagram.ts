@@ -21,7 +21,7 @@
  */
 
 import { deviceBounds, deviceLayout, pinPosition } from './layout'
-import type { Button, CircuitInstance, Constant, Element, Gate, GateType, GridPoint, GridRect, Id, Pin, PinSide, PinType, Rotation, Splitter, Wire } from './types'
+import type { Button, CircuitInstance, Constant, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Pin, PinSide, PinType, Rotation, Splitter, Wire } from './types'
 import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
@@ -47,6 +47,7 @@ type Snapshot = readonly Element[]
 /** El documento: los elementos colocados y nada más. */
 export class Diagram {
   private readonly items = new Map<Id, Element>()
+  private layers: Layer[] = [{ id: DEFAULT_LAYER_ID, name: 'Principal', visible: true, locked: false, color: '#888888', opacity: 1 }]
   private readonly listeners = new Set<() => void>()
   private counter = 0
   private revisionCount = 0
@@ -67,9 +68,21 @@ export class Diagram {
     return this.revisionCount
   }
 
-  /** Todos los elementos, en orden de creación. */
+  /** Todos los elementos, en orden de creación, ordenados por capa (z-order). */
   get elements(): Element[] {
-    return [...this.items.values()]
+    const layerOrder = new Map(this.layers.map((l, i) => [l.id, i]))
+    return [...this.items.values()].sort((a, b) => {
+      const la = layerOrder.get(a.layerId) ?? 0
+      const lb = layerOrder.get(b.layerId) ?? 0
+      if (la !== lb) return la - lb
+      return 0
+    })
+  }
+
+  /** Solo los elementos de capas visibles. */
+  get visibleElements(): Element[] {
+    const visible = new Set(this.layers.filter((l) => l.visible).map((l) => l.id))
+    return [...this.items.values()].filter((e) => visible.has(e.layerId))
   }
 
   get count(): number {
@@ -352,6 +365,76 @@ export class Diagram {
     })
   }
 
+  /** Lista de capas (solo lectura). */
+  get layersList(): readonly Layer[] {
+    return this.layers
+  }
+
+  /** Crea una capa nueva. */
+  createLayer(name = 'Nueva capa'): Layer {
+    const id: Id = `layer-${this.layers.length}`
+    const layer: Layer = { id, name, visible: true, locked: false, color: '#888888', opacity: 1 }
+    this.change(() => {
+      this.layers = [...this.layers, layer]
+      this.changed()
+    })
+    return layer
+  }
+
+  renameLayer(id: Id, name: string): void {
+    this.change(() => {
+      this.layers = this.layers.map((l) => (l.id === id ? { ...l, name } : l))
+      this.changed()
+    })
+  }
+
+  deleteLayer(id: Id): boolean {
+    if (id === DEFAULT_LAYER_ID) return false
+    if (!this.layers.some((l) => l.id === id)) return false
+    this.change(() => {
+      this.layers = this.layers.filter((l) => l.id !== id)
+      // Mover elementos de la capa borrada a la por defecto.
+      for (const [eid, el] of this.items) {
+        if (el.layerId === id) {
+          this.items.set(eid, { ...el, layerId: DEFAULT_LAYER_ID })
+        }
+      }
+      this.changed()
+    })
+    return true
+  }
+
+  setLayerVisible(id: Id, visible: boolean): void {
+    this.change(() => {
+      this.layers = this.layers.map((l) => (l.id === id ? { ...l, visible } : l))
+      this.changed()
+    })
+  }
+
+  setLayerLocked(id: Id, locked: boolean): void {
+    this.change(() => {
+      this.layers = this.layers.map((l) => (l.id === id ? { ...l, locked } : l))
+      this.changed()
+    })
+  }
+
+  moveElementToLayer(elementId: Id, layerId: Id): void {
+    const el = this.items.get(elementId)
+    if (el === undefined) return
+    this.change(() => {
+      this.items.set(elementId, { ...el, layerId })
+      this.changed()
+    })
+  }
+
+  selectAllInLayer(layerId: Id): Id[] {
+    return [...this.items.values()].filter((e) => e.layerId === layerId).map((e) => e.id)
+  }
+
+  isLayerLocked(layerId: Id): boolean {
+    return this.layers.find((l) => l.id === layerId)?.locked ?? false
+  }
+
   /** Importa un elemento ya construido (para carga de ficheros). No crea id nuevo. */
   importElement(element: Element): void {
     this.items.set(element.id, element)
@@ -454,9 +537,10 @@ export class Diagram {
 
   /** Los dispositivos (todo lo que no es un cable). */
   get devices(): (Gate | Button)[] {
+    const visible = new Set(this.layers.filter((l) => l.visible).map((l) => l.id))
     const result: (Gate | Button)[] = []
     for (const item of this.items.values()) {
-      if (item.kind !== 'wire') {
+      if (item.kind !== 'wire' && visible.has(item.layerId)) {
         result.push(item)
       }
     }

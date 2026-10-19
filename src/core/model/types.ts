@@ -111,6 +111,16 @@ export interface ElementBase {
 /** Identificador de la capa por defecto (original: la capa "Principal"). */
 export const DEFAULT_LAYER_ID: Id = 'principal'
 
+/** Una capa del circuito (M5). */
+export interface Layer {
+  readonly id: Id
+  readonly name: string
+  readonly visible: boolean
+  readonly locked: boolean
+  readonly color: string
+  readonly opacity: number
+}
+
 /**
  * Un cable.
  *
