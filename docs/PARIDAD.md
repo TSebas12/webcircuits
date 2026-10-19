@@ -32,6 +32,8 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | ↳ `CircuitMap.cs` · `CircuitMap.SymbolMap.cs` · `CircuitMap.Connection.cs` | Traducir el dibujo a circuito simulable: árbol de subcircuitos, resolución de cables, aplanado a funciones e índices de estado | `src/core/simulate/circuit-map.ts`, `connection.ts`, `symbol-map.ts` | M2 | 🟡 (compuertas, tri-estado, reloj, interruptor, LED y constante; memoria/probeta/sensor/sonido/matriz llegan con M2-05/12) |
 | ↳ `CircuitRunner.cs` | Encender/apagar el circuito: aplanar, voltear el reloj, evaluar y repintar | `src/core/simulate/circuit-runner.ts` | M2 | 🟡 (sin hilos; la temporización precisa es M7B-05) |
 | ↳ `FunctionClock.cs` · `FunctionButton.cs` · `FunctionLed.cs` · `FunctionConstant.cs` (`Function/`) | Reloj, interruptor, LED y constante | `src/core/function/devices.ts` | M2 | 🟡 (la constante aún no se puede colocar: le falta la forma, M2-05) |
+| ↳ *(solo WebCircuits)* | Puente entre el motor y el render: la **foto** del circuito (`off`/`zero`/`one` por dispositivo) y quien lo mantiene en marcha (aplanar al encender, el temporizador del reloj y el repintado como mucho una vez por fotograma) | `src/core/simulate/snapshot.ts`, `src/app/simulation.ts` | M2 | ✅ (en el original esto lo hacen `Editor` y los hilos de `CircuitRunner`) |
+| ↳ `MiniEngine` + propagación topológica *(obsoleto)* | El motor mínimo de M1 (`levelize`/`propagate`): la aplicación ya no lo usa —el motor de verdad es `CircuitMap` + `CircuitRunner`— y solo lo mantienen sus tests. Se retira en cuanto no haya nada que lo eche de menos | `src/core/simulate/engine.ts`, `propagate.ts`, `levelize.ts` | M2 | ⬜ (pendiente de retirar) |
 | `SymbolShapes/` | Geometría de los símbolos | `src/render/symbols/` | M2 | 🟡 |
 | `Icon/` | Iconos | `src/render/icons/` | M2 | ⬜ |
 | `Editor/` | Editor, herramientas, undo/redo | `src/app/editor.ts` | M2 | 🟡 |
@@ -63,6 +65,7 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | `ProbeConverterTest` | Conversión de probetas | `tests/unit/persist/probe.test.ts` | ⬜ |
 | `CircuitTest` | Circuito y sus elementos | `tests/unit/model/circuit.test.ts` | ⬜ |
 | `CircuitMapTest` | Mapa de pines / *sockets* | `tests/unit/core/simulate/circuit-map.test.ts` | 🟡 (13 tests propios; los 3 del original —`CleanUpTest` espera 0/0/3/8 funciones— necesitan cargar `.CircuitProject`: M4) |
+| *(no hay clase propia)* | Tener el circuito en marcha: encender, pulsar un interruptor, el reloj latiendo y la foto que se pinta | `tests/unit/core/simulate/circuit-runner.test.ts`, `tests/unit/core/simulate/snapshot.test.ts`, `tests/unit/app/simulation.test.ts` | ✅ (el original no prueba el encendedor por separado: lo cubren `EditorTest` y las pruebas a mano) |
 | `CircuitTestSocketTest` | *Sockets* de test | `tests/unit/model/socket.test.ts` | ⬜ |
 | `MemoryTest` | Memoria (RAM/ROM) | `tests/unit/model/memory.test.ts` | ⬜ |
 | `SensorTest` | Sensores | `tests/unit/model/sensor.test.ts` | ⬜ |
