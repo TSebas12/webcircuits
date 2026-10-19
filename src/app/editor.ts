@@ -215,6 +215,10 @@ export class Editor {
   private inputs = 2
   private pan: PanState | null = null
   private drag: DragState | null = null
+  /** Selección por área (M2-19): rectángulo en curso. */
+  private areaSelection: { readonly start: GridPoint; current: GridPoint } | null = null
+  /** Posiciones iniciales de los elementos seleccionados al empezar a arrastrar (M2-20). */
+  private dragGroup: Map<Id, GridPoint> | null = null
   private wire: WireState | null = null
   private buttonPress: ButtonPress | null = null
   /** Última posición del cursor en el mundo, para la previsualización del cable. */
@@ -613,7 +617,20 @@ export class Editor {
     }
 
     if (hit !== null && hit.kind === 'device') {
-      this.select(hit.element.id)
+      const isAlreadySelected = this.selected.has(hit.element.id)
+      if (!isAlreadySelected) {
+        this.select(hit.element.id)
+      }
+
+      const groupIds = isAlreadySelected && this.selected.size > 1 ? [...this.selected] : [hit.element.id]
+      const groupPositions = new Map<Id, GridPoint>()
+      for (const id of groupIds) {
+        const el = this.diagram.get(id)
+        if (el !== undefined && el.kind !== 'wire') {
+          groupPositions.set(id, { x: el.position.x, y: el.position.y })
+        }
+      }
+      this.dragGroup = groupPositions.size > 1 ? groupPositions : null
 
       // Ojo: aquí **no** se pulsa el interruptor. En modo edición un clic elige la pieza
       // (para moverla), y el original tampoco deja pulsar con la corriente apagada: su
@@ -642,6 +659,14 @@ export class Editor {
       return
     }
 
+    // Selección por área (M2-19): Shift + arrastrar.
+    if (event.shiftKey) {
+      canvas.setPointerCapture(event.pointerId)
+      this.areaSelection = { start: grid, current: grid }
+      this.refresh()
+      return
+    }
+
     // Nada debajo: se desplaza la vista.
     this.select(null)
     this.pan = { lastX: event.clientX, lastY: event.clientY }
@@ -649,6 +674,11 @@ export class Editor {
   }
 
   private readonly onPointerMove = (event: PointerEvent): void => {
+    if (this.areaSelection !== null) {
+      this.areaSelection.current = this.gridAt(event)
+      this.refresh()
+      return
+    }
     const pan = this.pan
     if (pan !== null) {
       this.camera.panBy(event.clientX - pan.lastX, event.clientY - pan.lastY)
@@ -707,34 +737,42 @@ export class Editor {
       const dx = newPos.x - device.position.x
       const dy = newPos.y - device.position.y
 
-      // Los cables pegados a la pieza van con ella: una punta que caiga justo sobre uno de
-      // sus pines se desplaza lo mismo. Es lo que hace el original (`CommitMove`): solo se
-      // mueven los extremos que coinciden con un pin del s��mbolo movido. Por eso, si el cable
-      // se partió y el pin ya no es extremo, o si el otro extremo estǭ en otra pieza, ese
-      // extremo no se mueve. Con Mayǧsculas se puede arrastrar la pieza sin arrastrar los
-      // cables (como en el original).
-      const attached =
-        dx !== 0 || dy !== 0
-          ? event.shiftKey
-            ? []
-            : attachedWires(this.diagram.elements, device)
-          : []
-      const pins = new Set(placedPins(device).map((placed) => pointKey(placed.point)))
-
-      this.diagram.move(drag.id, newPos)
-
-      for (const wire of attached) {
-        if (pins.has(pointKey(wire.p1))) {
-          this.diagram.moveWireEnd(wire.id, 1, { x: wire.p1.x + dx, y: wire.p1.y + dy })
+      if (this.dragGroup !== null && (dx !== 0 || dy !== 0)) {
+        for (const id of this.dragGroup.keys()) {
+          const el = this.diagram.get(id)
+          if (el === undefined || el.kind === 'wire') continue
+          const initial = this.dragGroup.get(id)
+          if (initial === undefined) continue
+          this.diagram.move(id, { x: initial.x + dx, y: initial.y + dy })
+          const attached = event.shiftKey ? [] : attachedWires(this.diagram.elements, el)
+          const pins = new Set(placedPins(el).map((placed) => pointKey(placed.point)))
+          for (const wire of attached) {
+            if (pins.has(pointKey(wire.p1))) {
+              this.diagram.moveWireEnd(wire.id, 1, { x: wire.p1.x + dx, y: wire.p1.y + dy })
+            }
+            if (pins.has(pointKey(wire.p2))) {
+              this.diagram.moveWireEnd(wire.id, 2, { x: wire.p2.x + dx, y: wire.p2.y + dy })
+            }
+          }
         }
-        if (pins.has(pointKey(wire.p2))) {
-          this.diagram.moveWireEnd(wire.id, 2, { x: wire.p2.x + dx, y: wire.p2.y + dy })
+      } else if (dx !== 0 || dy !== 0) {
+        const attached = event.shiftKey ? [] : attachedWires(this.diagram.elements, device)
+        const pins = new Set(placedPins(device).map((placed) => pointKey(placed.point)))
+        this.diagram.move(drag.id, newPos)
+        for (const wire of attached) {
+          if (pins.has(pointKey(wire.p1))) {
+            this.diagram.moveWireEnd(wire.id, 1, { x: wire.p1.x + dx, y: wire.p1.y + dy })
+          }
+          if (pins.has(pointKey(wire.p2))) {
+            this.diagram.moveWireEnd(wire.id, 2, { x: wire.p2.x + dx, y: wire.p2.y + dy })
+          }
         }
       }
     } else {
       const newPos = { x: grid.x + drag.grabOffset.x, y: grid.y + drag.grabOffset.y }
       this.diagram.move(drag.id, newPos)
     }
+
   }
 
   private readonly onPointerUp = (event: PointerEvent): void => {
@@ -760,7 +798,29 @@ export class Editor {
 
     // El arrastre se acaba: si de verdad movió algo, la acción queda apilada para deshacer; si
     // fue un clic que no movió nada, se cierra vacía y no deja rastro.
+    if (this.areaSelection !== null) {
+      const rect = this.areaSelection
+      this.areaSelection = null
+      const x0 = Math.min(rect.start.x, rect.current.x)
+      const x1 = Math.max(rect.start.x, rect.current.x)
+      const y0 = Math.min(rect.start.y, rect.current.y)
+      const y1 = Math.max(rect.start.y, rect.current.y)
+      this.select(null)
+      for (const element of this.diagram.elements) {
+        if (element.kind === 'wire') continue
+        const p = element.position
+        if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) {
+          this.selected.add(element.id)
+        }
+      }
+      this.callbacks.onSelectionChange?.(this.selected.values().next().value ?? null)
+      this.dragGroup = null
+      this.refresh()
+      return
+    }
+
     this.endDrag()
+    this.dragGroup = null
     this.refresh()
   }
 
@@ -1092,6 +1152,32 @@ export class Editor {
         sketch,
       }),
     )
+
+    // Dibuja el rectángulo de selección por área (M2-19) sobre el canvas.
+    if (this.areaSelection !== null && this.canvas !== null) {
+      const ctx = this.canvas.getContext('2d')
+      if (ctx !== null) {
+        const rect = this.areaSelection
+        const x0 = Math.min(rect.start.x, rect.current.x)
+        const y0 = Math.min(rect.start.y, rect.current.y)
+        const x1 = Math.max(rect.start.x, rect.current.x)
+        const y1 = Math.max(rect.start.y, rect.current.y)
+        const zoom = this.camera.state.zoom
+        const grid = 18
+        const dpr = window.devicePixelRatio || 1
+        const px0 = (this.camera.state.offsetX + x0 * grid * zoom) * dpr
+        const py0 = (this.camera.state.offsetY + y0 * grid * zoom) * dpr
+        const pw = (x1 - x0 + 1) * grid * zoom * dpr
+        const ph = (y1 - y0 + 1) * grid * zoom * dpr
+        ctx.save()
+        ctx.strokeStyle = 'rgba(59, 130, 246, 0.9)'
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.15)'
+        ctx.lineWidth = 1
+        ctx.fillRect(px0, py0, pw, ph)
+        ctx.strokeRect(px0, py0, pw, ph)
+        ctx.restore()
+      }
+    }
 
     this.callbacks.onZoom?.(Math.round(this.camera.zoom * 100))
     this.emitHistory()
