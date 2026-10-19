@@ -4,6 +4,7 @@
   import { deserializeProject, serializeProject } from '../core/persist/json'
   import { importCircuitProject } from '../core/persist/circuitproject'
   import { IdbProvider } from './files/idb-provider'
+  import { addRecent } from './files/recents'
   import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS, PIECE_GROUPS, PIECES } from './palette'
   import PiecePreview from './PiecePreview.svelte'
 
@@ -186,6 +187,7 @@
       editor.loadProject(project)
       editor.markSaved()
       dirty = editor.dirty
+      addRecent(file.name)
     } catch (err) {
       openError = err instanceof Error ? err.message : 'Fichero no válido'
       setTimeout(() => (openError = null), 4000)
