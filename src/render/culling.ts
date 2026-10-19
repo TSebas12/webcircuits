@@ -100,7 +100,9 @@ export function cullItems(
   const right = (cssWidth - camera.offsetX) / scale
   const bottom = (cssHeight - camera.offsetY) / scale
 
-  const margin = 1 // una celda de margen para no cortar símbodos a medio dibujar
+  // Margen generoso: al menos 1 celda y ~6 px en pantalla, para no cortar
+  // trazos/halos en los bordes con zoom alejado.
+  const margin = Math.max(1, 6 / (GRID_SIZE * camera.zoom))
   const vx0 = left - margin
   const vy0 = top - margin
   const vx1 = right + margin
