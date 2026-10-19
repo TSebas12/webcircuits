@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { Editor, type Tool } from './editor'
-  import { deserializeProject } from '../core/persist/json'
+  import { deserializeProject, serializeProject } from '../core/persist/json'
   import { importCircuitProject } from '../core/persist/circuitproject'
+  import { IdbProvider } from './files/idb-provider'
   import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS, PIECE_GROUPS, PIECES } from './palette'
   import PiecePreview from './PiecePreview.svelte'
 
@@ -30,6 +31,8 @@
   let hasSelection = $state(false)
   let isEmpty = $state(true)
   let dirty = $state(false)
+  let recovered = $state(false)
+  let openError = $state<string | null>(null)
   let hoverInfo = $state<{ x: number; y: number; value: number; bitWidth: number } | null>(null)
   let canUndo = $state(false)
   let canRedo = $state(false)
@@ -124,7 +127,45 @@
     circuitPath = instance.circuitPath
     dirty = instance.dirty
 
+    const idb = new IdbProvider()
+
+    // Recuperación de sesión (M4-19): si hay autosave y el lienzo está vacío, cargarlo.
+    if (instance.elementCount === 0) {
+      idb.open().then((saved) => {
+        if (saved && editor === instance) {
+          try {
+            const project = deserializeProject(saved.content)
+            instance.loadProject(project)
+            instance.markSaved()
+            dirty = instance.dirty
+            recovered = true
+          } catch {
+            // ignore
+          }
+        }
+      })
+    }
+
+    // Autoguardado periódico (M4-17): cada 30 s si hay cambios.
+    const autosaveTimer = setInterval(() => {
+      if (editor !== instance) return
+      if (!instance.dirty) return
+      const payload = serializeProject(instance.project)
+      idb.save(payload, 'autosave').catch(() => {})
+    }, 30000)
+
+    // Guardar al ocultar la pestaña.
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden' && editor === instance && instance.dirty) {
+        const payload = serializeProject(instance.project)
+        idb.save(payload, 'autosave').catch(() => {})
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
     return () => {
+      clearInterval(autosaveTimer)
+      document.removeEventListener('visibilitychange', onVisibility)
       instance.unmount()
       editor = null
     }
@@ -145,8 +186,9 @@
       editor.loadProject(project)
       editor.markSaved()
       dirty = editor.dirty
-    } catch {
-      // ignore invalid files
+    } catch (err) {
+      openError = err instanceof Error ? err.message : 'Fichero no válido'
+      setTimeout(() => (openError = null), 4000)
     }
   }
 
@@ -386,6 +428,15 @@
       <strong>El circuito no se puede simular.</strong>
       {error}
     </div>
+  {/if}
+  {#if recovered}
+    <div class="info-badge" role="status">
+      Sesión recuperada del autoguardado.
+      <button type="button" onclick={() => (recovered = false)}>×</button>
+    </div>
+  {/if}
+  {#if openError !== null}
+    <div class="error-badge" role="alert">{openError}</div>
   {/if}
 
   {#if !powered && tool === 'erase'}
