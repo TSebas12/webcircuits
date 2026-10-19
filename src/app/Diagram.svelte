@@ -27,6 +27,7 @@
   let powered = $state(false)
   let hasSelection = $state(false)
   let isEmpty = $state(true)
+  let dirty = $state(false)
   let canUndo = $state(false)
   let canRedo = $state(false)
   /** Se está tendiendo un cable: el cursor deja de ser la mano y pasa a ser la flecha. */
@@ -81,7 +82,10 @@
       onHistoryChange: (history) => {
         canUndo = history.canUndo
         canRedo = history.canRedo
-        if (editor !== null) isEmpty = editor.elementCount === 0
+        if (editor !== null) {
+          isEmpty = editor.elementCount === 0
+          dirty = editor.dirty
+        }
       },
       onWiringChange: (value) => {
         wiring = value
@@ -107,6 +111,7 @@
     placeInputs = instance.placeInputs
     isEmpty = instance.elementCount === 0
     circuitPath = instance.circuitPath
+    dirty = instance.dirty
 
     return () => {
       instance.unmount()
@@ -333,6 +338,7 @@
   {/if}
 
   <div class="hud" aria-hidden="true">
+    {#if dirty}<span class="dirty">● sin guardar</span><span class="sep">·</span>{/if}
     <span>{fps.toFixed(0)} FPS</span>
     <span class="sep">·</span>
     <span>{paintMs.toFixed(2)} ms</span>

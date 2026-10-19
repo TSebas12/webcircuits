@@ -253,6 +253,17 @@ export class Editor {
     return this.diagram.elements.length
   }
 
+  private savedRevision = 0
+  get revision(): number {
+    return this.diagram.revision
+  }
+  get dirty(): boolean {
+    return this.diagram.revision !== this.savedRevision
+  }
+  markSaved(): void {
+    this.savedRevision = this.diagram.revision
+  }
+
   get canUndo(): boolean {
     return this.diagram.canUndo
   }
