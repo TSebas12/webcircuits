@@ -6,7 +6,9 @@
 
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Editor, type EditorCallbacks, type HistoryState, type Tool } from '../../../src/app/editor'
+import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS } from '../../../src/app/palette'
 import { GRID_SIZE } from '../../../src/render/geometry'
+import type { Element } from '../../../src/core/model/types'
 import { installFakePath2D, makeFakeContext, type FakeContext } from '../support/canvas'
 
 /** Los fotogramas que `requestAnimationFrame` deja apuntados, para poder dispararlos a mano. */
@@ -888,6 +890,104 @@ describe('el cursor dice qué se va a hacer', () => {
 
     expect(wiring).toEqual([true, false])
     expect(editor.diagram.count).toBe(7)
+
+    dispose()
+  })
+})
+
+describe('las piezas de la paleta se colocan como las crea el original (M2-27)', () => {
+  /** Coloca una pieza de la paleta con un clic y devuelve lo que quedó en el circuito. */
+  function placeFromPalette(editor: Editor, canvas: HTMLCanvasElement, id: Tool): Element {
+    editor.setTool(id)
+    clickAt(canvas, 10, 10)
+
+    const element = editor.diagram.devices[0]
+    if (element === undefined) {
+      throw new Error(`no se colocó la pieza «${id}»`)
+    }
+    return element
+  }
+
+  it('la AND sale de dos entradas, y la NAND es la misma con la salida negada', () => {
+    const { editor, canvas, dispose } = mount()
+
+    const and = placeFromPalette(editor, canvas, 'and')
+    expect(and.kind).toBe('gate')
+    expect(and.kind === 'gate' && and.gateType).toBe('and')
+    expect(and.kind === 'gate' && and.inputCount).toBe(2)
+    expect(and.kind === 'gate' && and.invertedOutput).toBe(false)
+
+    // Se borra la primera para poder medir la segunda sola.
+    editor.diagram.remove(and.id)
+    const nand = placeFromPalette(editor, canvas, 'nand')
+    expect(nand.kind === 'gate' && nand.gateType).toBe('and')
+    expect(nand.kind === 'gate' && nand.invertedOutput).toBe(true)
+
+    dispose()
+  })
+
+  it('el inversor sale de una entrada y negado, como en el original', () => {
+    const { editor, canvas, dispose } = mount()
+
+    const not = placeFromPalette(editor, canvas, 'not')
+
+    // `CircuitDescriptorList.cs` crea la NOT con `Gate(GateType.Not, 1, true)`: el triángulo y
+    // su bolita. Una NOT sin negar la colocaría el motor sin función —no conduciría nada—.
+    expect(not.kind === 'gate' && not.gateType).toBe('not')
+    expect(not.kind === 'gate' && not.inputCount).toBe(1)
+    expect(not.kind === 'gate' && not.invertedOutput).toBe(true)
+
+    dispose()
+  })
+
+  it('los tri-estado salen con dos entradas, como los crea el original', () => {
+    const { editor, canvas, dispose } = mount()
+
+    const triState = placeFromPalette(editor, canvas, 'triState2')
+
+    expect(triState.kind === 'gate' && triState.gateType).toBe('triState2')
+    expect(triState.kind === 'gate' && triState.inputCount).toBe(2)
+    expect(triState.kind === 'gate' && triState.invertedOutput).toBe(false)
+
+    dispose()
+  })
+
+  it('las compuertas que lo permiten se colocan con las entradas que pida el panel', () => {
+    const { editor, canvas, dispose } = mount()
+
+    expect(editor.placeInputs).toBe(2)
+    expect(editor.setPlaceInputs(4)).toBe(4)
+
+    const or = placeFromPalette(editor, canvas, 'or')
+    expect(or.kind === 'gate' && or.inputCount).toBe(4)
+    // El hueco se mide con el número nuevo: cinco de alto, así que el clic en (10,10) deja la
+    // compuerta en (9,8) y no en (9,9), que es donde la pondría una de dos entradas.
+    expect(or.kind === 'wire' ? null : or.position).toEqual({ x: 9, y: 8 })
+
+    dispose()
+  })
+
+  it('a las piezas que no tienen entradas variables el panel no las toca', () => {
+    const { editor, canvas, dispose } = mount()
+
+    editor.setPlaceInputs(6)
+    const led = placeFromPalette(editor, canvas, 'led')
+
+    expect(led.kind === 'gate' && led.inputCount).toBe(1)
+
+    dispose()
+  })
+
+  it('el número de entradas se recorta al tope del modelo, y se devuelve el aceptado', () => {
+    const { editor, dispose } = mount()
+
+    // Quien lo pide es un campo de la interfaz: si devolviera lo escrito en vez de lo aceptado,
+    // el campo se quedaría enseñando un número que no es el que se coloca.
+    expect(editor.setPlaceInputs(99)).toBe(MAX_GATE_INPUTS)
+    expect(editor.setPlaceInputs(0)).toBe(MIN_PIECE_INPUTS)
+    expect(editor.setPlaceInputs(3.7)).toBe(3)
+    expect(editor.setPlaceInputs(Number.NaN)).toBe(MIN_PIECE_INPUTS)
+    expect(editor.placeInputs).toBe(MIN_PIECE_INPUTS)
 
     dispose()
   })

@@ -986,6 +986,10 @@ function defineGate(
         return FunctionXorNot.create(circuitState, parameter, result)
     }
   } else {
+    // ⚠️ Aquí **no hay `case 'not'`**, y no es un olvido: el inversor del original siempre nace
+    // con la salida negada (`CircuitDescriptorList.cs` → `Gate(GateType.Not, 1, true)`), así
+    // que la NOT sin negar no existe y el original se planta si la encuentra (`Tracer.Fail`,
+    // que aquí es este comentario). Quien quiera un inversor, lo pide negado.
     switch (gate.gateType) {
       case 'or':
         return FunctionOr.create(circuitState, parameter, result)

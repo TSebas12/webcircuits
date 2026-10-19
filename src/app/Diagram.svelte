@@ -1,18 +1,24 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { Editor, type Tool } from './editor'
+  import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS, PIECE_GROUPS, PIECES } from './palette'
 
   /**
-   * La paleta. Cada botón dice en su `title` la tecla que le toca, que es donde se buscan los
-   * atajos; el editor los escucha en su `onKeyDown` y aquí no se repite la tabla.
+   * La barra de herramientas. Las piezas —compuertas, entradas y salidas— **no** están aquí:
+   * viven en la paleta (`palette.ts`), que es la lista completa. Cada botón dice en su `title`
+   * la tecla que le toca, que es donde se buscan los atajos; el editor los escucha en su
+   * `onKeyDown` y aquí no se repite la tabla.
    */
   const TOOLS: readonly { readonly id: Tool; readonly glyph: string; readonly title: string }[] = [
     { id: 'select', glyph: '⌖', title: 'Seleccionar, mover y cablear (S)' },
     { id: 'erase', glyph: '⌫', title: 'Borrar con un clic lo que se toque (E)' },
-    { id: 'button', glyph: '⏻', title: 'Interruptor de entrada (B)' },
-    { id: 'and', glyph: '∧', title: 'Compuerta AND (A)' },
-    { id: 'led', glyph: '◉', title: 'LED (L)' },
   ]
+
+  /** Las piezas agrupadas como las enseña la paleta: el orden lo manda `palette.ts`. */
+  const PIECE_SECTIONS = PIECE_GROUPS.map((group) => ({
+    ...group,
+    pieces: PIECES.filter((piece) => piece.group === group.id),
+  }))
 
   let canvasEl = $state<HTMLCanvasElement | null>(null)
   let tool = $state<Tool>('select')
@@ -25,6 +31,8 @@
   let wiring = $state(false)
   /** El circuito no se pudo simular. Se enseña y se quita al volver a dar corriente. */
   let error = $state<string | null>(null)
+  /** Cuántas entradas tendrá la próxima compuerta que se coloque desde la paleta. */
+  let placeInputs = $state(2)
 
   let fps = $state(0)
   let paintMs = $state(0)
@@ -88,6 +96,7 @@
     tool = instance.currentTool
     canUndo = instance.canUndo
     canRedo = instance.canRedo
+    placeInputs = instance.placeInputs
 
     return () => {
       instance.unmount()
@@ -99,6 +108,21 @@
     // El estado lo devuelve el editor por `onToolChange`, así que aquí no se toca: una sola
     // fuente de verdad.
     editor?.setTool(id)
+  }
+
+  /**
+   * El número de entradas de la próxima compuerta.
+   *
+   * El editor recorta al tope del modelo y **devuelve** lo que ha aceptado: si se escribe un
+   * 99, se coloca una compuerta de 18 y el campo tiene que enseñar ese 18, no el 99.
+   */
+  const changeInputs = (event: Event): void => {
+    const field = event.currentTarget as HTMLInputElement | null
+    if (field === null || editor === null) {
+      return
+    }
+    placeInputs = editor.setPlaceInputs(field.valueAsNumber)
+    field.value = String(placeInputs)
   }
 
   const togglePower = (): void => {
@@ -211,6 +235,46 @@
     </button>
   </div>
 
+  <aside class="palette" class:disabled={powered} aria-label="Piezas para colocar">
+    <div class="palette-head">
+      <span class="palette-title">Piezas</span>
+      <label class="inputs" title="Cuántas entradas tendrá la próxima compuerta que coloques">
+        <span>entradas</span>
+        <input
+          type="number"
+          min={MIN_PIECE_INPUTS}
+          max={MAX_GATE_INPUTS}
+          value={placeInputs}
+          disabled={powered}
+          onchange={changeInputs}
+        />
+      </label>
+    </div>
+
+    {#each PIECE_SECTIONS as section (section.id)}
+      <div class="palette-group">
+        <span class="group-title">{section.title}</span>
+        <div class="pieces">
+          {#each section.pieces as piece (piece.id)}
+            <button
+              type="button"
+              class="piece"
+              class:active={tool === piece.id}
+              title={powered
+                ? 'Con la corriente puesta no se edita: apágala para colocar'
+                : piece.title}
+              aria-pressed={tool === piece.id}
+              disabled={powered}
+              onclick={() => chooseTool(piece.id)}
+            >
+              {piece.label}
+            </button>
+          {/each}
+        </div>
+      </div>
+    {/each}
+  </aside>
+
   <div class="mode-badge" class:live={powered}>
     {powered
       ? 'Modo ejecución · solo se pulsan interruptores · ⚡ para editar'
@@ -271,7 +335,7 @@
     cursor: default;
   }
 
-  /* ── Paleta ─────────────────────────────────────────────────────────── */
+  /* ── Barra de herramientas ──────────────────────────────────────────── */
 
   .toolbar {
     position: absolute;
@@ -341,7 +405,119 @@
     color: var(--wc-state-one);
   }
 
-  /* ── Las etiquetas de estado ────────────────────────────────────────── */
+  /* ── Paleta de piezas ───────────────────────────────────────────────── */
+
+  /* A la derecha y no a la izquierda porque ahí ya están la barra, el aviso de modo y el del
+     borrador: el circuito queda en medio. Se desplaza por dentro si no cabe entera, que es
+     mejor que recortarla. */
+  .palette {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    width: 12.5rem;
+    max-height: calc(100% - 3.4rem);
+    overflow-y: auto;
+    padding: 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: 0.55rem;
+    background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 14px rgb(0 0 0 / 8%);
+    color: var(--fg);
+    font-size: 0.78rem;
+    user-select: none;
+  }
+
+  .palette-head {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.15rem 0.35rem;
+  }
+
+  .palette-title {
+    color: var(--fg-muted);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .inputs {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+    color: var(--fg-muted);
+    font-size: 0.68rem;
+  }
+
+  .inputs input {
+    width: 2.8rem;
+    padding: 0.1rem 0.2rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    background: var(--panel-bg);
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.72rem;
+  }
+
+  .palette-group + .palette-group {
+    margin-top: 0.4rem;
+  }
+
+  .group-title {
+    display: block;
+    padding: 0 0.15rem 0.2rem;
+    color: var(--fg-muted);
+    font-size: 0.66rem;
+  }
+
+  .pieces {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.2rem;
+  }
+
+  .piece {
+    padding: 0.25rem 0.3rem;
+    border: 1px solid transparent;
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.74rem;
+    text-align: center;
+    cursor: pointer;
+    transition:
+      background-color 100ms ease,
+      border-color 100ms ease;
+  }
+
+  .piece:hover:not(:disabled) {
+    background: var(--panel-bg-hover);
+  }
+
+  /* La pieza que se va a colocar se marca igual que la herramienta activa de la barra: es la
+     misma pregunta («¿qué hace el clic?») y merece la misma respuesta visual. */
+  .piece.active {
+    border-color: var(--wc-selection);
+    background: color-mix(in srgb, var(--wc-selection) 16%, transparent);
+  }
+
+  /* Con la corriente puesta no se edita, así que la paleta se apaga entera: dejar pulsar una
+     pieza que no va a colocar nada sería mentir. */
+  .palette.disabled .piece,
+  .palette.disabled .inputs {
+    opacity: 0.45;
+  }
+
+  .piece:disabled {
+    cursor: default;
+  }
+
+  /* ── Avisos ─────────────────────────────────────────────────────────── */
 
   /* Está siempre puesta, en los dos modos, porque las dos confusiones son simétricas: «¿por
      qué no se enciende nada?» y «¿por qué no puedo mover esto?». El color de «encendido»

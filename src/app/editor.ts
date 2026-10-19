@@ -60,7 +60,7 @@
  */
 
 import { Diagram } from '../core/model/diagram'
-import { gateLayout, placedPins } from '../core/model/layout'
+import { placedPins } from '../core/model/layout'
 import { connectionCounts, pointKey } from '../core/simulate/nets'
 import { Simulation } from './simulation'
 import type { SimulationState } from '../core/simulate/engine'
@@ -71,15 +71,21 @@ import { hitTest } from '../render/hit-test'
 import type { DrawPinDot, DrawWire, RendererStats } from '../render/ir-renderer'
 import { buildScene } from '../render/scene'
 import { readTheme, watchTheme } from '../render/theme-bridge'
-
-/** Qué coloca una herramienta. */
-export type PlaceTool = 'button' | 'and' | 'led'
+import {
+  MAX_GATE_INPUTS,
+  MIN_PIECE_INPUTS,
+  findPiece,
+  pieceLayout,
+  placePiece,
+  type PlaceTool,
+} from './palette'
 
 /**
  * La herramienta activa.
  *
  * `select` es la de trabajo —elegir, mover y cablear—, `erase` borra lo que se toque con un
- * clic, y las de colocación ponen un símbolo nuevo con cada clic.
+ * clic, y las de colocación (`PlaceTool`, la lista de piezas de la paleta) ponen un símbolo
+ * nuevo con cada clic.
  *
  * ⚠️ **No hay herramienta de «modo prueba»**: ya existe, y es el botón de corriente. Con la
  * corriente apagada se edita; con la corriente puesta no se toca nada y el clic solo pulsa
@@ -188,6 +194,13 @@ export class Editor {
   private sim: SimulationState = this.simulation.snapshot
 
   private tool: Tool = 'select'
+  /**
+   * Cuántas entradas tendrá la próxima compuerta que se coloque.
+   *
+   * Es cosa del panel, no del circuito: la pieza guarda el número con el que se colocó. Aquí se
+   * recuerda para que colocar tres ORs seguidas no obligue a elegir «3» tres veces.
+   */
+  private inputs = 2
   private pan: PanState | null = null
   private drag: DragState | null = null
   private wire: WireState | null = null
@@ -291,6 +304,24 @@ export class Editor {
     }
     this.tool = tool
     this.callbacks.onToolChange?.(tool)
+  }
+
+  /** Cuántas entradas tendrá la próxima compuerta que se coloque. */
+  get placeInputs(): number {
+    return this.inputs
+  }
+
+  /**
+   * Fija cuántas entradas tendrá la próxima compuerta y **devuelve el número aceptado**.
+   *
+   * Devuelve en vez de callarse porque quien lo pide es un campo de la interfaz: si se escribe
+   * un 99, el editor coloca 18 (`MAX_GATE_INPUTS`) y el campo tiene que enseñar ese 18 y no
+   * quedarse mintiendo con el 99.
+   */
+  setPlaceInputs(count: number): number {
+    const accepted = Math.max(MIN_PIECE_INPUTS, Math.min(MAX_GATE_INPUTS, Math.trunc(count)))
+    this.inputs = Number.isFinite(accepted) ? accepted : MIN_PIECE_INPUTS
+    return this.inputs
   }
 
   /**
@@ -734,9 +765,15 @@ export class Editor {
 
   // ── Lo de dentro ──────────────────────────────────────────────────────
 
-  /** Coloca un símbolo nuevo, centrado en la celda donde se hizo clic. */
+  /**
+   * Coloca la pieza de la herramienta activa, centrada en la celda donde se hizo clic.
+   *
+   * El hueco se mide con el modelo (`pieceLayout`), no a ojo: si el dibujo y el hueco libre se
+   * calcularan por separado, cualquier día no coincidirían y se apilarían símbolos.
+   */
   private place(tool: PlaceTool, grid: GridPoint): void {
-    const size = tool === 'and' ? gateLayout('and', 2) : { width: 2, height: 2 }
+    const piece = findPiece(tool)
+    const size = pieceLayout(piece, this.placeInputs)
     const position: GridPoint = {
       x: grid.x - Math.floor(size.width / 2),
       y: grid.y - Math.floor(size.height / 2),
@@ -747,20 +784,7 @@ export class Editor {
       return
     }
 
-    switch (tool) {
-      case 'and':
-        this.diagram.addGate('and', position, 2)
-        break
-      case 'led':
-        this.diagram.addGate('led', position, 1)
-        break
-      case 'button':
-        // La paleta crea un interruptor **fijo**: con el ratón no se pueden pulsar dos a
-        // la vez, así que uno momentáneo no serviría para nada en una AND de dos entradas.
-        // El modelo, en cambio, respeta el valor por defecto del original (momentáneo).
-        this.diagram.addButton(position, { isToggle: true })
-        break
-    }
+    placePiece(this.diagram, piece, position, this.placeInputs)
   }
 
   /** ¿Hay ya algún símbolo en alguna de las celdas que ocuparía el nuevo? */
@@ -1006,8 +1030,11 @@ export class Editor {
 
 /**
  * Los atajos de una tecla a cada herramienta. Son los mismos que anuncia el `title` de cada
- * botón de la barra, que es donde la gente los busca: `S` seleccionar, `E` borrador, `B`
- * interruptor, `A` compuerta AND y `L` LED.
+ * botón —el de la barra y el de la paleta—, que es donde la gente los busca: `S` seleccionar,
+ * `E` borrador, `B` interruptor, `A` compuerta AND y `L` LED.
+ *
+ * Solo hay cinco porque solo hay cinco que se usen a cada rato; el resto de piezas se eligen en
+ * la paleta, que para eso está.
  */
 const SHORTCUT_TOOLS: Readonly<Record<string, Tool | undefined>> = {
   s: 'select',
