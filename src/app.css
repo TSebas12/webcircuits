@@ -42,6 +42,7 @@
   --wc-state-off: #b7c9b8;
   --wc-state-zero: #5b4949;
   --wc-state-one: #ff4a1f;
+  --wc-error: #d93025;
 
   font: 16px/1.5 var(--font-sans);
   color: var(--fg);

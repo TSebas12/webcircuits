@@ -28,12 +28,12 @@ export const CANVAS_TOKENS = [
 
 /** Nombres de los tokens de la interfaz (botones, paneles, texto). */
 export const UI_TOKENS = [
-  '--wc-app-bg',
-  '--wc-panel-bg',
-  '--wc-text',
-  '--wc-text-muted',
-  '--wc-border',
-  '--wc-accent',
+  '--bg',
+  '--fg',
+  '--fg-muted',
+  '--panel-bg',
+  '--panel-bg-hover',
+  '--border',
 ] as const
 
 export type CanvasToken = (typeof CANVAS_TOKENS)[number]

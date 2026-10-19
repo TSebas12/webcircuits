@@ -60,7 +60,9 @@ export function evaluateCircuit(
 ): EvaluatedCircuit {
   const values = new Map<string, Signal>()
   const deviceStates = new Map<Id, DeviceState>()
-  const devices = elements.filter((element): element is Gate | Button => element.kind !== 'wire')
+  const devices = elements.filter(
+    (element): element is Gate | Button => element.kind === 'gate' || element.kind === 'button',
+  )
 
   if (!powered) {
     for (const device of devices) {

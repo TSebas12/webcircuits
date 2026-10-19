@@ -70,9 +70,11 @@ function mixItem(hash: number, item: DrawItem): number {
       result = mix(result, item.overlay === true ? 1 : 0)
       return result
     case 'junction':
-      return mix(result, item.point.x * 31 + item.point.y)
+      result = mix(result, item.point.x)
+      return mix(result, item.point.y)
     case 'pinDot':
-      return mix(result, item.point.x * 31 + item.point.y)
+      result = mix(result, item.point.x)
+      return mix(result, item.point.y)
   }
 }
 

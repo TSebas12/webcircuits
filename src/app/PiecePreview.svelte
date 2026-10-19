@@ -9,7 +9,7 @@
 
   let canvasEl = $state<HTMLCanvasElement | null>(null)
 
-  onMount(() => {
+  function draw(): void {
     const canvas = canvasEl
     if (canvas === null) return
     const ctx = canvas.getContext('2d')
@@ -31,9 +31,8 @@
           : piece.inputCount
         : 2
     const layout = pieceLayout(piece, count)
-    const shape = piece.kind === 'button'
-      ? 'button'
-      : shapeForGate(piece.gateType, piece.invertedOutput)
+    const shape =
+      piece.kind === 'button' ? 'button' : shapeForGate(piece.gateType, piece.invertedOutput)
     if (shape === null) return
 
     const drawing = symbolDrawing(shape as never, layout.width, layout.height)
@@ -46,6 +45,7 @@
     const fill = getComputedStyle(document.documentElement).getPropertyValue('--wc-symbol-fill').trim() || '#ffffff'
     const stroke = getComputedStyle(document.documentElement).getPropertyValue('--wc-symbol-stroke').trim() || '#22252b'
 
+    ctx.clearRect(0, 0, size, size)
     ctx.save()
     ctx.translate(offX, offY)
     ctx.scale(scale, scale)
@@ -65,6 +65,17 @@
       ctx.fill(drawing.indicator)
     }
     ctx.restore()
+  }
+
+  onMount(() => {
+    draw()
+  })
+
+  $effect(() => {
+    // Redibuja al cambiar inputs o el tema.
+    void inputs
+    void piece
+    draw()
   })
 </script>
 

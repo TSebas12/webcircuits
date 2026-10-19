@@ -529,7 +529,7 @@ export class Editor {
     // Con una herramienta de colocación, el clic coloca… salvo que caiga sobre un símbolo,
     // y entonces se interactúa con él. Si no, la herramienta se queda pegada y pulsar un
     // interruptor recién puesto no haría nada, que es justo lo que pasaba.
-    if (this.tool !== 'select' && (hit === null || hit.kind !== 'device')) {
+    if (this.tool !== 'select' && (hit === null || (hit.kind !== 'device' && hit.kind !== 'pin'))) {
       this.place(this.tool, grid)
       return
     }
@@ -601,7 +601,12 @@ export class Editor {
       const world = this.worldAt(event)
       const hit = hitTest(this.diagram.elements, world)
       if (this.canvas !== null) {
+        if (this.tool !== 'select') {
+        // Con una herramienta puesta, el cursor es la cruz incluso sobre un pin.
+        this.canvas.style.cursor = ''
+      } else {
         this.canvas.style.cursor = hit?.kind === 'pin' ? 'default' : ''
+      }
       }
       return
     }

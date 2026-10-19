@@ -44,7 +44,8 @@ const PIN_DOT_RADIUS = 3 / GRID_SIZE
 const EMPHASIZED_PIN_SCALE = 1.7
 
 /** Radio del halo del LED encendido, en píxeles de pantalla. */
-const GLOW_PX = 6
+// En unidades de rejilla (≈ 6 px a zoom 1): el halo se escala con el zoom, como el resto del trazo.
+const GLOW_PX = 6 / 18
 
 /** El color que le toca a un estado. */
 function stateColor(theme: RenderTheme, state: DeviceState): string {

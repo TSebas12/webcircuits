@@ -17,6 +17,11 @@ export function roundedRect(
   // Un radio mayor que medio lado convertiría las esquinas en un ocho.
   const r = Math.max(0, Math.min(radius, width / 2, height / 2))
 
+  if (r === 0) {
+    path.rect(x, y, width, height)
+    return
+  }
+
   path.moveTo(x + r, y)
   path.lineTo(x + width - r, y)
   path.arcTo(x + width, y, x + width, y + r, r)

@@ -160,6 +160,7 @@
     class:placing={!powered && tool !== 'select'}
     class:running={powered}
     class:wiring
+    aria-label="Lienzo del circuito"
   ></canvas>
 
   <div class="toolbar" role="toolbar" aria-label="Herramientas del circuito">
@@ -527,7 +528,7 @@
   .mode-badge {
     position: absolute;
     top: 3.7rem;
-    left: 0.6rem;
+    right: 0.6rem;
     padding: 0.3rem 0.6rem;
     border: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
     border-radius: 0.4rem;
@@ -550,7 +551,7 @@
   .tool-badge {
     position: absolute;
     top: 5.7rem;
-    left: 0.6rem;
+    right: 0.6rem;
     padding: 0.3rem 0.6rem;
     border: 1px solid color-mix(in srgb, var(--wc-state-one) 45%, transparent);
     border-radius: 0.4rem;
@@ -568,12 +569,12 @@
   .error-badge {
     position: absolute;
     top: 5.7rem;
-    left: 0.6rem;
+    right: 0.6rem;
     max-width: min(30rem, calc(100% - 1.2rem));
     padding: 0.35rem 0.6rem;
-    border: 1px solid color-mix(in srgb, #d93025 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--wc-error) 60%, transparent);
     border-radius: 0.4rem;
-    background: color-mix(in srgb, #d93025 14%, var(--panel-bg));
+    background: color-mix(in srgb, var(--wc-error) 14%, var(--panel-bg));
     font-size: 0.75rem;
     color: var(--fg);
     user-select: none;
