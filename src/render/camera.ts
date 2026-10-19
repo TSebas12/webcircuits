@@ -90,6 +90,12 @@ export class Camera {
     this.currentZoom = 1
   }
 
+  /** Fija el offset (en píxeles) directamente. */
+  setOffset(x: number, y: number): void {
+    this.offsetX = x
+    this.offsetY = y
+  }
+
   /** Convierte una coordenada del mundo a píxeles. */
   toScreenX(worldX: number): number {
     return this.offsetX + worldX * GRID_SIZE * this.currentZoom

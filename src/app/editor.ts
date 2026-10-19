@@ -135,6 +135,8 @@ export interface EditorCallbacks {
   /** Se está tendiendo un cable: el cursor tiene que dejar de ser la mano. */
   readonly onWiringChange?: (wiring: boolean) => void
   readonly onHistoryChange?: (history: HistoryState) => void
+  /** Sonda sobre un cable: id del cable y su valor (o null si no hay). */
+  readonly onHoverChange?: (wireId: string | null, value: number | null, bitWidth: number, x: number, y: number) => void
   /** El circuito activo cambió (navegación entre niveles). */
   readonly onCircuitChange?: (path: readonly Id[]) => void
   /**
@@ -173,7 +175,7 @@ interface PanState {
 
 export class Editor {
   /** El proyecto de circuitos (jerarquía). El circuito actual se edita en `diagram`. */
-  readonly project = new CircuitProject()
+  project: CircuitProject = new CircuitProject()
 
   /** El diagrama del circuito que se está editando ahora mismo. */
   get diagram(): Diagram {
@@ -262,6 +264,50 @@ export class Editor {
   }
   markSaved(): void {
     this.savedRevision = this.diagram.revision
+  }
+
+  /** Carga un proyecto completo, reemplazando el actual. */
+  loadProject(project: CircuitProject): void {
+    this.project = project
+    this.circuitPathIds = [MAIN_CIRCUIT_ID]
+    this.savedRevision = this.diagram.revision
+    this.evaluate()
+    this.refresh()
+    this.callbacks.onCircuitChange?.(this.circuitPath)
+  }
+
+  /** Encuadra todo el contenido en el viewport. */
+  fitToContent(): void {
+    const canvas = this.canvas
+    if (canvas === null) return
+    const elements = this.diagram.elements
+    if (elements.length === 0) return
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const el of elements) {
+      if (el.kind === 'wire') {
+        minX = Math.min(minX, el.p1.x, el.p2.x)
+        minY = Math.min(minY, el.p1.y, el.p2.y)
+        maxX = Math.max(maxX, el.p1.x, el.p2.x)
+        maxY = Math.max(maxY, el.p1.y, el.p2.y)
+      } else {
+        minX = Math.min(minX, el.position.x)
+        minY = Math.min(minY, el.position.y)
+        maxX = Math.max(maxX, el.position.x + 2)
+        maxY = Math.max(maxY, el.position.y + 2)
+      }
+    }
+    const padding = 2
+    const worldW = (maxX - minX + padding * 2)
+    const worldH = (maxY - minY + padding * 2)
+    const zoomX = (canvas.clientWidth - 40) / (worldW * 18)
+    const zoomY = (canvas.clientHeight - 40) / (worldH * 18)
+    const zoom = Math.min(Math.max(Math.min(zoomX, zoomY), 0.2), 4)
+    this.camera.zoom = zoom
+    const centerX = (minX + maxX) / 2
+    const centerY = (minY + maxY) / 2
+    this.camera.setOffset(canvas.clientWidth / 2 - centerX * 18 * zoom, canvas.clientHeight / 2 - centerY * 18 * zoom)
+    this.refresh()
+    this.callbacks.onZoom?.(Math.round(this.camera.zoom * 100))
   }
 
   get canUndo(): boolean {
@@ -817,6 +863,14 @@ export class Editor {
       } else {
         this.canvas.style.cursor = hit?.kind === 'pin' ? 'default' : ''
       }
+      }
+      // Sonda: solo sobre cables, para no costar nada cuando no aplica.
+      if (hit?.kind === 'wire') {
+        const w = hit.element as { id: string; p1: { x: number; y: number }; bitWidth?: number }
+        const value = this.sim.nets.get(`${w.p1.x},${w.p1.y}`) ?? 0
+        this.callbacks.onHoverChange?.(w.id, value, w.bitWidth ?? 1, event.clientX, event.clientY)
+      } else {
+        this.callbacks.onHoverChange?.(null, null, 1, event.clientX, event.clientY)
       }
       return
     }

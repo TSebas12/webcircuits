@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { Editor, type Tool } from './editor'
+  import { deserializeProject } from '../core/persist/json'
+  import { importCircuitProject } from '../core/persist/circuitproject'
   import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS, PIECE_GROUPS, PIECES } from './palette'
   import PiecePreview from './PiecePreview.svelte'
 
@@ -28,6 +30,7 @@
   let hasSelection = $state(false)
   let isEmpty = $state(true)
   let dirty = $state(false)
+  let hoverInfo = $state<{ x: number; y: number; value: number; bitWidth: number } | null>(null)
   let canUndo = $state(false)
   let canRedo = $state(false)
   /** Se está tendiendo un cable: el cursor deja de ser la mano y pasa a ser la flecha. */
@@ -90,6 +93,14 @@
       onWiringChange: (value) => {
         wiring = value
       },
+      onHoverChange: (wireId, value, bitWidth, clientX, clientY) => {
+        if (wireId === null || value === null || canvasEl === null) {
+          hoverInfo = null
+          return
+        }
+        const rect = canvasEl.getBoundingClientRect()
+        hoverInfo = { x: clientX - rect.left, y: clientY - rect.top, value, bitWidth }
+      },
       // El circuito no se puede simular. Se enseña en vez de callarse: simular mal es peor que
       // no simular, y el original también avisa.
       onError: (message) => {
@@ -118,6 +129,26 @@
       editor = null
     }
   })
+
+  const handleDrop = async (e: DragEvent): Promise<void> => {
+    e.preventDefault()
+    const file = e.dataTransfer?.files?.[0]
+    if (!file || editor === null) return
+    const text = await file.text()
+    try {
+      let project
+      if (file.name.endsWith('.CircuitProject') || text.trim().startsWith('<')) {
+        project = importCircuitProject(text)
+      } else {
+        project = deserializeProject(text)
+      }
+      editor.loadProject(project)
+      editor.markSaved()
+      dirty = editor.dirty
+    } catch {
+      // ignore invalid files
+    }
+  }
 
   const chooseTool = (id: Tool): void => {
     // El estado lo devuelve el editor por `onToolChange`, así que aquí no se toca: una sola
@@ -178,14 +209,28 @@
   }
 </script>
 
-<div class="diagram">
+<div
+  class="diagram"
+  role="application"
+  aria-label="Lienzo del circuito"
+  ondragover={(e) => { e.preventDefault() }}
+  ondrop={handleDrop}
+>
   <canvas
     bind:this={canvasEl}
     class:placing={!powered && tool !== 'select'}
     class:running={powered}
     class:wiring
     aria-label="Lienzo del circuito"
+    onpointerleave={() => (hoverInfo = null)}
   ></canvas>
+
+  {#if hoverInfo}
+    <div class="probe" style="left:{hoverInfo.x + 12}px; top:{hoverInfo.y + 12}px;">
+      {hoverInfo.bitWidth > 1 ? `0x${hoverInfo.value.toString(16).toUpperCase()}` : hoverInfo.value}
+      {#if hoverInfo.bitWidth > 1}<span class="probe-sub">({hoverInfo.value})</span>{/if}
+    </div>
+  {/if}
 
   <div class="toolbar" role="toolbar" aria-label="Herramientas del circuito">
     {#each TOOLS as item (item.id)}
@@ -203,6 +248,16 @@
     {/each}
 
     <span class="divider"></span>
+
+    <button
+      type="button"
+      class="tool"
+      onclick={() => editor?.fitToContent()}
+      title="Encuadrar todo el circuito"
+      aria-label="Encuadrar"
+    >
+      ⊞
+    </button>
 
     <button
       type="button"
@@ -717,6 +772,23 @@
     user-select: none;
     pointer-events: none;
     font-variant-numeric: tabular-nums;
+  }
+
+  .probe {
+    position: absolute;
+    pointer-events: none;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+    font: 0.72rem/1.4 var(--font-mono);
+    color: var(--fg);
+    white-space: nowrap;
+    z-index: 5;
+  }
+  .probe-sub {
+    color: var(--fg-muted);
+    margin-left: 0.35rem;
   }
 
   .sep {
