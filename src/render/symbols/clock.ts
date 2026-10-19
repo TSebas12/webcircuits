@@ -34,8 +34,11 @@ const WAVE: readonly (readonly [number, number])[] = [
 
 /** La silueta de un reloj: la caja redondeada y la onda. */
 export function clockShape(width: number, height: number): SymbolDrawing {
+  // Un pequeño margen para que el trazo del borde no se corte por la mitad al pintar:
+  // el trazo se centra en el contorno, así que sin margen la mitad del borde queda fuera.
+  const inset = 0.05
   const body = new Path2D()
-  roundedRect(body, 0, 0, width, height, CORNER_RADIUS)
+  roundedRect(body, inset, inset, width - inset * 2, height - inset * 2, CORNER_RADIUS)
 
   const wave = new Path2D()
   WAVE.forEach(([x, y], index) => {

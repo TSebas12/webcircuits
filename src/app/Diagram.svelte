@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import { Editor, type Tool } from './editor'
   import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS, PIECE_GROUPS, PIECES } from './palette'
+  import PiecePreview from './PiecePreview.svelte'
 
   /**
    * La barra de herramientas. Las piezas —compuertas, entradas y salidas— **no** están aquí:
@@ -267,7 +268,8 @@
               disabled={powered}
               onclick={() => chooseTool(piece.id)}
             >
-              {piece.label}
+              <PiecePreview piece={piece} inputs={placeInputs} />
+              <span>{piece.label}</span>
             </button>
           {/each}
         </div>
@@ -412,8 +414,8 @@
      mejor que recortarla. */
   .palette {
     position: absolute;
-    top: 0.6rem;
-    right: 0.6rem;
+    top: 3.4rem;
+    left: 0.6rem;
     width: 12.5rem;
     max-height: calc(100% - 3.4rem);
     overflow-y: auto;
@@ -582,7 +584,7 @@
 
   .hud {
     position: absolute;
-    right: 0.6rem;
+    left: 0.6rem;
     bottom: 0.6rem;
     display: flex;
     gap: 0.35rem;

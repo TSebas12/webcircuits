@@ -596,6 +596,13 @@ export class Editor {
 
     const drag = this.drag
     if (drag === null) {
+      // Al pasar por encima de un pin, el cursor deja de ser la mano: ahí se cablea,
+      // no se mueve. Así se distingue el gesto antes de apretar.
+      const world = this.worldAt(event)
+      const hit = hitTest(this.diagram.elements, world)
+      if (this.canvas !== null) {
+        this.canvas.style.cursor = hit?.kind === 'pin' ? 'default' : ''
+      }
       return
     }
 
@@ -961,27 +968,33 @@ export class Editor {
     const wiring = this.wire !== null
     const showFreePins = this.camera.state.zoom >= FREE_PIN_MIN_ZOOM
 
-    if (!this.simulation.powered) {
-      const counts = connectionCounts(this.diagram.elements)
+    // Los pines conectados se ven siempre (incluso con la corriente puesta), porque son
+    // información del cableado. Los libres solo tienen sentido editando: con corriente
+    // sobran, y en edición se ocultan si no hay zoom suficiente para no ser ruido.
+    const counts = connectionCounts(this.diagram.elements)
 
-      for (const device of this.diagram.devices) {
-        for (const placed of placedPins(device)) {
-          // Un pin negado **ya se ve**: es la bolita que dibuja la silueta (una NAND es una
-          // AND con la salida negada). Pintarle encima el puntito dejaría una mota dentro.
-          if (placed.pin.inverted) {
-            continue
-          }
-          const connected = (counts.get(pointKey(placed.point)) ?? 0) > 1
-          if (!connected && !wiring && !showFreePins) {
-            continue
-          }
-          pinDots.push({
-            kind: 'pinDot',
-            point: placed.point,
-            connected,
-            emphasized: wiring,
-          })
+    for (const device of this.diagram.devices) {
+      for (const placed of placedPins(device)) {
+        // Un pin negado **ya se ve**: es la bolita que dibuja la silueta (una NAND es una
+        // AND con la salida negada). Pintarle encima el puntito dejaría una mota dentro.
+        if (placed.pin.inverted) {
+          continue
         }
+        const connected = (counts.get(pointKey(placed.point)) ?? 0) > 1
+        if (!connected) {
+          if (this.simulation.powered) {
+            continue
+          }
+          if (!wiring && !showFreePins) {
+            continue
+          }
+        }
+        pinDots.push({
+          kind: 'pinDot',
+          point: placed.point,
+          connected,
+          emphasized: wiring,
+        })
       }
     }
 
