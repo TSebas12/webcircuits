@@ -263,6 +263,7 @@
   }
 
   const clearAll = (): void => {
+    if (editor && editor.elementCount > 0 && !confirm('¿Vaciar el lienzo?')) return
     editor?.clear()
   }
 
@@ -341,7 +342,7 @@
       } else {
         items.push({ label: 'Pegar', shortcut: 'Ctrl+V', action: () => editor?.paste() })
         items.push({ label: 'Zoom to fit', action: () => editor?.fitToContent() })
-        items.push({ label: 'Vaciar lienzo', danger: true, action: () => editor?.clear() })
+        items.push({ label: 'Vaciar lienzo', danger: true, action: () => { if (confirm('¿Vaciar el lienzo?')) editor?.clear() } })
       }
       contextMenu = { x: e.clientX, y: e.clientY, items }
     }}
@@ -945,6 +946,12 @@
   .empty-state .empty-shortcuts { font-size: 0.72rem; margin-top: 0.8rem }
 
   /* ── Medidas ────────────────────────────────────────────────────────── */
+
+  @media (max-width: 768px) {
+    .palette { width: 10rem; font-size: 0.75rem }
+    .toolbar { flex-wrap: wrap; gap: 0.2rem }
+    .minimap { display: none }
+  }
 
   .hud {
     position: absolute;
