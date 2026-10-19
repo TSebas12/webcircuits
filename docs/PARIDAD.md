@@ -29,7 +29,9 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | `CircuitProject/` | Modelo del circuito y elementos lógicos | `src/core/model/` | M2 | 🟡 |
 | ↳ `CircuitGlyph.cs` · `Jam.cs` · `Pin.cs` · `Splitter.cs` | Símbolos colocados y sus **puntas** (`Jams()`, `AbsolutePoint`, `InnerJam`, `Splitter.Pass`) | `src/core/model/symbol.ts` | M2 | 🟡 (falta la forma de las constantes, memorias y sensores: M2-05/M2-12) |
 | `Runner/` | Motor de simulación | `src/core/simulate/` | M2 | 🟡 |
-| ↳ `CircuitMap.cs` · `CircuitMap.SymbolMap.cs` · `CircuitMap.Connection.cs` | Traducir el dibujo a circuito simulable: árbol de subcircuitos, resolución de cables, aplanado a funciones e índices de estado | `src/core/simulate/circuit-map.ts`, `connection.ts`, `symbol-map.ts` | M2 | 🟡 (compuertas y tri-estado; reloj/LED/interruptor/constante/memoria/probeta/sensor/sonido/matriz llegan con M2-04/05/12) |
+| ↳ `CircuitMap.cs` · `CircuitMap.SymbolMap.cs` · `CircuitMap.Connection.cs` | Traducir el dibujo a circuito simulable: árbol de subcircuitos, resolución de cables, aplanado a funciones e índices de estado | `src/core/simulate/circuit-map.ts`, `connection.ts`, `symbol-map.ts` | M2 | 🟡 (compuertas, tri-estado, reloj, interruptor, LED y constante; memoria/probeta/sensor/sonido/matriz llegan con M2-05/12) |
+| ↳ `CircuitRunner.cs` | Encender/apagar el circuito: aplanar, voltear el reloj, evaluar y repintar | `src/core/simulate/circuit-runner.ts` | M2 | 🟡 (sin hilos; la temporización precisa es M7B-05) |
+| ↳ `FunctionClock.cs` · `FunctionButton.cs` · `FunctionLed.cs` · `FunctionConstant.cs` (`Function/`) | Reloj, interruptor, LED y constante | `src/core/function/devices.ts` | M2 | 🟡 (la constante aún no se puede colocar: le falta la forma, M2-05) |
 | `SymbolShapes/` | Geometría de los símbolos | `src/render/symbols/` | M2 | 🟡 |
 | `Icon/` | Iconos | `src/render/icons/` | M2 | ⬜ |
 | `Editor/` | Editor, herramientas, undo/redo | `src/app/editor.ts` | M2 | 🟡 |
