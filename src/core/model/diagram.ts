@@ -21,7 +21,7 @@
  */
 
 import { deviceBounds, deviceLayout, pinPosition } from './layout'
-import type { Button, Element, Gate, GateType, GridPoint, GridRect, Id, Rotation, Wire } from './types'
+import type { Button, CircuitInstance, Constant, Element, Gate, GateType, GridPoint, GridRect, Id, Pin, PinSide, PinType, Rotation, Splitter, Wire } from './types'
 import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
@@ -257,6 +257,98 @@ export class Diagram {
       this.items.set(button.id, button)
       this.changed()
       return button
+    })
+  }
+
+  /** Coloca un pin de hoja (entrada/salida del circuito). */
+  addPin(
+    position: GridPoint,
+    options: { readonly pinType?: PinType; readonly side?: PinSide; readonly bitWidth?: number; readonly inverted?: boolean; readonly name?: string } = {},
+  ): Pin {
+    return this.change(() => {
+      const pin: Pin = {
+        kind: 'pin',
+        id: this.nextId('pin'),
+        circuitId: MAIN_CIRCUIT_ID,
+        layerId: DEFAULT_LAYER_ID,
+        position,
+        rotation: 'up',
+        pinType: options.pinType ?? 'Input',
+        side: options.side ?? 'Left',
+        bitWidth: Math.max(1, Math.min(options.bitWidth ?? 1, MAX_BIT_WIDTH)),
+        inverted: options.inverted ?? false,
+        name: options.name ?? '',
+      }
+      this.items.set(pin.id, pin)
+      this.changed()
+      return pin
+    })
+  }
+
+  /** Coloca un valor constante. */
+  addConstant(
+    position: GridPoint,
+    options: { readonly bitWidth?: number; readonly value?: number; readonly pinSide?: PinSide } = {},
+  ): Constant {
+    return this.change(() => {
+      const constant: Constant = {
+        kind: 'constant',
+        id: this.nextId('constant'),
+        circuitId: MAIN_CIRCUIT_ID,
+        layerId: DEFAULT_LAYER_ID,
+        position,
+        rotation: 'up',
+        bitWidth: Math.max(1, Math.min(options.bitWidth ?? 1, MAX_BIT_WIDTH)),
+        value: options.value ?? 0,
+        pinSide: options.pinSide ?? 'Right',
+      }
+      this.items.set(constant.id, constant)
+      this.changed()
+      return constant
+    })
+  }
+
+  /** Coloca un repartidor de bits. */
+  addSplitter(
+    position: GridPoint,
+    options: { readonly bitWidth?: number; readonly pinCount?: number; readonly clockwise?: boolean } = {},
+  ): Splitter {
+    return this.change(() => {
+      const splitter: Splitter = {
+        kind: 'splitter',
+        id: this.nextId('splitter'),
+        circuitId: MAIN_CIRCUIT_ID,
+        layerId: DEFAULT_LAYER_ID,
+        position,
+        rotation: 'up',
+        bitWidth: Math.max(1, Math.min(options.bitWidth ?? 4, MAX_BIT_WIDTH)),
+        pinCount: Math.max(2, options.pinCount ?? 4),
+        clockwise: options.clockwise ?? true,
+      }
+      this.items.set(splitter.id, splitter)
+      this.changed()
+      return splitter
+    })
+  }
+
+  /** Coloca un subcircuito (referencia a otro circuito). */
+  addCircuitInstance(
+    position: GridPoint,
+    targetCircuitId: Id,
+  ): CircuitInstance {
+    return this.change(() => {
+      const instance: CircuitInstance = {
+        kind: 'circuit',
+        id: this.nextId('circuit'),
+        circuitId: MAIN_CIRCUIT_ID,
+        layerId: DEFAULT_LAYER_ID,
+        position,
+        rotation: 'up',
+        targetCircuitId,
+      }
+      this.items.set(instance.id, instance)
+      this.changed()
+      return instance
     })
   }
 

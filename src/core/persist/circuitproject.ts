@@ -1,13 +1,5 @@
 /**
  * Importador/exportador `.CircuitProject` (XML) del original (M4-07, M4-08).
- *
- * El formato es el del original (namespace `http://LogicCircuit.net/.../CircuitProject.xsd`).
- * Los identificadores son GUIDs; las compuertas se codifican como CircuitSymbols cuyo
- * CircuitId es un GUID especial cuyos últimos bytes dicen el tipo y el número de entradas.
- *
- * ⚠️ Usa `DOMParser`, que es API del navegador: se acepta aquí porque el plan (M4-07)
- * lo pide así y los tests corren en jsdom. Si se quiere mover a core puro, habría que
- * sustituirlo por un parser XML propio.
  */
 
 import { CircuitProject } from '../model/circuit'
@@ -53,7 +45,6 @@ export function importCircuitProject(xml: string): CircuitProject {
     return Array.from(root.getElementsByTagName(tag)) as unknown as globalThis.Element[]
   }
 
-  // LogicalCircuits
   const circuits = new Map<string, { name: string }>()
   let mainId = ''
   const projectEl = q('Project')[0]
@@ -68,9 +59,7 @@ export function importCircuitProject(xml: string): CircuitProject {
 
   const project = new CircuitProject('Importado')
 
-  // Mapeo de circuit id original -> nuestro Circuit
   const circuitMap = new Map<string, ReturnType<CircuitProject['circuit']>>()
-  // principal
   const mainCircuit = project.circuit(project.currentCircuitId)!
   if (mainId && circuits.has(mainId)) {
     mainCircuit.name = circuits.get(mainId)!.name
@@ -83,7 +72,6 @@ export function importCircuitProject(xml: string): CircuitProject {
     circuitMap.set(id, created)
   }
 
-  // Pin map: id -> { circuitId, name, pinType, side, bitWidth }
   const pinMap = new Map<string, { circuitId: string; name: string; pinType: string; side: string; bitWidth: number }>()
   for (const pin of q('Pin')) {
     pinMap.set(text(pin, 'PinId')!, {
@@ -95,7 +83,6 @@ export function importCircuitProject(xml: string): CircuitProject {
     })
   }
 
-  // Constant map
   const constantMap = new Map<string, { value: number; bitWidth: number }>()
   for (const c of q('Constant')) {
     constantMap.set(text(c, 'ConstantId')!, {
@@ -104,7 +91,6 @@ export function importCircuitProject(xml: string): CircuitProject {
     })
   }
 
-  // Splitter map
   const splitterMap = new Map<string, { bitWidth: number; pinCount: number; clockwise: boolean }>()
   for (const sp of q('Splitter')) {
     splitterMap.set(text(sp, 'SplitterId')!, {
@@ -114,7 +100,6 @@ export function importCircuitProject(xml: string): CircuitProject {
     })
   }
 
-  // Wires
   for (const w of q('Wire')) {
     const lcId = text(w, 'LogicalCircuitId')!
     const circuit = circuitMap.get(lcId)
@@ -123,7 +108,6 @@ export function importCircuitProject(xml: string): CircuitProject {
     circuit.diagram.addWire({ x: x1, y: y1 }, { x: x2, y: y2 }, 1)
   }
 
-  // CircuitSymbols
   for (const sym of q('CircuitSymbol')) {
     const lcId = text(sym, 'LogicalCircuitId')!
     const circuit = circuitMap.get(lcId)
@@ -133,35 +117,29 @@ export function importCircuitProject(xml: string): CircuitProject {
     const rot = (text(sym, 'Rotation') ?? 'Up').toLowerCase()
     const rotation = rot === 'right' ? 'right' : rot === 'down' ? 'down' : rot === 'left' ? 'left' : 'up'
 
-    // subcircuito?
-    if (circuits.has(cid) && cid !== mainId) {
-      // no placement yet (subcircuit as component) — skip
-      continue
-    }
-    // pin?
     const pin = pinMap.get(cid)
     if (pin) {
-      // Pin is a device in our model; but our editor doesn't place pins. Skip for now.
+      circuit.diagram.addPin({ x, y }, { pinType: pin.pinType as 'Input' | 'Output', side: pin.side as 'Left' | 'Top' | 'Right' | 'Bottom', bitWidth: pin.bitWidth, name: pin.name })
       continue
     }
-    // constant? (import of constants deferred — no addConstant on Diagram yet)
     const cst = constantMap.get(cid)
     if (cst) {
+      circuit.diagram.addConstant({ x, y }, { bitWidth: cst.bitWidth, value: cst.value, pinSide: 'Right' })
       continue
     }
-    // splitter?
     const sp = splitterMap.get(cid)
     if (sp) {
-      // no addSplitter on diagram (deferred); skip
+      circuit.diagram.addSplitter({ x, y }, { bitWidth: sp.bitWidth, pinCount: sp.pinCount, clockwise: sp.clockwise })
       continue
     }
-    // gate? decode guid
+    if (circuits.has(cid) && cid !== mainId) {
+      circuit.diagram.addCircuitInstance({ x, y }, cid)
+      continue
+    }
     const gate = decodeGateGuid(cid)
     if (gate) {
       const g = circuit.diagram.addGate(gate.gateType, { x, y }, gate.inputCount, gate.invertedOutput)
-      // apply rotation
       if (rotation !== 'up') {
-        // rotate by repeated 90
         const order = ['up', 'right', 'down', 'left']
         const from = order.indexOf('up')
         const to = order.indexOf(rotation)
@@ -171,13 +149,11 @@ export function importCircuitProject(xml: string): CircuitProject {
     }
   }
 
-  // Open main circuit
   project.openCircuit(mainId && circuitMap.has(mainId) ? mainId : MAIN_CIRCUIT_ID)
   return project
 }
 
 export function exportCircuitProject(project: CircuitProject): string {
-  // Minimal export: produce a valid-ish XML. Full fidelity (Gate GUIDs, pins, etc.) is future work.
   const lines: string[] = []
   lines.push('<?xml version="1.0" encoding="utf-8"?>')
   lines.push(`<lc:CircuitProject xmlns:lc="${NS}">`)
@@ -190,7 +166,29 @@ export function exportCircuitProject(project: CircuitProject): string {
     lines.push(`    <lc:Name>${escapeXml(c.name)}</lc:Name>`)
     lines.push('  </lc:LogicalCircuit>')
     for (const el of c.elements) {
-      if (el.kind === 'wire') {
+      if (el.kind === 'pin') {
+        lines.push('  <lc:Pin>')
+        lines.push(`    <lc:PinId>${el.id}</lc:PinId>`)
+        lines.push(`    <lc:CircuitId>${c.id}</lc:CircuitId>`)
+        lines.push(`    <lc:Name>${escapeXml(el.name)}</lc:Name>`)
+        lines.push(`    <lc:PinType>${el.pinType}</lc:PinType>`)
+        lines.push(`    <lc:PinSide>${el.side}</lc:PinSide>`)
+        lines.push(`    <lc:BitWidth>${el.bitWidth}</lc:BitWidth>`)
+        lines.push('  </lc:Pin>')
+      } else if (el.kind === 'constant') {
+        lines.push('  <lc:Constant>')
+        lines.push(`    <lc:ConstantId>${el.id}</lc:ConstantId>`)
+        lines.push(`    <lc:Value>${el.value}</lc:Value>`)
+        lines.push(`    <lc:BitWidth>${el.bitWidth}</lc:BitWidth>`)
+        lines.push('  </lc:Constant>')
+      } else if (el.kind === 'splitter') {
+        lines.push('  <lc:Splitter>')
+        lines.push(`    <lc:SplitterId>${el.id}</lc:SplitterId>`)
+        lines.push(`    <lc:BitWidth>${el.bitWidth}</lc:BitWidth>`)
+        lines.push(`    <lc:PinCount>${el.pinCount}</lc:PinCount>`)
+        lines.push(`    <lc:Clockwise>${el.clockwise}</lc:Clockwise>`)
+        lines.push('  </lc:Splitter>')
+      } else if (el.kind === 'wire') {
         lines.push('  <lc:Wire>')
         lines.push(`    <lc:WireId>${el.id}</lc:WireId>`)
         lines.push(`    <lc:LogicalCircuitId>${c.id}</lc:LogicalCircuitId>`)
@@ -207,6 +205,31 @@ export function exportCircuitProject(project: CircuitProject): string {
         lines.push('  <lc:CircuitSymbol>')
         lines.push(`    <lc:CircuitSymbolId>${el.id}</lc:CircuitSymbolId>`)
         lines.push(`    <lc:CircuitId>${gateGuid}</lc:CircuitId>`)
+        lines.push(`    <lc:LogicalCircuitId>${c.id}</lc:LogicalCircuitId>`)
+        lines.push(`    <lc:X>${el.position.x}</lc:X>`)
+        lines.push(`    <lc:Y>${el.position.y}</lc:Y>`)
+        lines.push('  </lc:CircuitSymbol>')
+      } else if (el.kind === 'button') {
+        const buttonGuid = `00000000-0000-0000-0000-000000090100`
+        lines.push('  <lc:CircuitSymbol>')
+        lines.push(`    <lc:CircuitSymbolId>${el.id}</lc:CircuitSymbolId>`)
+        lines.push(`    <lc:CircuitId>${buttonGuid}</lc:CircuitId>`)
+        lines.push(`    <lc:LogicalCircuitId>${c.id}</lc:LogicalCircuitId>`)
+        lines.push(`    <lc:X>${el.position.x}</lc:X>`)
+        lines.push(`    <lc:Y>${el.position.y}</lc:Y>`)
+        lines.push('  </lc:CircuitSymbol>')
+      } else if (el.kind === 'pin' || el.kind === 'constant' || el.kind === 'splitter') {
+        lines.push('  <lc:CircuitSymbol>')
+        lines.push(`    <lc:CircuitSymbolId>${el.id}</lc:CircuitSymbolId>`)
+        lines.push(`    <lc:CircuitId>${el.id}</lc:CircuitId>`)
+        lines.push(`    <lc:LogicalCircuitId>${c.id}</lc:LogicalCircuitId>`)
+        lines.push(`    <lc:X>${el.position.x}</lc:X>`)
+        lines.push(`    <lc:Y>${el.position.y}</lc:Y>`)
+        lines.push('  </lc:CircuitSymbol>')
+      } else if (el.kind === 'circuit') {
+        lines.push('  <lc:CircuitSymbol>')
+        lines.push(`    <lc:CircuitSymbolId>${el.id}</lc:CircuitSymbolId>`)
+        lines.push(`    <lc:CircuitId>${el.targetCircuitId}</lc:CircuitId>`)
         lines.push(`    <lc:LogicalCircuitId>${c.id}</lc:LogicalCircuitId>`)
         lines.push(`    <lc:X>${el.position.x}</lc:X>`)
         lines.push(`    <lc:Y>${el.position.y}</lc:Y>`)
