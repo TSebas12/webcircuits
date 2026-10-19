@@ -370,6 +370,12 @@ export class Diagram {
     return this.layers
   }
 
+  /** Reemplaza la lista de capas (carga de ficheros). */
+  setLayers(layers: readonly Layer[]): void {
+    this.layers = [...layers]
+    this.changed()
+  }
+
   /** Crea una capa nueva. */
   createLayer(name = 'Nueva capa'): Layer {
     const id: Id = `layer-${this.layers.length}`

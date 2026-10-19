@@ -1,18 +1,12 @@
 /**
  * Formato JSON nativo de WebCircuits (M4-05, M4-06).
- *
- * Es el formato propio del proyecto: un JSON con número de versión desde el día 1,
- * para poder migrar sin romper ficheros antiguos. El `.CircuitProject` (XML) del
- * original se importa/exporta aparte (M4-07/M4-08).
- *
- * Todo el modelo se serializa tal cual: cada circuito es una lista de elementos
- * (símbodos colocados y cables), igual que en el original.
  */
 
 import type { Circuit } from '../model/circuit'
 import { CircuitProject } from '../model/circuit'
 import { MAIN_CIRCUIT_ID } from '../model/diagram'
-import type { Element, GridPoint } from '../model/types'
+import { DEFAULT_LAYER_ID } from '../model/types'
+import type { Element, GridPoint, Layer } from '../model/types'
 
 export const FORMAT_NAME = 'webcircuits'
 export const FORMAT_VERSION = 1
@@ -29,6 +23,7 @@ export interface SerializedCircuit {
   readonly id: string
   readonly name: string
   readonly elements: readonly SerializedElement[]
+  readonly layers?: readonly Layer[]
 }
 
 export type SerializedElement = Record<string, unknown> & { readonly kind: string }
@@ -47,7 +42,6 @@ function serializeElement(el: Element): SerializedElement {
   if (el.kind === 'wire') {
     return { ...base, p1: point(el.p1), p2: point(el.p2), bitWidth: el.bitWidth }
   }
-  // dispositivo colocado
   const dev = {
     ...base,
     position: point(el.position),
@@ -58,6 +52,14 @@ function serializeElement(el: Element): SerializedElement {
       return { ...dev, gateType: el.gateType, inputCount: el.inputCount, bitWidth: el.bitWidth, invertedOutput: el.invertedOutput }
     case 'button':
       return { ...dev, bitWidth: el.bitWidth, isToggle: el.isToggle, inverted: el.inverted }
+    case 'pin':
+      return { ...dev, pinType: el.pinType, side: el.side, bitWidth: el.bitWidth, inverted: el.inverted, name: el.name }
+    case 'constant':
+      return { ...dev, bitWidth: el.bitWidth, value: el.value, pinSide: el.pinSide }
+    case 'splitter':
+      return { ...dev, bitWidth: el.bitWidth, pinCount: el.pinCount, clockwise: el.clockwise }
+    case 'circuit':
+      return { ...dev, targetCircuitId: el.targetCircuitId }
     default:
       return dev
   }
@@ -68,6 +70,7 @@ function serializeCircuit(c: Circuit): SerializedCircuit {
     id: c.id,
     name: c.name,
     elements: c.elements.map(serializeElement),
+    layers: [...c.diagram.layersList],
   }
 }
 
@@ -91,7 +94,7 @@ function deserializeElement(raw: SerializedElement): Element {
   const base = {
     id: raw.id as string,
     circuitId: raw.circuitId as string,
-    layerId: (raw.layerId as string) ?? 'principal',
+    layerId: (raw.layerId as string) ?? DEFAULT_LAYER_ID,
   }
   if (raw.kind === 'wire') {
     return {
@@ -123,6 +126,38 @@ function deserializeElement(raw: SerializedElement): Element {
         isToggle: (raw.isToggle as boolean) ?? false,
         inverted: (raw.inverted as boolean) ?? false,
       } as Element
+    case 'pin':
+      return {
+        kind: 'pin',
+        ...deviceBase,
+        pinType: (raw.pinType as 'Input' | 'Output') ?? 'Input',
+        side: (raw.side as 'Left' | 'Top' | 'Right' | 'Bottom') ?? 'Left',
+        bitWidth: (raw.bitWidth as number) ?? 1,
+        inverted: (raw.inverted as boolean) ?? false,
+        name: (raw.name as string) ?? '',
+      } as Element
+    case 'constant':
+      return {
+        kind: 'constant',
+        ...deviceBase,
+        bitWidth: (raw.bitWidth as number) ?? 1,
+        value: (raw.value as number) ?? 0,
+        pinSide: (raw.pinSide as 'Left' | 'Top' | 'Right' | 'Bottom') ?? 'Right',
+      } as Element
+    case 'splitter':
+      return {
+        kind: 'splitter',
+        ...deviceBase,
+        bitWidth: (raw.bitWidth as number) ?? 1,
+        pinCount: (raw.pinCount as number) ?? 2,
+        clockwise: (raw.clockwise as boolean) ?? true,
+      } as Element
+    case 'circuit':
+      return {
+        kind: 'circuit',
+        ...deviceBase,
+        targetCircuitId: raw.targetCircuitId as string,
+      } as Element
     default:
       throw new Error(`Elemento desconocido: ${raw.kind}`)
   }
@@ -137,11 +172,7 @@ export function deserializeProject(json: string): CircuitProject {
     throw new Error(`Versión no soportada: ${data.version} (se esperaba ${FORMAT_VERSION})`)
   }
   const project = new CircuitProject(data.name)
-  // Reemplazar el circuito principal por el deserializado.
-  // CircuitProject no expone setters de elementos; reconstruimos añadiendo.
-  // Primero vaciamos el principal.
   const main = project.circuit(project.currentCircuitId)!
-  // Limpiar el principal.
   for (const el of [...main.diagram.elements]) {
     main.diagram.remove(el.id)
   }
@@ -152,6 +183,7 @@ export function deserializeProject(json: string): CircuitProject {
         const e = deserializeElement(el)
         main.diagram.importElement({ ...e, circuitId: main.id } as Element)
       }
+      if (sc.layers) main.diagram.setLayers(sc.layers as Layer[])
     } else {
       const created = project.createCircuit({ name: sc.name })
       idMap.set(sc.id, created.id)
@@ -159,6 +191,7 @@ export function deserializeProject(json: string): CircuitProject {
         const e = deserializeElement(el)
         created.diagram.importElement({ ...e, circuitId: created.id } as Element)
       }
+      if (sc.layers) created.diagram.setLayers(sc.layers as Layer[])
     }
   }
   if (data.currentCircuitId && data.currentCircuitId !== project.currentCircuitId) {
