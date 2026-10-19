@@ -131,15 +131,61 @@ export interface Wire extends ElementBase {
  * Un pin de la propia hoja: la conexión del circuito con el exterior.
  * No confundir con los pines de un dispositivo, que se **deducen** de su forma
  * (ver `layout.ts`).
+ *
+ * Es un elemento **colocado**, como todo lo demás: en el original un pin es un `Circuit`
+ * (`CircuitProject/Pin.cs`) que además lleva su propio `CircuitSymbol`, y por eso el
+ * fichero guarda su `X`, su `Y` y su `Rotation` junto al `PinId`. `position` es dónde se
+ * dibuja el pin dentro de su hoja (de ahí sale su **punta interior**, la de dentro); su
+ * **punta exterior** —la que toca el símbolo del subcircuito en la hoja de arriba— se
+ * **deduce** del lado y del número de pines, igual que en el original
+ * (`Circuit.UpdatePin`), y no se guarda.
  */
-export interface Pin extends ElementBase {
+export interface Pin extends Device {
   readonly kind: 'pin'
   readonly pinType: PinType
+  /** Lado de la caja del circuito por el que asoma (original: `PinSide`). */
   readonly side: PinSide
   readonly bitWidth: number
   readonly inverted: boolean
   readonly name: string
 }
+
+/**
+ * Un subcircuito colocado: una pieza que representa a otro circuito de la hoja
+ * (original: el `CircuitSymbol` cuyo `Circuit` es un `LogicalCircuit`).
+ *
+ * ⚠️ Ojo con los dos circuitos que lleva: `circuitId` —heredado de `Device`— es la hoja
+ * **donde está colocado**, y `targetCircuitId` es el circuito que **representa**. En el
+ * original son `CircuitSymbol.LogicalCircuit` y `CircuitSymbol.Circuit`.
+ */
+export interface CircuitInstance extends Device {
+  readonly kind: 'circuit'
+  readonly targetCircuitId: Id
+}
+
+/**
+ * Todo lo que se puede **colocar** en una hoja y tiene forma (original: `CircuitSymbol`).
+ *
+ * Los cables van aparte porque se colocan distinto: no tienen posición, tienen dos puntas.
+ *
+ * ⚠️ De todo esto, el editor solo sabe colocar hoy compuertas e interruptores. Los pines de
+ * hoja y los subcircuitos están modelados porque el mapa de simulación ya los entiende
+ * (M2-07) y no había razón para rehacerlo luego; los demás dispositivos (constantes,
+ * memorias, sensores, repartidores…) están modelados **y nada más**: su forma y su
+ * comportamiento llegan con M2-05 y M2-12, y hasta entonces no saben dibujarse.
+ */
+export type PlacedElement =
+  | Gate
+  | Button
+  | Pin
+  | CircuitInstance
+  | Constant
+  | Memory
+  | LedMatrix
+  | Sensor
+  | Sound
+  | GraphicsArray
+  | Splitter
 
 /** Un símbolo colocado sobre la rejilla. */
 export interface Device extends ElementBase {
@@ -190,12 +236,21 @@ export interface Sensor extends Device {
 
 /**
  * Repartidor de bits (original: `Splitter`).
+ *
+ * ⚠️ Los campos son **los del fichero** (`.CircuitProject`: `BitWidth`, `PinCount`,
+ * `Clockwise`). En una versión anterior de este modelo se llamaban `splitWidth` e
+ * `isJoin`, que no venían de ningún sitio: se corrigieron al portar el mapa de simulación,
+ * que necesita saber cuántos pines hay y hacia dónde apuntan para atravesar el repartidor
+ * (`Splitter.Pass`).
  */
 export interface Splitter extends Device {
   readonly kind: 'splitter'
+  /** Ancho total, en bits. */
   readonly bitWidth: number
-  readonly splitWidth: number
-  readonly isJoin: boolean
+  /** Cuántos cables reparte. Nunca menos de 2 (el original lo sube solo). */
+  readonly pinCount: number
+  /** Sentido de los pines finos: `true` los pone a la derecha del ancho. */
+  readonly clockwise: boolean
 }
 
 /**
@@ -261,19 +316,44 @@ export interface Button extends Device {
 /**
  * Cualquier cosa que se pueda colocar en un circuito.
  *
- * Los pines de la hoja (`Pin`) todavía no están: llegan con los subcircuitos (M2).
+ * Los pines de la hoja y los subcircuitos son elementos del modelo (`PlacedElement`) pero
+ * todavía **no** de esta lista: el editor aún no sabe colocarlos, así que no pueden
+ * aparecer en un documento. El mapa de simulación sí los entiende (ver `PlacedElement`).
  */
 export type Element = Gate | Button | Wire
 
 /**
  * Un circuito: una hoja (lo que se dibuja) o un subcircuito.
  * En el original, `LogicalCircuit`.
+ *
+ * `elements` es **lo que el fichero guarda** de esa hoja: mezcla símbolos colocados y
+ * cables, en el orden en que se crearon. Aquí conviven las dos cosas en una sola lista
+ * porque el original hace lo mismo: cada `CircuitSymbol` y cada `Wire` es una fila más del
+ * mismo documento, y el orden de las filas es lo que numera los pines de un repartidor.
  */
 export interface Circuit {
   readonly id: Id
   readonly name: string
-  readonly elements: readonly Element[]
+  readonly elements: readonly StoredElement[]
+  /**
+   * Forma con la que se dibuja un subcircuito cuando se coloca (original:
+   * `LogicalCircuit.CircuitShape`). `Rectangular` es el valor por defecto del original.
+   */
+  readonly shape?: CircuitShape
+  /**
+   * Le da la vuelta a la forma (original: `LogicalCircuit.InvertIsDisplay`): con él, un
+   * circuito rectangular se dibuja como pantalla y al revés.
+   */
+  readonly invertedIsDisplay?: boolean
 }
+
+/**
+ * Lo que puede haber guardado en una hoja: un símbolo colocado o un cable.
+ *
+ * Es más ancho que `Element` (lo que el editor sabe colocar hoy) y eso es a propósito:
+ * el modelo no debe tener que esperar al editor para existir.
+ */
+export type StoredElement = PlacedElement | Wire
 
 /** Un proyecto completo: lo que se guarda en un fichero `.CircuitProject`. */
 export interface Project {

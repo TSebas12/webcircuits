@@ -8,22 +8,33 @@
  * Portado de:
  *   - `CircuitProject/Symbol.cs` → `RotationCenter`, `Angle`
  *   - `CircuitProject/Circuit.cs` líneas 90-144 → `Update` y `UpdatePin`
- *   - `CircuitProject/Gate.cs` → `CircuitSymbolWidth/Height`
+ *   - `CircuitProject/Gate.cs` → `CircuitSymbolWidth/Height`, `GeneratePins` y compañía
+ *   - `CircuitProject/LogicalCircuit.cs` → `CircuitSymbolWidth/Height`
+ *   - `CircuitProject/Splitter.cs` → `CreatePins`
+ *   - `CircuitProject/Pin.cs` → el pin de hoja y su `DevicePin`
  *
  * ⚠️ Los pines **no se guardan**: se deducen de la forma del símbolo. En el original sí
  * son objetos del modelo (y viajan en el XML), pero recalcularlos es más simple y no
  * puede desincronizarse. Si en M4 el fichero exige guardarlos, se guardan al exportar.
+ *
+ * ⚠️ **El orden de `SymbolLayout.pins` es el de creación de los pines del original**
+ * (`DevicePin.Order`), agrupado por lados —izquierda, arriba, derecha, abajo—, que es
+ * exactamente el orden en que los enumera `CircuitGlyph.Jams()`. Hay código que depende de
+ * él: `Splitter.Pass` numera los bits por ese orden. No reordenar «para que quede bonito».
  */
 
 import type {
   Button,
+  Circuit,
   Gate,
   GateType,
   GridPoint,
   GridRect,
+  Pin,
   PinSide,
   PinType,
   Rotation,
+  Splitter,
 } from './types'
 
 /** Número máximo de entradas de una compuerta (original: `Gate.MaxInputCount`). */
@@ -35,14 +46,41 @@ const GATE_WIDTH = 3
 /** Alto mínimo de una compuerta (original: `Gate.CircuitSymbolHeight` → `max(4, alto)`). */
 const GATE_MIN_HEIGHT = 4
 
-/** Alto mínimo de un símbolo cualquiera (original: `Circuit.CircuitSymbolHeight`). */
+/** Ancho/alto mínimo de un símbolo cualquiera (original: `Circuit.CircuitSymbolWidth`). */
 const MIN_SYMBOL_SIZE = 2
 
-/** Un pin, en coordenadas **locales** a la caja del símbolo. */
-export interface PinLayout {
+/** Lado mínimo de un subcircuito (original: `LogicalCircuit.CircuitSymbolWidth`). */
+const MIN_CIRCUIT_WIDTH = 3
+
+/** Alto mínimo de un subcircuito (original: `LogicalCircuit.CircuitSymbolHeight`). */
+const MIN_CIRCUIT_HEIGHT = 4
+
+/**
+ * La descripción de un pin, antes de saber dónde cae.
+ *
+ * Es la parte de `BasePin` que hace falta para dibujar y para simular: de qué lado está,
+ * si es entrada o salida, cuántos bits lleva y si está negado.
+ */
+export interface PinSpec {
   readonly side: PinSide
   readonly type: PinType
+  readonly bitWidth: number
+  readonly inverted: boolean
+}
+
+/** Un pin, en coordenadas **locales** a la caja del símbolo. */
+export interface PinLayout extends PinSpec {
   readonly point: GridPoint
+  /**
+   * Su número de creación (original: `DevicePin.Order`).
+   *
+   * ⚠️ **No siempre coincide con el orden por lados.** `Jams()` enumera por lados
+   * —izquierda, arriba, derecha, abajo—, pero el original ordena las puntas por este
+   * número cuando le hace falta (`JamComparer`), y hay código que depende de ello: el
+   * tri-estado lee `jam[0]` como dato y `jam[1]` como habilitación, y `Splitter.Pass` da
+   * por hecho que el pin ancho se creó el primero.
+   */
+  readonly order: number
 }
 
 /** La forma de un símbolo: cuánto ocupa y dónde tiene los pines. */
@@ -52,48 +90,86 @@ export interface SymbolLayout {
   readonly pins: readonly PinLayout[]
 }
 
-/**
- * Reparte los pines a lo largo de un lado.
- *
- * Portado literal de `Circuit.UpdatePin`. El detalle que importa: cuando hay más de uno,
- * `d = (lado - 2) / (cuántos - 1)` se calcula con **división entera**, como en C#. Con 1
- * solo pin, se coloca en el punto medio (`lado / 2`, también entero).
- */
-function placePins(
-  side: PinSide,
-  type: PinType,
-  count: number,
-  sideSize: number,
-  point: (offset: number) => GridPoint,
-): PinLayout[] {
-  if (count <= 0) {
-    return []
+/** Los lados, en el orden en que el original enumera los pines (`CircuitGlyph.Jams`). */
+const SIDES: readonly PinSide[] = ['left', 'top', 'right', 'bottom']
+
+/** Cuántos pines hay en cada lado. */
+function sideCounts(specs: readonly PinSpec[]): Record<PinSide, number> {
+  const counts: Record<PinSide, number> = { left: 0, top: 0, right: 0, bottom: 0 }
+  for (const spec of specs) {
+    counts[spec.side] += 1
   }
-  if (count === 1) {
-    return [{ side, type, point: point(Math.floor(sideSize / 2)) }]
-  }
-  const step = Math.trunc((sideSize - 2) / (count - 1))
-  const pins: PinLayout[] = []
-  for (let index = 0; index < count; index += 1) {
-    pins.push({ side, type, point: point(index * step + 1) })
-  }
-  return pins
+  return counts
 }
 
-/** Un símbolo con las entradas a la izquierda y (opcionalmente) la salida a la derecha. */
-function horizontalLayout(
-  width: number,
-  height: number,
-  inputCount: number,
-  withOutput: boolean,
-): SymbolLayout {
-  const pins: PinLayout[] = [
-    ...placePins('left', 'input', inputCount, height, (y) => ({ x: 0, y })),
-  ]
-  if (withOutput) {
-    pins.push(...placePins('right', 'output', 1, height, (y) => ({ x: width, y })))
+/**
+ * El tamaño que sale de la cuenta de pines (original: `Circuit.Update`).
+ *
+ * Ancho = `max(arriba, abajo) + 1` y alto = `max(izquierda, derecha) + 1`. Cada tipo
+ * ajusta luego ese mínimo a su manera.
+ */
+export function defaultSymbolSize(specs: readonly PinSpec[]): {
+  readonly width: number
+  readonly height: number
+} {
+  const counts = sideCounts(specs)
+  return {
+    width: Math.max(counts.top, counts.bottom) + 1,
+    height: Math.max(counts.left, counts.right) + 1,
   }
-  return { width, height, pins }
+}
+
+/**
+ * Reparte los pines y los coloca (original: `Circuit.Update` + `Circuit.UpdatePin`).
+ *
+ * Dos pasos, y el orden importa:
+ *
+ * 1. **Por lados.** Los pines se agrupan por lado y, dentro de cada lado, se reparten con
+ *    `paso = (lado - 2) / (cuántos - 1)`, con **división entera**, como en C#. Con uno
+ *    solo, va al punto medio (`lado / 2`, también entero). Por eso una AND de 2 entradas de
+ *    alto 4 los tiene en y = 1 y y = 3, y no en 1,33 y 2,66.
+ * 2. **En el orden del original.** Las puntas salen agrupadas por lado —izquierda, arriba,
+ *    derecha, abajo—, que es como las enumera `CircuitGlyph.Jams()`. El número de creación
+ *    viaja en cada una para quien necesite el otro orden (`JamComparer`).
+ */
+function symbolLayout(
+  specs: readonly PinSpec[],
+  size: { readonly width: number; readonly height: number },
+): SymbolLayout {
+  const bySide = new Map<PinSide, { readonly spec: PinSpec; readonly order: number }[]>()
+  for (const side of SIDES) {
+    bySide.set(side, [])
+  }
+  specs.forEach((spec, order) => {
+    bySide.get(spec.side)!.push({ spec, order })
+  })
+
+  const point = (side: PinSide, offset: number): GridPoint => {
+    switch (side) {
+      case 'left':
+        return { x: 0, y: offset }
+      case 'top':
+        return { x: offset, y: 0 }
+      case 'right':
+        return { x: size.width, y: offset }
+      case 'bottom':
+        return { x: offset, y: size.height }
+    }
+  }
+
+  const pins: PinLayout[] = []
+  for (const side of SIDES) {
+    const list = bySide.get(side)!
+    const sideSize = side === 'left' || side === 'right' ? size.height : size.width
+    list.forEach((entry, index) => {
+      const offset =
+        list.length === 1
+          ? Math.floor(sideSize / 2)
+          : index * Math.trunc((sideSize - 2) / (list.length - 1)) + 1
+      pins.push({ ...entry.spec, order: entry.order, point: point(side, offset) })
+    })
+  }
+  return { width: size.width, height: size.height, pins }
 }
 
 /** Ajusta el número de entradas al rango que admite el original. */
@@ -101,120 +177,217 @@ export function clampGateInputs(inputCount: number): number {
   return Math.min(MAX_GATE_INPUTS, Math.max(1, Math.trunc(inputCount)))
 }
 
+function inputPin(side: PinSide = 'left'): PinSpec {
+  return { side, type: 'input', bitWidth: 1, inverted: false }
+}
+
+function outputPin(inverted = false): PinSpec {
+  return { side: 'right', type: 'output', bitWidth: 1, inverted }
+}
+
 /**
- * La forma de una compuerta.
+ * Los pines de una compuerta, **en el orden en que los crea el original**.
  *
- * Reglas del original (`Gate.cs`): las compuertas ocupan 3 unidades de ancho y
- * `max(4, entradas + 1)` de alto. El LED es la excepción: mide 2 × 2 porque no tiene
- * salida.
+ * Portado de `Gate.GeneratePins`, `GenerateTriStatePins` y
+ * `GenerateSevenSegmentIndicatorPins`. El orden no es un capricho: el tri-estado coloca
+ * primero la entrada de datos, luego la de habilitación y por último la salida, y
+ * `DefineTriState` lee `jam[0]`, `jam[1]` y `jam[2]` en ese orden.
  */
-export function gateLayout(gateType: GateType, inputCount: number): SymbolLayout {
+function gatePinSpecs(gateType: GateType, inputCount: number): PinSpec[] {
   switch (gateType) {
     case 'not':
-      return horizontalLayout(GATE_WIDTH, GATE_MIN_HEIGHT, 1, true)
+      return [inputPin(), outputPin()]
 
     case 'and':
     case 'or':
     case 'xor': {
-      const inputs = clampGateInputs(inputCount)
-      const height = Math.max(GATE_MIN_HEIGHT, inputs + 1)
-      return horizontalLayout(GATE_WIDTH, height, inputs, true)
+      const count = clampGateInputs(inputCount)
+      const specs: PinSpec[] = []
+      for (let index = 0; index < count; index += 1) {
+        specs.push(inputPin())
+      }
+      specs.push(outputPin())
+      return specs
     }
 
+    case 'clock':
+      // Sin entradas: solo la salida. Es la única compuerta así.
+      return [outputPin()]
+
     case 'led':
-      // 1 entrada, sin salida. El original calcula 2 × 2 para el tamaño por defecto.
-      return horizontalLayout(MIN_SYMBOL_SIZE, MIN_SYMBOL_SIZE, 1, false)
+      if (inputCount === 8) {
+        // Siete segmentos: 4 segmentos a la izquierda y 3 más el punto a la derecha.
+        return [
+          inputPin(),
+          inputPin(),
+          inputPin(),
+          inputPin(),
+          inputPin('right'),
+          inputPin('right'),
+          inputPin('right'),
+          inputPin('right'),
+        ]
+      }
+      // Un LED: una entrada y ninguna salida.
+      return [inputPin()]
+
+    case 'triState1':
+      // La habilitación asoma por abajo (el tri-estado «1» la mira desde el sur).
+      return [inputPin(), inputPin('bottom'), outputPin()]
+
+    case 'triState2':
+      return [inputPin(), inputPin('top'), outputPin()]
 
     case 'nop':
-    case 'clock':
-    case 'triState1':
-    case 'triState2':
     case 'odd':
     case 'even':
     case 'probe':
-      throw new Error(`gateLayout(): «${gateType}» todavía no está implementado`)
+      throw new Error(`gatePinSpecs(): «${gateType}» no es una compuerta que se pueda colocar`)
   }
+}
+
+/** El tamaño de una compuerta (original: `Gate.CircuitSymbolWidth/Height`). */
+function gateSize(
+  gateType: GateType,
+  specs: readonly PinSpec[],
+): { readonly width: number; readonly height: number } {
+  const base = defaultSymbolSize(specs)
+
+  // El reloj y el LED de una sola entrada se quedan con el tamaño mínimo; el resto de las
+  // compuertas ocupan 3 de ancho y 4 de alto como poco.
+  const minimal = gateType === 'clock' || (gateType === 'led' && specs.length === 1)
+  if (minimal) {
+    return {
+      width: Math.max(MIN_SYMBOL_SIZE, base.width),
+      height: Math.max(MIN_SYMBOL_SIZE, base.height),
+    }
+  }
+  return { width: GATE_WIDTH, height: Math.max(GATE_MIN_HEIGHT, base.height) }
+}
+
+/**
+ * La forma de una compuerta.
+ *
+ * Reglas del original (`Gate.cs`): las compuertas ocupan 3 unidades de ancho y
+ * `max(4, entradas + 1)` de alto. La excepción son el reloj y el LED de una entrada, que
+ * miden 2 × 2 porque no tienen entradas (el reloj) o no tienen salida (el LED).
+ */
+export function gateLayout(gateType: GateType, inputCount: number): SymbolLayout {
+  const specs = gatePinSpecs(gateType, inputCount)
+  return symbolLayout(specs, gateSize(gateType, specs))
 }
 
 /**
  * La forma de un interruptor de entrada.
  *
- * 2×2, sin entradas y con **un pin de salida a la derecha**, en (2, 1) — que es lo que
- * sale de aplicar la regla del original al botón por defecto.
+ * 2×2, sin entradas y con **un pin de salida a la derecha**, en (2, 1).
  *
  * ⚠️ El original permite mover ese pin a los otros lados (`PinSide`); eso llega en M2.
  */
-export function buttonLayout(): SymbolLayout {
-  return horizontalLayout(MIN_SYMBOL_SIZE, MIN_SYMBOL_SIZE, 0, true)
+export function buttonLayout(inverted = false): SymbolLayout {
+  const specs: PinSpec[] = [outputPin(inverted)]
+  const base = defaultSymbolSize(specs)
+  return symbolLayout(specs, {
+    width: Math.max(MIN_SYMBOL_SIZE, base.width),
+    height: Math.max(MIN_SYMBOL_SIZE, base.height),
+  })
 }
 
 /**
- * Centro de rotación, en unidades de rejilla (original: `Symbol.RotationCenter`).
+ * La forma de un **pin de hoja** (original: `Pin` + el `DevicePin` que le crea `PinSet`).
  *
- * Si el ancho y el alto tienen la **misma paridad**, el centro es el geométrico. Si no,
- * el original lo baja a la rejilla con **división entera** — de modo que el centro deja
- * de ser el centro. Es raro, pero es lo que hay: cambiarlo movería los pines de todas
- * las compuertas rotadas.
- */
-export function rotationCenter(width: number, height: number): GridPoint {
-  if ((width & 1) === (height & 1)) {
-    return { x: width / 2, y: height / 2 }
-  }
-  return { x: Math.trunc(width / 2), y: Math.trunc(height / 2) }
-}
-
-/** El ángulo del original (original: `Symbol.Angle`). */
-export function rotationAngle(rotation: Rotation): number {
-  switch (rotation) {
-    case 'up':
-      return 0
-    case 'right':
-      return 90
-    case 'down':
-      return 180
-    case 'left':
-      return -90
-  }
-}
-
-/**
- * Gira un punto local alrededor del centro de rotación.
+ * Es 2 × 2 y su única punta asoma por el lado **contrario** al que ocupa en la caja del
+ * circuito: un pin de entrada se dibuja a la izquierda de la hoja y su punta está a la
+ * derecha del cuadradito (tira hacia dentro), y un pin de salida al revés. Sale de
+ * `DevicePin.Create`, que le da la vuelta al lado del `Pin`:
  *
- * Se calcula con las cuatro orientaciones exactas en vez de con senos y cosenos: así los
- * giros de 90° dan números **enteros exactos** y no aparecen pines en 2,9999999.
+ * ```csharp
+ * PinSide pinSide = BasePin.DefaultSide((circuit is Pin p) ? (p.PinType == Input ? Output : Input) : pinType);
+ * pinSide = BasePin.DefaultSide((p.PinType == Input) ? Output : Input);
+ * ```
  */
-export function rotatePoint(
-  point: GridPoint,
-  rotation: Rotation,
-  width: number,
-  height: number,
-): GridPoint {
-  if (rotation === 'up') {
-    return point
-  }
-  const center = rotationCenter(width, height)
-  const dx = point.x - center.x
-  const dy = point.y - center.y
-
-  switch (rotation) {
-    case 'right':
-      return { x: center.x - dy, y: center.y + dx }
-    case 'down':
-      return { x: center.x - dx, y: center.y - dy }
-    case 'left':
-      return { x: center.x + dy, y: center.y - dx }
-  }
+export function pinLayout(pin: {
+  readonly pinType: PinType
+  readonly bitWidth: number
+  readonly inverted: boolean
+}): SymbolLayout {
+  const side: PinSide = pin.pinType === 'input' ? 'right' : 'left'
+  const specs: PinSpec[] = [
+    { side, type: 'none', bitWidth: pin.bitWidth, inverted: pin.inverted },
+  ]
+  const base = defaultSymbolSize(specs)
+  return symbolLayout(specs, {
+    width: Math.max(MIN_SYMBOL_SIZE, base.width),
+    height: Math.max(MIN_SYMBOL_SIZE, base.height),
+  })
 }
 
 /**
- * La forma de un dispositivo colocado, en coordenadas locales.
+ * La forma de un repartidor de bits (original: `Splitter.CreatePins`).
+ *
+ * Ocupa **una** unidad de ancho. El pin ancho va de un lado y los finos del otro, y el
+ * reparto no es a partes iguales: los `ancho % cuántos` primeros pines finos se llevan un
+ * bit de más. De ese reparto sale a qué bit corresponde cada cable, así que el orden de
+ * creación importa tanto como en las compuertas.
+ */
+export function splitterLayout(splitter: Splitter): SymbolLayout {
+  const pinCount = Math.max(2, splitter.pinCount)
+  const bitWidth = Math.max(pinCount, splitter.bitWidth)
+  const wideSide: PinSide = splitter.clockwise ? 'left' : 'right'
+  const thinSide: PinSide = splitter.clockwise ? 'right' : 'left'
+
+  const specs: PinSpec[] = [
+    { side: wideSide, type: 'none', bitWidth, inverted: false },
+  ]
+  const thinWidth = Math.trunc(bitWidth / pinCount)
+  const remainder = bitWidth % pinCount
+  for (let index = 0; index < remainder; index += 1) {
+    specs.push({ side: thinSide, type: 'none', bitWidth: thinWidth + 1, inverted: false })
+  }
+  for (let index = remainder; index < pinCount; index += 1) {
+    specs.push({ side: thinSide, type: 'none', bitWidth: thinWidth, inverted: false })
+  }
+
+  const base = defaultSymbolSize(specs)
+  return symbolLayout(specs, { width: 1, height: Math.max(MIN_SYMBOL_SIZE, base.height) })
+}
+
+/**
+ * La forma con la que se dibuja un **subcircuito** cuando se coloca (original:
+ * `LogicalCircuit.CircuitSymbolWidth/Height`).
+ *
+ * Sus pines son los pines de la hoja que representa, cada uno con su lado. Todos son
+ * `none` para la simulación (ver `Jam.effectivePinType`), porque desde fuera un pin de
+ * hoja no es ni entrada ni salida: es un pasamanos.
+ *
+ * ⚠️ Falta el caso de las **pantallas** (`CircuitShape.Display`): cuando un circuito es una
+ * pantalla, su caja se estira hasta el rectángulo que ocupan sus indicadores
+ * (`LogicalCircuit.DisplayBounds`). Eso necesita el dibujado de los indicadores, que es
+ * M2/M6.
+ */
+export function circuitSymbolLayout(pins: readonly PinSpec[]): SymbolLayout {
+  const base = defaultSymbolSize(pins)
+  return symbolLayout(pins, {
+    width: Math.max(MIN_CIRCUIT_WIDTH, base.width),
+    height: Math.max(MIN_CIRCUIT_HEIGHT, base.height),
+  })
+}
+
+/**
+ * La forma de un dispositivo colocado.
  *
  * Es la traducción de `Circuit.SymbolWidth/Height` del original: cada símbolo sabe cuánto
  * mide y dónde tiene sus pines, y todo lo demás (cables, clic, simulación) se apoya en
  * esto en vez de repetir las cuentas.
+ *
+ * Solo los que el editor sabe colocar hoy: las compuertas y el interruptor. Los pines de
+ * hoja y los subcircuitos tienen su propia función, porque necesitan saber a qué circuito
+ * representan.
  */
 export function deviceLayout(device: Gate | Button): SymbolLayout {
-  return device.kind === 'gate' ? gateLayout(device.gateType, device.inputCount) : buttonLayout()
+  return device.kind === 'gate'
+    ? gateLayout(device.gateType, device.inputCount)
+    : buttonLayout(device.inverted)
 }
 
 /**
@@ -274,6 +447,64 @@ export function deviceBounds(device: Gate | Button): GridRect {
 }
 
 /**
+ * Centro de rotación, en unidades de rejilla (original: `Symbol.RotationCenter`).
+ *
+ * Si el ancho y el alto tienen la **misma paridad**, el centro es el geométrico. Si no,
+ * el original lo baja a la rejilla con **división entera** — de modo que el centro deja
+ * de ser el centro. Es raro, pero es lo que hay: cambiarlo movería los pines de todas las
+ * compuertas rotadas.
+ */
+export function rotationCenter(width: number, height: number): GridPoint {
+  if ((width & 1) === (height & 1)) {
+    return { x: width / 2, y: height / 2 }
+  }
+  return { x: Math.trunc(width / 2), y: Math.trunc(height / 2) }
+}
+
+/** El ángulo del original (original: `Symbol.Angle`). */
+export function rotationAngle(rotation: Rotation): number {
+  switch (rotation) {
+    case 'up':
+      return 0
+    case 'right':
+      return 90
+    case 'down':
+      return 180
+    case 'left':
+      return -90
+  }
+}
+
+/**
+ * Gira un punto local alrededor del centro de rotación.
+ *
+ * Se calcula con las cuatro orientaciones exactas en vez de con senos y cosenos: así los
+ * giros de 90° dan números **enteros exactos** y no aparecen pines en 2,9999999.
+ */
+export function rotatePoint(
+  point: GridPoint,
+  rotation: Rotation,
+  width: number,
+  height: number,
+): GridPoint {
+  if (rotation === 'up') {
+    return point
+  }
+  const center = rotationCenter(width, height)
+  const dx = point.x - center.x
+  const dy = point.y - center.y
+
+  switch (rotation) {
+    case 'right':
+      return { x: center.x - dy, y: center.y + dx }
+    case 'down':
+      return { x: center.x - dx, y: center.y - dy }
+    case 'left':
+      return { x: center.x + dy, y: center.y - dx }
+  }
+}
+
+/**
  * Posición absoluta en la rejilla de un pin de un dispositivo.
  *
  * ⚠️ Ojo al girar: el original recoloca el símbolo al rotar para que no se mueva de
@@ -289,3 +520,82 @@ export function pinPosition(
   const local = rotatePoint(pin.point, rotation, layout.width, layout.height)
   return { x: position.x + local.x, y: position.y + local.y }
 }
+
+/**
+ * La forma del símbolo de un pin de hoja colocado.
+ *
+ * Devuelve `undefined` si el pin no es colocable (un pin «ninguno» no existe en el
+ * original: `PinSet.Create` solo crea entrada o salida).
+ */
+export function placedPinLayout(pin: Pin): SymbolLayout | undefined {
+  if (pin.pinType === 'none') {
+    return undefined
+  }
+  return pinLayout(pin)
+}
+
+/**
+ * La forma de un subcircuito colocado.
+ *
+ * Necesita el circuito que representa para saber qué pines tiene.
+ */
+export function circuitInstanceLayout(circuit: Circuit): SymbolLayout {
+  return circuitSymbolLayout(sheetPinSpecs(circuit))
+}
+
+/**
+ * Los pines de una hoja, en el orden en que el original los numera.
+ *
+ * Portado de `PinComparer.cs`: primero el `Index` del pin —que aquí no existe y vale
+ * siempre 0, porque el fichero tampoco lo guarda—, luego la `Y` de su símbolo, luego la
+ * `X` y, si empatan, el nombre por orden de código de carácter (`StringComparer.Ordinal`).
+ *
+ * ⚠️ Esto **no** es el orden del fichero: es el orden que decide en qué fila cae cada pin
+ * de un lado de la caja (original: `Circuit.Update`, que ordena cada lado con este mismo
+ * comparador antes de repartirlos). Dos pines del mismo lado con las X e Y intercambiadas
+ * caen en filas distintas, y el circuito simulado sería otro.
+ */
+function pinSortKey(a: Pin, b: Pin): number {
+  if (a.position.y !== b.position.y) {
+    return a.position.y - b.position.y
+  }
+  if (a.position.x !== b.position.x) {
+    return a.position.x - b.position.x
+  }
+  if (a.name === b.name) {
+    return 0
+  }
+  return a.name < b.name ? -1 : 1
+}
+
+/** Los pines de una hoja, ordenados como los ordena el original. */
+export function sortedSheetPins(circuit: Circuit): Pin[] {
+  return circuit.elements
+    .filter((element): element is Pin => element.kind === 'pin' && element.pinType !== 'none')
+    .sort(pinSortKey)
+}
+
+/** Los pines de una hoja, como especificaciones listas para colocar. */
+export function sheetPinSpecs(circuit: Circuit): PinSpec[] {
+  return sortedSheetPins(circuit).map((pin) => ({
+    side: pin.side,
+    type: 'none' as PinType,
+    bitWidth: pin.bitWidth,
+    inverted: pin.inverted,
+  }))
+}
+
+/**
+ * Los pines de una hoja en el **orden del fichero** (el de creación).
+ *
+ * Es el orden que hace falta para el mapa de simulación: los pines de un subcircuito se
+ * emparejan por posición con los del circuito que representan, y ahí manda el orden en que
+ * se guardaron, no el de la rejilla. `sheetPinSpecs` da el otro (el de la rejilla), que es
+ * el que decide dónde cae cada pin.
+ */
+export function sheetPinsInStoredOrder(circuit: Circuit): Pin[] {
+  return circuit.elements.filter(
+    (element): element is Pin => element.kind === 'pin' && element.pinType !== 'none',
+  )
+}
+

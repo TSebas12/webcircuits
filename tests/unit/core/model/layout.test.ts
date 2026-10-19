@@ -4,11 +4,13 @@ import {
   buttonLayout,
   deviceBounds,
   gateLayout,
+  pinLayout,
   pinPosition,
   placedPins,
   rotatePoint,
   rotationAngle,
   rotationCenter,
+  splitterLayout,
 } from '../../../../src/core/model/layout'
 import type { Button, Gate, GateType, GridPoint, Rotation } from '../../../../src/core/model/types'
 
@@ -191,9 +193,141 @@ describe('pines de un dispositivo colocado', () => {
   })
 })
 
+describe('compuertas completas (portado de Gate.cs)', () => {
+  it('el reloj mide 2×2 y solo tiene salida', () => {
+    const layout = gateLayout('clock', 0)
+
+    expect([layout.width, layout.height]).toEqual([2, 2])
+    expect(pinText('clock', 0)).toEqual(['output@2,1'])
+  })
+
+  it('el LED de siete segmentos mide 3×5: cuatro pines por lado', () => {
+    const layout = gateLayout('led', 8)
+
+    expect([layout.width, layout.height]).toEqual([3, 5])
+    // Cuatro entradas a la izquierda y cuatro a la derecha (los siete segmentos y el punto).
+    expect(pinText('led', 8)).toEqual([
+      'input@0,1',
+      'input@0,2',
+      'input@0,3',
+      'input@0,4',
+      'input@3,1',
+      'input@3,2',
+      'input@3,3',
+      'input@3,4',
+    ])
+  })
+
+  it('el tri-estado 1 mide 3×4 y su habilitación asoma por abajo', () => {
+    const layout = gateLayout('triState1', 1)
+
+    expect([layout.width, layout.height]).toEqual([3, 4])
+    expect(pinText('triState1', 1)).toEqual(['input@0,2', 'output@3,2', 'input@1,4'])
+  })
+
+  it('el tri-estado 2 es igual pero con la habilitación arriba', () => {
+    expect(pinText('triState2', 1)).toEqual(['input@0,2', 'input@1,0', 'output@3,2'])
+  })
+
+  it('el orden de creación de los pines no es el orden de los lados', () => {
+    // `Jams()` los da por lados (izquierda, arriba, derecha, abajo), pero el original los
+    // ordena por número de creación cuando le hace falta (`JamComparer`). Con el tri-estado
+    // deja de coincidir: el dato es el 0, la habilitación el 1 y la salida el 2.
+    const layout = gateLayout('triState1', 1)
+
+    expect(layout.pins.map((pin) => `${pin.order}:${pin.type}`)).toEqual([
+      '0:input',
+      '2:output',
+      '1:input',
+    ])
+  })
+})
+
+describe('pines de hoja (portado de Pin.cs + DevicePin.Create)', () => {
+  const inputPin = {
+    kind: 'pin' as const,
+    id: 'p1',
+    circuitId: 'c1',
+    layerId: 'principal',
+    position: { x: 2, y: 2 },
+    rotation: 'up' as const,
+    pinType: 'input' as const,
+    side: 'left' as const,
+    bitWidth: 1,
+    inverted: false,
+    name: 'x',
+  }
+
+  it('un pin de entrada es 2×2 y su punta mira hacia dentro, a la derecha', () => {
+    // Comprobado contra el fichero `CircuitMapTests.CircuitProject`: el pin de entrada
+    // colocado en (2, 2) tiene su punta en (2+2, 2+1) = (4, 3), y ahí llega el cable.
+    const layout = pinLayout(inputPin)
+
+    expect([layout.width, layout.height]).toEqual([2, 2])
+    expect(layout.pins.map((pin) => `${pin.type}@${pin.point.x},${pin.point.y}`)).toEqual([
+      'none@2,1',
+    ])
+    expect(pinPosition(inputPin.position, 'up', layout, layout.pins[0]!)).toEqual({ x: 4, y: 3 })
+  })
+
+  it('un pin de salida tiene la punta a la izquierda', () => {
+    const layout = pinLayout({ ...inputPin, pinType: 'output' })
+
+    expect(layout.pins.map((pin) => `${pin.type}@${pin.point.x},${pin.point.y}`)).toEqual([
+      'none@0,1',
+    ])
+    expect(pinPosition({ x: 8, y: 2 }, 'up', layout, layout.pins[0]!)).toEqual({ x: 8, y: 3 })
+  })
+})
+
+describe('repartidores (portado de Splitter.CreatePins)', () => {
+  it('un repartidor 8→2 con los finos a la derecha mide 1×3', () => {
+    const layout = splitterLayout({
+      kind: 'splitter',
+      id: 's1',
+      circuitId: 'c1',
+      layerId: 'principal',
+      position: { x: 0, y: 0 },
+      rotation: 'up',
+      bitWidth: 8,
+      pinCount: 2,
+      clockwise: true,
+    })
+
+    expect([layout.width, layout.height]).toEqual([1, 3])
+    expect(layout.pins.map((pin) => `${pin.bitWidth}@${pin.point.x},${pin.point.y}`)).toEqual([
+      '8@0,1',
+      '4@1,1',
+      '4@1,2',
+    ])
+  })
+
+  it('el reparto no es a partes iguales: los primeros pines finos se llevan un bit de más', () => {
+    const layout = splitterLayout({
+      kind: 'splitter',
+      id: 's2',
+      circuitId: 'c1',
+      layerId: 'principal',
+      position: { x: 0, y: 0 },
+      rotation: 'up',
+      bitWidth: 5,
+      pinCount: 3,
+      clockwise: false,
+    })
+
+    expect(layout.pins.map((pin) => `${pin.bitWidth}@${pin.point.x},${pin.point.y}`)).toEqual([
+      '2@0,1',
+      '2@0,2',
+      '1@0,3',
+      '5@1,2',
+    ])
+  })
+})
+
 describe('lo que todavía no está portado', () => {
-  it('las compuertas que faltan avisan en vez de mentir con un tamaño inventado', () => {
-    expect(() => gateLayout('clock', 0)).toThrow(/no está implementado/)
-    expect(() => gateLayout('triState1', 1)).toThrow(/no está implementado/)
+  it('los tipos que no son compuertas colocables avisan en vez de mentir', () => {
+    expect(() => gateLayout('nop', 1)).toThrow(/no es una compuerta que se pueda colocar/)
+    expect(() => gateLayout('odd', 1)).toThrow(/no es una compuerta que se pueda colocar/)
+    expect(() => gateLayout('probe', 1)).toThrow(/no es una compuerta que se pueda colocar/)
   })
 })
