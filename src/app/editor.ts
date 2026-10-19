@@ -219,6 +219,8 @@ export class Editor {
   private areaSelection: { readonly start: GridPoint; current: GridPoint } | null = null
   /** Posiciones iniciales de los elementos seleccionados al empezar a arrastrar (M2-20). */
   private dragGroup: Map<Id, GridPoint> | null = null
+  /** Portapapeles en memoria (M2-24). */
+  private clipboard: { readonly elements: readonly (Gate | Button)[]; readonly wires: readonly Wire[] } | null = null
   private wire: WireState | null = null
   private buttonPress: ButtonPress | null = null
   /** Última posición del cursor en el mundo, para la previsualización del cable. */
@@ -432,6 +434,65 @@ export class Editor {
     }
     this.diagram.endChange()
     this.refresh()
+  }
+
+  /** Copia la selección al portapapeles en memoria (M2-24). */
+  copy(): void {
+    const ids = new Set(this.selected)
+    const elements = this.diagram.elements.filter(
+      (e): e is Gate | Button => e.kind !== 'wire' && ids.has(e.id),
+    )
+    const selectedPinPoints = new Set<string>()
+    for (const el of elements) {
+      for (const placed of placedPins(el)) {
+        selectedPinPoints.add(pointKey(placed.point))
+      }
+    }
+    const wires = this.diagram.elements.filter((e): e is Wire => {
+      if (e.kind !== 'wire') return false
+      if (ids.has(e.id)) return true
+      return selectedPinPoints.has(pointKey(e.p1)) && selectedPinPoints.has(pointKey(e.p2))
+    })
+    this.clipboard = { elements, wires }
+  }
+
+  /** Pega el portapapeles con un offset de +1,+1 (M2-24). */
+  paste(): void {
+    if (this.clipboard === null || this.clipboard.elements.length === 0) return
+    this.diagram.beginChange()
+    const idMap = new Map<Id, Id>()
+    for (const el of this.clipboard.elements) {
+      let newId: Id
+      if (el.kind === 'gate') {
+        const g = this.diagram.addGate(el.gateType, { x: el.position.x + 1, y: el.position.y + 1 }, el.inputCount, el.invertedOutput, el.bitWidth)
+        newId = g.id
+      } else {
+        const b = this.diagram.addButton({ x: el.position.x + 1, y: el.position.y + 1 }, { isToggle: el.isToggle, inverted: el.inverted, bitWidth: el.bitWidth })
+        newId = b.id
+      }
+      idMap.set(el.id, newId)
+    }
+    for (const w of this.clipboard.wires) {
+      const p1OnSelected = this.clipboard.elements.some((e) =>
+        placedPins(e).some((pp) => pointKey(pp.point) === pointKey(w.p1)),
+      )
+      const newP1 = p1OnSelected ? { x: w.p1.x + 1, y: w.p1.y + 1 } : w.p1
+      const newP2 = { x: w.p2.x + 1, y: w.p2.y + 1 }
+      this.diagram.addWire(newP1, newP2, w.bitWidth)
+    }
+    this.diagram.endChange()
+    this.select(null)
+    for (const newId of idMap.values()) {
+      this.selected.add(newId)
+    }
+    this.callbacks.onSelectionChange?.(this.selected.values().next().value ?? null)
+    this.refresh()
+  }
+
+  /** Duplica la selección (M2-24). */
+  duplicate(): void {
+    this.copy()
+    this.paste()
   }
 
   /** Borra lo seleccionado, con los cables que colgaban de ello (M2-21). */
@@ -894,6 +955,9 @@ export class Editor {
           event.preventDefault()
         }
       }
+      if (key === 'c') { event.preventDefault(); this.copy(); return }
+      if (key === 'v') { event.preventDefault(); this.paste(); return }
+      if (key === 'd') { event.preventDefault(); this.duplicate(); return }
       return
     }
 
