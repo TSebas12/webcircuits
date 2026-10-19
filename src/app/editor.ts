@@ -255,6 +255,12 @@ export class Editor {
     return this.diagram.elements.length
   }
 
+  /** Id del elemento seleccionado (o null). */
+  get selectedId(): string | null {
+    const first = this.selected.values().next().value
+    return first === undefined ? null : first
+  }
+
   /** Qué hay bajo el cursor (para menú contextual). */
   hitAt(clientX: number, clientY: number): ReturnType<typeof hitTest> {
     const rect = this.canvas?.getBoundingClientRect()

@@ -2,6 +2,9 @@
   import { onMount } from 'svelte'
   import { Editor, type Tool } from './editor'
   import ContextMenu, { type MenuItem } from './ContextMenu.svelte'
+  import Inspector from './Inspector.svelte'
+  import SettingsPanel from './SettingsPanel.svelte'
+  import CommandPalette from './CommandPalette.svelte'
   import { deserializeProject, serializeProject } from '../core/persist/json'
   import { importCircuitProject } from '../core/persist/circuitproject'
   import { IdbProvider } from './files/idb-provider'
@@ -38,6 +41,8 @@
   let openError = $state<string | null>(null)
   let hoverInfo = $state<{ x: number; y: number; value: number; bitWidth: number } | null>(null)
   let contextMenu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null)
+  let showSettings = $state(false)
+  let showCommandPalette = $state(false)
   let canUndo = $state(false)
   let canRedo = $state(false)
   /** Se está tendiendo un cable: el cursor deja de ser la mano y pasa a ser la flecha. */
@@ -57,7 +62,7 @@
    * El editor se crea en `onMount`, así que antes de eso no existe. No es `$state` a
    * propósito: no hay nada que redibujar cuando cambia, solo hay que poder llamarlo.
    */
-  let editor: Editor | null = null
+  let editor = $state<Editor | null>(null)
 
   onMount(() => {
     const canvas = canvasEl
@@ -173,6 +178,14 @@
     }, 30000)
 
     // Guardar al ocultar la pestaña.
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        showCommandPalette = !showCommandPalette
+      }
+    }
+    window.addEventListener('keydown', onKey)
+
     const onVisibility = () => {
       if (document.visibilityState === 'hidden' && editor === instance && instance.dirty) {
         const payload = serializeProject(instance.project)
@@ -183,6 +196,7 @@
 
     return () => {
       clearInterval(autosaveTimer)
+      window.removeEventListener('keydown', onKey)
       document.removeEventListener('visibilitychange', onVisibility)
       instance.unmount()
       editor = null
@@ -383,6 +397,15 @@
     >
       📌
     </button>
+    <button
+      type="button"
+      class="tool"
+      onclick={() => (showSettings = true)}
+      title="Preferencias"
+      aria-label="Preferencias"
+    >
+      ⚙
+    </button>
 
     <button
       type="button"
@@ -531,6 +554,18 @@
 
   {#if contextMenu}
     <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => (contextMenu = null)} />
+  {/if}
+
+  {#if hasSelection && editor}
+    <Inspector {editor} />
+  {/if}
+
+  {#if showSettings}
+    <SettingsPanel onClose={() => (showSettings = false)} />
+  {/if}
+
+  {#if showCommandPalette && editor}
+    <CommandPalette {editor} onClose={() => (showCommandPalette = false)} />
   {/if}
 
   {#if !powered && tool === 'erase'}
