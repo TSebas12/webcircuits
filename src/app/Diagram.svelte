@@ -547,7 +547,10 @@
     </button>
   </div>
 
-  <aside class="palette" class:disabled={powered} aria-label="Piezas para colocar">
+  <!-- La paleta y el breadcrumb viven en la misma columna: así no pueden solaparse. Antes eran
+       dos cajas absolutas con el mismo `left` y el breadcrumb se pintaba encima de la paleta. -->
+  <div class="left-rail">
+    <aside class="palette" class:disabled={powered} aria-label="Piezas para colocar">
     <div class="palette-head">
       <span class="palette-title">Piezas</span>
       <label class="inputs" title="Cuántas entradas tendrá la próxima compuerta que coloques">
@@ -597,6 +600,7 @@
     {#if circuitPath.length > 1}
       <button type="button" class="crumb-btn" onclick={goUp} disabled={powered} title="Subir un nivel">↑ Subir</button>
     {/if}
+    </div>
   </div>
 
   {#if isEmpty && !powered}
@@ -614,27 +618,32 @@
     </div>
   {/if}
 
-  <div class="mode-badge" class:live={powered} aria-live="polite">
-    {powered
-      ? 'Modo ejecución · solo se pulsan interruptores · ⚡ para editar'
-      : 'Modo edición · ⚡ para probar el circuito'}
-  </div>
+  <div class="status-stack">
+    <div class="mode-badge" class:live={powered} aria-live="polite">
+      {powered
+        ? 'Modo ejecución · solo se pulsan interruptores · ⚡ para editar'
+        : 'Modo edición · ⚡ para probar el circuito'}
+    </div>
 
-  {#if error !== null}
-    <div class="error-badge" role="alert">
-      <strong>El circuito no se puede simular.</strong>
-      {error}
-    </div>
-  {/if}
-  {#if recovered}
-    <div class="info-badge" role="status">
-      Sesión recuperada del autoguardado.
-      <button type="button" onclick={() => (recovered = false)}>×</button>
-    </div>
-  {/if}
-  {#if openError !== null}
-    <div class="error-badge" role="alert">{openError}</div>
-  {/if}
+    {#if error !== null}
+      <div class="error-badge" role="alert">
+        <strong>El circuito no se puede simular.</strong>
+        {error}
+      </div>
+    {/if}
+    {#if recovered}
+      <div class="info-badge" role="status">
+        Sesión recuperada del autoguardado.
+        <button type="button" onclick={() => (recovered = false)}>×</button>
+      </div>
+    {/if}
+    {#if openError !== null}
+      <div class="error-badge" role="alert">{openError}</div>
+    {/if}
+    {#if !powered && tool === 'erase'}
+      <div class="tool-badge">Borrando · un clic se lleva lo que toques · Esc para salir</div>
+    {/if}
+  </div>
 
   {#if contextMenu}
     <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => (contextMenu = null)} />
@@ -666,10 +675,6 @@
         { label: 'Exportar a .CircuitProject (XML)', action: () => void exportXml() },
       ]}
     />
-  {/if}
-
-  {#if !powered && tool === 'erase'}
-    <div class="tool-badge">Borrando · un clic se lleva lo que toques · Esc para salir</div>
   {/if}
 
   <div class="hud" aria-hidden="true">
@@ -788,15 +793,24 @@
 
   /* ── Paleta de piezas ───────────────────────────────────────────────── */
 
-  /* A la derecha y no a la izquierda porque ahí ya están la barra, el aviso de modo y el del
-     borrador: el circuito queda en medio. Se desplaza por dentro si no cabe entera, que es
-     mejor que recortarla. */
-  .palette {
+  /* Columna izquierda: el breadcrumb arriba y la paleta debajo, en flujo normal. Antes eran dos
+     cajas absolutas en el mismo sitio y el breadcrumb se pintaba encima de la paleta. Aquí no
+     pueden solaparse: una empuja a la otra. La columna se desplaza por dentro si no cabe. */
+  .left-rail {
     position: absolute;
     top: 3.4rem;
     left: 0.6rem;
+    bottom: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
     width: 12.5rem;
-    max-height: calc(100% - 3.4rem);
+    max-width: calc(100% - 1.2rem);
+  }
+
+  .palette {
+    flex: 0 1 auto;
+    min-height: 0;
     overflow-y: auto;
     padding: 0.4rem;
     border: 1px solid var(--border);
@@ -900,13 +914,26 @@
 
   /* ── Avisos ─────────────────────────────────────────────────────────── */
 
+  /* Todos los avisos de estado viven en la esquina superior derecha, en columna. Alineados
+     arriba del todo (a la altura de la barra), que es donde se buscan; y apilados para que el
+     de modo, el de error y el de borrador no se pisen entre ellos. */
+  .status-stack {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.4rem;
+    max-width: min(32rem, calc(100% - 2rem));
+    pointer-events: none;
+  }
+
   /* Está siempre puesta, en los dos modos, porque las dos confusiones son simétricas: «¿por
      qué no se enciende nada?» y «¿por qué no puedo mover esto?». El color de «encendido»
      queda para el modo ejecución, que es cuando el circuito está vivo. */
   .mode-badge {
-    position: absolute;
-    top: 3.7rem;
-    right: 0.6rem;
     padding: 0.3rem 0.6rem;
     border: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
     border-radius: 0.4rem;
@@ -927,9 +954,6 @@
   /* Solo aparece con el borrador, que es el único modo que destruye algo con un clic. Va del
      color de aviso —el mismo del «encendido»— porque eso es: un aviso. */
   .tool-badge {
-    position: absolute;
-    top: 3.7rem;
-    right: 0.6rem;
     padding: 0.3rem 0.6rem;
     border: 1px solid color-mix(in srgb, var(--wc-state-one) 45%, transparent);
     border-radius: 0.4rem;
@@ -940,14 +964,34 @@
     pointer-events: none;
   }
 
+  /* Aviso de sesión recuperada. Tenía estilos prestados de ningún sitio (se dibujaba como un
+     bloque suelto): ahora es una tarjeta más del stack, con su botón de cerrar. */
+  .info-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid color-mix(in srgb, var(--wc-selection) 45%, transparent);
+    border-radius: 0.4rem;
+    background: color-mix(in srgb, var(--wc-selection) 12%, var(--panel-bg));
+    font-size: 0.75rem;
+    color: var(--fg);
+    pointer-events: auto;
+  }
+
+  .info-badge button {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
   /* El aviso de que el circuito no se puede simular. Va en rojo de alarma —y no con un color
      del tema— porque un error tiene que gritar igual en los dos temas: no es parte de la
      paleta, es un aviso. Ocupa el sitio del aviso del borrador, que solo sale apagado: un
      circuito que no se simula solo puede ser con la corriente puesta. */
   .error-badge {
-    position: absolute;
-    top: 3.7rem;
-    right: 0.6rem;
     max-width: min(30rem, calc(100% - 1.2rem));
     padding: 0.35rem 0.6rem;
     border: 1px solid color-mix(in srgb, var(--wc-error) 60%, transparent);
@@ -960,11 +1004,13 @@
   }
 
   /* ── Breadcrumb de jerarquía (M3-02) ───────────────────────────────── */
+  /* Va el primero de la columna (`order: -1`) aunque en el HTML vaya detrás de la paleta, para
+     no tener que reordenar bloques grandes. Puede envolver si hay muchos niveles: al estar en
+     flujo, empuja la paleta hacia abajo en vez de taparla. */
   .breadcrumb {
-    position: absolute;
-    top: 3.7rem;
-    left: 0.6rem;
-    transform: none;
+    order: -1;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
     display: flex;
     align-items: center;
     gap: 0.3rem;
@@ -976,7 +1022,6 @@
     font-size: 0.75rem;
     color: var(--fg);
     user-select: none;
-    z-index: 2;
   }
 
   .breadcrumb .crumb {
@@ -1042,7 +1087,8 @@
   /* ── Medidas ────────────────────────────────────────────────────────── */
 
   @media (max-width: 768px) {
-    .palette { width: 10rem; font-size: 0.75rem }
+    .left-rail { width: 10rem }
+    .palette { font-size: 0.75rem }
     .toolbar { flex-wrap: wrap; gap: 0.2rem }
   }
 
