@@ -20,13 +20,22 @@ import { Diagram, MAIN_CIRCUIT_ID } from './diagram'
 /** Nombre por defecto del circuito principal, como en el original. */
 export const MAIN_CIRCUIT_NAME = 'Main'
 
-export interface Circuit {
+export class Circuit {
   readonly id: Id
   name: string
-  /** Los elementos del circuito (compuertas, cables, pines de hoja…). */
-  elements: Element[]
   /** El documento editable de este nivel: lleva el historial de deshacer de este circuito. */
-  diagram: Diagram
+  readonly diagram: Diagram
+
+  constructor(id: Id, name: string, diagram: Diagram = new Diagram()) {
+    this.id = id
+    this.name = name
+    this.diagram = diagram
+  }
+
+  /** Los elementos del circuito: vista viva del diagrama (no una copia). */
+  get elements(): Element[] {
+    return this.diagram.elements
+  }
 }
 
 export interface CreateCircuitOptions {
@@ -42,7 +51,7 @@ export class CircuitProject {
   constructor(name = 'Sin título') {
     this.name = name
     const mainDiagram = new Diagram()
-    const main: Circuit = { id: MAIN_CIRCUIT_ID, name: MAIN_CIRCUIT_NAME, elements: mainDiagram.elements, diagram: mainDiagram }
+    const main = new Circuit(MAIN_CIRCUIT_ID, MAIN_CIRCUIT_NAME, mainDiagram)
     this.circuits.set(main.id, main)
     this._currentCircuitId = main.id
   }
@@ -83,12 +92,7 @@ export class CircuitProject {
     this.counter += 1
     const id: Id = `circuit-${this.counter}`
     const diagram = new Diagram()
-    const circuit: Circuit = {
-      id,
-      name: options.name ?? `Circuit ${this.counter}`,
-      elements: diagram.elements,
-      diagram,
-    }
+    const circuit = new Circuit(id, options.name ?? `Circuit ${this.counter}`, diagram)
     this.circuits.set(id, circuit)
     this.versionCount += 1
     return circuit

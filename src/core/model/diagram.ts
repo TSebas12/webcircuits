@@ -260,6 +260,12 @@ export class Diagram {
     })
   }
 
+  /** Importa un elemento ya construido (para carga de ficheros). No crea id nuevo. */
+  importElement(element: Element): void {
+    this.items.set(element.id, element)
+    this.changed()
+  }
+
   addWire(p1: GridPoint, p2: GridPoint, bitWidth = 1): Wire {
     return this.change(() => {
       const wire: Wire = {
