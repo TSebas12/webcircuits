@@ -13,10 +13,19 @@
       // `resolveTheme`, cambia aquí.
       ;(() => {
         try {
+          // Cada preset tiene un `base` (claro/oscuro). `auto` y un tema propio los resuelve
+          // el sistema: aquí solo se evita el fogonazo con el color-scheme correcto.
           const guardado = localStorage.getItem('wc-theme')
+          const bases = {
+            light: 'light',
+            dark: 'dark',
+            'high-contrast': 'dark',
+            colorblind: 'light',
+            monochrome: 'light',
+          }
+          const base = guardado && bases[guardado] ? bases[guardado] : null
           const oscuro =
-            guardado === 'dark' ||
-            (guardado !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+            base === 'dark' || (base === null && matchMedia('(prefers-color-scheme: dark)').matches)
           document.documentElement.setAttribute('data-theme', oscuro ? 'dark' : 'light')
         } catch {
           document.documentElement.setAttribute('data-theme', 'light')

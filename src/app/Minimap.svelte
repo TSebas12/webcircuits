@@ -2,6 +2,8 @@
   import { onMount } from 'svelte'
   import type { Editor } from './editor'
   import { deviceBounds } from '../core/model/layout'
+  import { GRID_SIZE } from '../render/geometry'
+  import { readTheme } from '../render/theme-bridge'
 
   let { editor }: { editor: Editor | null } = $props()
   let canvasEl = $state<HTMLCanvasElement | null>(null)
@@ -47,25 +49,31 @@
     }
     const pad = 1
     minX -= pad; minY -= pad; maxX += pad; maxY += pad
-    const grid = 18
+    const grid = GRID_SIZE
     const scale = Math.min(cssW / ((maxX - minX) * grid), cssH / ((maxY - minY) * grid))
     const toX = (gx: number): number => (gx - minX) * grid * scale
     const toY = (gy: number): number => (gy - minY) * grid * scale
 
-    ctx.fillStyle = 'rgba(120,120,120,0.45)'
+    // El minimapa también es del tema (M6-20): nada de grises y azules a pelo.
+    const theme = readTheme()
+    ctx.fillStyle = theme.wireIdle
+    ctx.globalAlpha = 0.45
     for (const el of elements) {
       if (el.kind === 'wire') {
-        ctx.strokeStyle = 'rgba(120,120,120,0.6)'
+        ctx.strokeStyle = theme.wireIdle
+        ctx.globalAlpha = 0.6
         ctx.lineWidth = 1
         ctx.beginPath()
         ctx.moveTo(toX(el.p1.x), toY(el.p1.y))
         ctx.lineTo(toX(el.p2.x), toY(el.p2.y))
         ctx.stroke()
+        ctx.globalAlpha = 0.45
       } else {
         const box = deviceBounds(el)
         ctx.fillRect(toX(box.x0), toY(box.y0), Math.max(1, (box.x1 - box.x0) * grid * scale), Math.max(1, (box.y1 - box.y0) * grid * scale))
       }
     }
+    ctx.globalAlpha = 1
 
     // Rectángulo del viewport, con el tamaño real del lienzo (antes estaba fijado a 800×600).
     const cam = editor.cameraState
@@ -75,7 +83,7 @@
     const vy0 = -cam.offsetY / scale0
     const vx1 = (view.width - cam.offsetX) / scale0
     const vy1 = (view.height - cam.offsetY) / scale0
-    ctx.strokeStyle = 'rgba(60,120,220,0.85)'
+    ctx.strokeStyle = theme.selection
     ctx.lineWidth = 1.5
     ctx.strokeRect(toX(vx0), toY(vy0), (vx1 - vx0) * grid * scale, (vy1 - vy0) * grid * scale)
   }

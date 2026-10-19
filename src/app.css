@@ -15,8 +15,11 @@
 :root {
   --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, Consolas, 'Courier New', monospace;
+  --wc-font-size: 16px;
 
-  /* Paleta clara. También es el respaldo por si `data-theme` no llegara a ponerse. */
+  /* Paleta clara. También es el respaldo por si `data-theme` no llegara a ponerse.
+     ⚠️ La fuente de verdad de los temas es `src/core/theme/presets.ts`: la aplicación escribe
+     cada token como estilo en línea al arrancar. Esto de aquí solo evita el fogonazo previo. */
   color-scheme: light;
 
   /* ── Interfaz ──────────────────────────────────────────────────────── */
@@ -26,16 +29,26 @@
   --panel-bg: #ffffff;
   --panel-bg-hover: #f1f3f6;
   --border: #e3e6ea;
+  --accent: #2f6fc0;
+  --accent-fg: #ffffff;
 
   /* ── Lienzo del diagrama ───────────────────────────────────────────── */
   --wc-diagram-bg: #fbfbfd;
   --wc-grid-dot: #d5d9e0;
   --wc-grid-dot-strong: #aeb5c1;
   --wc-wire: #22252b;
+  --wc-wire-high: #d93025;
+  --wc-wire-low: #1565c0;
+  --wc-wire-floating: #9aa0a6;
+  --wc-wire-bus: #7c4dff;
+  --wc-wire-selected: #3b82f6;
   --wc-symbol-fill: #ffffff;
   --wc-symbol-stroke: #22252b;
+  --wc-gate-text: #191c21;
   --wc-selection: #3b82f6;
+  --wc-hover: #7aa7f0;
   --wc-pin-dot: #8b93a1;
+  --wc-handle: #3b82f6;
   /* Estado de un dispositivo: apagado, encendido con 0, encendido con 1.
      Los tres colores están sacados del original (`App.xaml`: `LedOff`, `LedOn0`,
      `LedOn1`), sin los degradados. */
@@ -44,7 +57,9 @@
   --wc-state-one: #ff4a1f;
   --wc-error: #d93025;
 
-  font: 16px/1.5 var(--font-sans);
+  font-family: var(--font-sans);
+  font-size: var(--wc-font-size, 16px);
+  line-height: 1.5;
   color: var(--fg);
   background: var(--bg);
   font-synthesis: none;
@@ -63,19 +78,30 @@
   --panel-bg: #16191f;
   --panel-bg-hover: #1e232b;
   --border: #262b33;
+  --accent: #60a5fa;
+  --accent-fg: #0b1220;
 
   /* ── Lienzo del diagrama ───────────────────────────────────────────── */
   --wc-diagram-bg: #101318;
   --wc-grid-dot: #242932;
   --wc-grid-dot-strong: #3a414c;
   --wc-wire: #e7e9ee;
+  --wc-wire-high: #ff5a2a;
+  --wc-wire-low: #4a9eff;
+  --wc-wire-floating: #6b7280;
+  --wc-wire-bus: #b388ff;
+  --wc-wire-selected: #60a5fa;
   --wc-symbol-fill: #1a1e25;
   --wc-symbol-stroke: #e7e9ee;
+  --wc-gate-text: #e7e9ee;
   --wc-selection: #60a5fa;
+  --wc-hover: #7fb0ff;
   --wc-pin-dot: #6b7280;
+  --wc-handle: #60a5fa;
   --wc-state-off: #3c4a3e;
   --wc-state-zero: #5b4949;
   --wc-state-one: #ff5a2a;
+  --wc-error: #ff6b5e;
 }
 
 * {
@@ -95,7 +121,7 @@ body {
 
 /* Accesibilidad (H) */
 :focus-visible {
-  outline: 2px solid var(--accent, #4a90d9);
+  outline: 2px solid var(--accent, #2f6fc0);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {

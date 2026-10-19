@@ -14,6 +14,8 @@ export interface RecordedCall {
   readonly strokeStyle: string
   readonly lineWidth: number
   readonly shadowBlur: number
+  /** Trazo discontinuo vigente en ese momento. */
+  readonly lineDash: readonly number[]
 }
 
 export interface FakeContext {
@@ -41,6 +43,7 @@ const METHODS = [
   'setTransform',
   'fillRect',
   'clearRect',
+  'setLineDash',
 ] as const
 
 export function makeFakeContext(): FakeContext {
@@ -53,11 +56,15 @@ export function makeFakeContext(): FakeContext {
     shadowColor: '',
     lineJoin: '',
     lineCap: '',
+    lineDash: [] as number[],
   }
 
   const target: Record<string, unknown> = {}
   for (const method of METHODS) {
     target[method] = (...args: unknown[]): void => {
+      if (method === 'setLineDash') {
+        state.lineDash = Array.isArray(args[0]) ? [...(args[0] as number[])] : []
+      }
       calls.push({
         name: method,
         args,
@@ -65,6 +72,7 @@ export function makeFakeContext(): FakeContext {
         strokeStyle: String(state.strokeStyle),
         lineWidth: Number(state.lineWidth),
         shadowBlur: Number(state.shadowBlur),
+        lineDash: [...(state.lineDash as number[])],
       })
     }
   }

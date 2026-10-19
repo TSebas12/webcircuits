@@ -275,3 +275,50 @@ describe('la vista del editor y los datos guardados', () => {
     expect(diagram.count).toBe(2)
   })
 })
+
+describe('color propio de un cable (M6-14)', () => {
+  it('se fija, se puede quitar y vuelve al color del tema', () => {
+    const diagram = new Diagram()
+    const wire = diagram.addWire({ x: 0, y: 0 }, { x: 4, y: 0 })
+
+    diagram.setWireColor(wire.id, '#123456')
+    const painted = diagram.get(wire.id)
+    expect(painted?.kind === 'wire' && painted.color).toBe('#123456')
+
+    diagram.setWireColor(wire.id, undefined)
+    const plain = diagram.get(wire.id)
+    expect(plain?.kind === 'wire' && plain.color).toBeUndefined()
+    // La clave desaparece, no queda como `undefined`: así el JSON no la escribe.
+    expect(Object.hasOwn(plain as object, 'color')).toBe(false)
+  })
+
+  it('cambiar varios cables es un solo paso de historial', () => {
+    const diagram = new Diagram()
+    const a = diagram.addWire({ x: 0, y: 0 }, { x: 4, y: 0 })
+    const b = diagram.addWire({ x: 0, y: 2 }, { x: 4, y: 2 })
+
+    diagram.setWiresColor([a.id, b.id], '#abcdef')
+    expect(diagram.canUndo).toBe(true)
+
+    // Un único deshacer devuelve los dos a la vez.
+    diagram.undo()
+    for (const wire of [a, b]) {
+      const current = diagram.get(wire.id)
+      expect(current?.kind === 'wire' && current.color).toBeUndefined()
+    }
+  })
+
+  it('no hace nada (ni apila historial) si no hay cables o el color es el mismo', () => {
+    const diagram = new Diagram()
+    const gate = diagram.addGate('and', { x: 0, y: 0 }, 2)
+    diagram.setWiresColor([gate.id], '#123456')
+    diagram.setWiresColor([], '#123456')
+    expect(diagram.canUndo).toBe(true) // solo la colocación
+
+    const wire = diagram.addWire({ x: 0, y: 4 }, { x: 4, y: 4 })
+    diagram.setWireColor(wire.id, '#123456')
+    const before = diagram.canRedo
+    diagram.setWireColor(wire.id, '#123456')
+    expect(diagram.canRedo).toBe(before)
+  })
+})

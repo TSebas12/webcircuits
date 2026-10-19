@@ -1,7 +1,16 @@
 <script lang="ts">
   import { loadSettings, saveSettings, type Settings } from './settings'
-  let { onClose }: { onClose: () => void } = $props()
+  import { PRESETS } from '../core/theme/presets'
+  import { readCustomTheme } from './theme'
+
+  let {
+    onClose,
+    onEditTheme,
+  }: { onClose: () => void; onEditTheme?: () => void } = $props()
+
   let s = $state<Settings>(loadSettings())
+  const custom = readCustomTheme()
+
   const apply = (): void => {
     saveSettings(s)
     onClose()
@@ -22,10 +31,17 @@
     <label>Tema
       <select bind:value={s.theme}>
         <option value="auto">Automático</option>
-        <option value="light">Claro</option>
-        <option value="dark">Oscuro</option>
+        {#each PRESETS as preset (preset.id)}
+          <option value={preset.id}>{preset.name}</option>
+        {/each}
+        {#if custom !== null}
+          <option value="custom">{custom.name}</option>
+        {/if}
       </select>
     </label>
+    {#if onEditTheme !== undefined}
+      <button type="button" class="link" onclick={onEditTheme}>Editar tema…</button>
+    {/if}
     <label><input type="checkbox" bind:checked={s.gridVisible} /> Mostrar rejilla</label>
     <label><input type="checkbox" bind:checked={s.snapToGrid} /> Snap a rejilla</label>
     <label><input type="checkbox" bind:checked={s.autosaveEnabled} /> Autoguardado</label>
@@ -43,4 +59,5 @@
   label { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; font-size: 0.85rem }
   .actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.4rem }
   button { padding: 0.35rem 0.7rem; border: 1px solid var(--border); border-radius: 0.3rem; background: var(--panel-bg); color: var(--fg); cursor: pointer }
+  .link { align-self: flex-start; padding: 0; border: none; background: transparent; color: var(--accent); font: inherit; font-size: 0.82rem; text-decoration: underline; cursor: pointer }
 </style>

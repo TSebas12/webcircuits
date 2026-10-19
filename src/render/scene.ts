@@ -20,6 +20,7 @@ import type {
   DrawWire,
   RenderScene,
   RenderTheme,
+  WireSignal,
 } from './ir-renderer'
 import { shapeForGate } from './symbols'
 
@@ -27,7 +28,11 @@ export interface SceneOptions {
   readonly elements: readonly Element[]
   /** Estado de cada dispositivo. Lo que no esté, se pinta apagado. */
   readonly states: ReadonlyMap<Id, DeviceState>
+  /** Estado eléctrico de cada cable (M6-03). Lo que no esté, se pinta en reposo. */
+  readonly wireStates?: ReadonlyMap<Id, WireSignal>
   readonly selected: ReadonlySet<Id>
+  /** Elemento bajo el cursor, para resaltarlo (M6-06). */
+  readonly hovered?: Id | null
   readonly camera: CameraState
   readonly theme: RenderTheme
   readonly showGrid: boolean
@@ -55,7 +60,10 @@ export function buildScene(options: SceneOptions): RenderScene {
         p1: element.p1,
         p2: element.p2,
         selected: options.selected.has(element.id),
-        bitWidth: element.bitWidth,
+        hovered: options.hovered === element.id,
+        signal: options.wireStates?.get(element.id) ?? 'idle',
+        bus: element.bitWidth > 1,
+        color: element.color,
       })
     }
   }
@@ -83,6 +91,7 @@ export function buildScene(options: SceneOptions): RenderScene {
       width: layout.width,
       height: layout.height,
       selected: options.selected.has(element.id),
+      hovered: options.hovered === element.id,
       state: options.states.get(element.id) ?? 'off',
     }
     items.push(device)

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import type { Editor } from './editor'
   import type { Element } from '../core/model/types'
+  import { LIGHT_THEME } from '../core/theme/presets'
   let { editor }: { editor: Editor | null } = $props()
   let selected = $state<Element | null>(null)
 
@@ -9,6 +10,21 @@
     if (editor === null) { selected = null; return }
     const id = editor.selectedId
     selected = (id ? (editor.diagram.get(id) ?? null) : null) as Element | null
+  }
+
+  /**
+   * El color de cable del tema actual (M6-14).
+   *
+   * Se lee del documento porque el selector de color necesita **un** valor concreto: si el
+   * cable no tiene color propio, lo justo es enseñar el que le tocaría por el tema.
+   */
+  function themeWire(): string {
+    const fallback = LIGHT_THEME.tokens['wire.idle']
+    if (typeof document === 'undefined') {
+      return fallback
+    }
+    const value = getComputedStyle(document.documentElement).getPropertyValue('--wc-wire').trim()
+    return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback
   }
 
   // Poll selection changes (simple; could use onSelectionChange callback)
@@ -33,6 +49,27 @@
     {#if selected.kind === 'wire'}
       <div class="row"><span>De</span><span>{selected.p1.x},{selected.p1.y}</span></div>
       <div class="row"><span>A</span><span>{selected.p2.x},{selected.p2.y}</span></div>
+      <label class="row color-row">
+        <span>Color</span>
+        <input
+          type="color"
+          value={selected.color ?? themeWire()}
+          title="Color solo para este cable; el resto siguen el tema"
+          oninput={(event) => {
+            editor?.setSelectedWireColor((event.currentTarget as HTMLInputElement).value)
+            refresh()
+          }}
+        />
+      </label>
+      {#if selected.color !== undefined}
+        <button
+          type="button"
+          onclick={() => {
+            editor?.setSelectedWireColor(null)
+            refresh()
+          }}
+        >Color del tema</button>
+      {/if}
     {/if}
     {#if 'position' in selected}
       <div class="row"><span>Posición</span><span>{(selected as { position: { x: number; y: number } }).position.x}, {(selected as { position: { x: number; y: number } }).position.y}</span></div>
@@ -55,5 +92,14 @@
   }
   .inspector h3 { margin: 0 0 0.4rem; font-size: 0.9rem }
   .row { display: flex; justify-content: space-between; margin: 0.2rem 0 }
+  .color-row input {
+    width: 2.2rem;
+    height: 1.4rem;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 0.2rem;
+    background: transparent;
+    cursor: pointer;
+  }
   /* (no inputs) */
 </style>

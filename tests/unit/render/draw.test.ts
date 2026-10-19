@@ -29,7 +29,14 @@ function device(overrides: Partial<DrawDevice> = {}): DrawDevice {
 }
 
 describe('dibujar un cable', () => {
-  const wire: DrawWire = { kind: 'wire', p1: { x: 4, y: 3 }, p2: { x: 8, y: 3 }, selected: false }
+  const wire: DrawWire = {
+    kind: 'wire',
+    p1: { x: 4, y: 3 },
+    p2: { x: 8, y: 3 },
+    selected: false,
+    signal: 'idle',
+    bus: false,
+  }
 
   it('va del punto A al punto B en coordenadas del mundo, sin tocar píxeles', () => {
     const { ctx, named } = makeFakeContext()
@@ -39,14 +46,65 @@ describe('dibujar un cable', () => {
     expect(named('lineTo')[0]?.args).toEqual([8, 3])
   })
 
-  it('usa el color de cable, y el color de selección cuando está seleccionado', () => {
+  it('usa el color del estado; y el de selección cuando está seleccionado', () => {
     const plain = makeFakeContext()
     drawWire(plain.ctx, wire, THEME)
-    expect(plain.named('stroke')[0]?.strokeStyle).toBe(THEME.wire)
+    expect(plain.named('stroke')[0]?.strokeStyle).toBe(THEME.wireIdle)
 
     const picked = makeFakeContext()
     drawWire(picked.ctx, { ...wire, selected: true }, THEME)
-    expect(picked.named('stroke')[0]?.strokeStyle).toBe(THEME.selection)
+    expect(picked.named('stroke')[0]?.strokeStyle).toBe(THEME.wireSelected)
+  })
+
+  it('cambia de color según la señal (M6-03)', () => {
+    const high = makeFakeContext()
+    drawWire(high.ctx, { ...wire, signal: 'high' }, THEME)
+    expect(high.named('stroke')[0]?.strokeStyle).toBe(THEME.wireHigh)
+
+    const low = makeFakeContext()
+    drawWire(low.ctx, { ...wire, signal: 'low' }, THEME)
+    expect(low.named('stroke')[0]?.strokeStyle).toBe(THEME.wireLow)
+
+    const floating = makeFakeContext()
+    drawWire(floating.ctx, { ...wire, signal: 'floating' }, THEME)
+    expect(floating.named('stroke')[0]?.strokeStyle).toBe(THEME.wireFloating)
+  })
+
+  it('un bus va más grueso y con su propio color (M6-15)', () => {
+    const plain = makeFakeContext()
+    drawWire(plain.ctx, wire, THEME)
+    const plainWidth = Number(plain.named('stroke')[0]?.lineWidth)
+
+    const bus = makeFakeContext()
+    drawWire(bus.ctx, { ...wire, bus: true }, THEME)
+    expect(bus.named('stroke')[0]?.strokeStyle).toBe(THEME.wireBus)
+    expect(Number(bus.named('stroke')[0]?.lineWidth)).toBeGreaterThan(plainWidth)
+  })
+
+  it('el hover se resalta y el cable seleccionado enseña tiradores (M6-06)', () => {
+    const hover = makeFakeContext()
+    drawWire(hover.ctx, { ...wire, hovered: true }, THEME)
+    expect(hover.named('stroke')[0]?.strokeStyle).toBe(THEME.hover)
+
+    const picked = makeFakeContext()
+    drawWire(picked.ctx, { ...wire, selected: true }, THEME)
+    expect(picked.named('fillRect').some((call) => call.fillStyle === THEME.handle)).toBe(true)
+  })
+
+  it('un cable flotante va discontinuo, para no depender solo del color (M6-11)', () => {
+    const solid = makeFakeContext()
+    drawWire(solid.ctx, wire, THEME)
+    expect(solid.named('stroke')[0]?.lineDash).toEqual([])
+
+    const floating = makeFakeContext()
+    drawWire(floating.ctx, { ...wire, signal: 'floating' }, THEME)
+    expect(floating.named('stroke')[0]?.lineDash.length).toBeGreaterThan(0)
+  })
+
+  it('un color forzado a mano gana al color por estado (M6-14)', () => {
+    const { ctx, named } = makeFakeContext()
+    drawWire(ctx, { ...wire, signal: 'high', color: '#123456' }, THEME)
+    expect(named('stroke')[0]?.strokeStyle).toBe('#123456')
   })
 
   it('el grosor se da en unidades de rejilla, así que el zoom lo escala solo', () => {
@@ -77,6 +135,16 @@ describe('dibujar un símbolo', () => {
     const picked = makeFakeContext()
     drawDevice(picked.ctx, device({ selected: true }), THEME)
     expect(picked.named('stroke')[0]?.strokeStyle).toBe(THEME.selection)
+  })
+
+  it('el hover se resalta, pero la selección manda (M6-06)', () => {
+    const hover = makeFakeContext()
+    drawDevice(hover.ctx, device({ hovered: true }), THEME)
+    expect(hover.named('stroke')[0]?.strokeStyle).toBe(THEME.hover)
+
+    const both = makeFakeContext()
+    drawDevice(both.ctx, device({ hovered: true, selected: true }), THEME)
+    expect(both.named('stroke')[0]?.strokeStyle).toBe(THEME.selection)
   })
 
   it('el LED es todo él un indicador: cambia de color con el estado', () => {
@@ -153,7 +221,7 @@ describe('dibujar un punto de pin', () => {
 
     const taken = makeFakeContext()
     drawPinDot(taken.ctx, { ...dot, connected: true }, THEME)
-    expect(taken.named('fill')[0]?.fillStyle).toBe(THEME.wire)
+    expect(taken.named('fill')[0]?.fillStyle).toBe(THEME.wireIdle)
   })
 
   it('mientras se tiende un cable se dibuja más grande, para ver dónde acabar', () => {
@@ -185,6 +253,6 @@ describe('dibujar el punto de unión', () => {
 
     // En el original `WireStroke` y `JamDirectFill` son el mismo pincel (`Brushes.Black`),
     // así que la unión no se distingue del cable por color sino por ser más gruesa.
-    expect(named('fill')[0]?.fillStyle).toBe(THEME.wire)
+    expect(named('fill')[0]?.fillStyle).toBe(THEME.wireIdle)
   })
 })

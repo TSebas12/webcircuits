@@ -40,7 +40,14 @@ function serializeElement(el: StoredElement): SerializedElement {
     layerId: el.layerId,
   }
   if (el.kind === 'wire') {
-    return { ...base, p1: point(el.p1), p2: point(el.p2), bitWidth: el.bitWidth }
+    return {
+      ...base,
+      p1: point(el.p1),
+      p2: point(el.p2),
+      bitWidth: el.bitWidth,
+      // Solo se escribe si existe: los ficheros de antes no llevan la clave.
+      ...(el.color !== undefined ? { color: el.color } : {}),
+    }
   }
   const dev = {
     ...base,
@@ -131,6 +138,7 @@ function deserializeElement(raw: SerializedElement): StoredElement {
       p1: asPoint(raw.p1),
       p2: asPoint(raw.p2),
       bitWidth: (raw.bitWidth as number) ?? 1,
+      ...(typeof raw.color === 'string' ? { color: raw.color } : {}),
     }
   }
   const position = asPoint(raw.position)

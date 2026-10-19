@@ -41,6 +41,8 @@ describe('la caja de una pieza (M2-16)', () => {
       p1: { x: 5, y: 9 },
       p2: { x: 2, y: 4 },
       selected: false,
+      signal: 'idle',
+      bus: false,
     }
     expect(itemBox(wire)).toEqual({ x0: 2, y0: 4, x1: 5, y1: 9 })
   })

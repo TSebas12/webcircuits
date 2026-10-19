@@ -69,10 +69,12 @@ import type { SimulationState } from '../core/simulate/engine'
 import type { Button, Gate, GridPoint, Id, PlacedElement, StoredElement, Wire } from '../core/model/types'
 import { Camera } from '../render/camera'
 import { Canvas2DRenderer } from '../render/canvas2d'
+import { GRID_SIZE } from '../render/geometry'
 import { hitTest } from '../render/hit-test'
-import type { DrawPinDot, DrawWire, RendererStats } from '../render/ir-renderer'
+import type { DrawPinDot, DrawWire, RendererStats, WireSignal } from '../render/ir-renderer'
 import { buildScene } from '../render/scene'
 import { readTheme, watchTheme } from '../render/theme-bridge'
+import { parseHex } from '../core/theme/contrast'
 import {
   MAX_GATE_INPUTS,
   MIN_PIECE_INPUTS,
@@ -115,6 +117,21 @@ const INITIAL_PADDING_Y = 80
  * decisión de dibujado y no afecta al modelo.
  */
 const FREE_PIN_MIN_ZOOM = 0.5
+
+/**
+ * Convierte un color hexadecimal en `rgba()` con la transparencia dada.
+ *
+ * El rectángulo de selección por área necesita un color del tema con alfa, y el canvas no
+ * entiende `color-mix()`. Si el color no fuera hexadecimal, se devuelve tal cual.
+ */
+function withAlpha(color: string, alpha: number): string {
+  try {
+    const { r, g, b } = parseHex(color)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  } catch {
+    return color
+  }
+}
 
 /** Si se puede deshacer y rehacer, para que la barra encienda o apague sus botones. */
 export interface HistoryState {
@@ -232,6 +249,8 @@ export class Editor {
   private buttonPress: ButtonPress | null = null
   /** Última posición del cursor en el mundo, para la previsualización del cable. */
   private cursor: GridPoint | null = null
+  /** Qué hay bajo el cursor, para resaltarlo (M6-06). */
+  private hovered: Id | null = null
 
   /** Lo último que se avisó a la barra, para no repetir el mismo aviso en cada fotograma. */
   private wiring = false
@@ -403,6 +422,7 @@ export class Editor {
     canvas.addEventListener('pointermove', this.onPointerMove)
     canvas.addEventListener('pointerup', this.onPointerUp)
     canvas.addEventListener('pointercancel', this.onPointerUp)
+    canvas.addEventListener('pointerleave', this.onPointerLeave)
     canvas.addEventListener('wheel', this.onWheel, { passive: false })
     window.addEventListener('keydown', this.onKeyDown)
 
@@ -427,6 +447,7 @@ export class Editor {
       canvas.removeEventListener('pointermove', this.onPointerMove)
       canvas.removeEventListener('pointerup', this.onPointerUp)
       canvas.removeEventListener('pointercancel', this.onPointerUp)
+      canvas.removeEventListener('pointerleave', this.onPointerLeave)
       canvas.removeEventListener('wheel', this.onWheel)
     }
     window.removeEventListener('keydown', this.onKeyDown)
@@ -565,6 +586,25 @@ export class Editor {
       }
     }
     this.diagram.endChange()
+    this.refresh()
+  }
+
+  /**
+   * Cambia el color de los cables seleccionados (M6-14). `null` los devuelve al tema.
+   *
+   * Solo afecta a cables: el color de un símbolo lo manda el tema, no el usuario.
+   */
+  setSelectedWireColor(color: string | null): void {
+    const wires = [...this.selected]
+      .map((id) => this.diagram.get(id))
+      .filter((element): element is Wire => element !== undefined && element.kind === 'wire')
+    if (wires.length === 0) {
+      return
+    }
+    this.diagram.setWiresColor(
+      wires.map((wire) => wire.id),
+      color ?? undefined,
+    )
     this.refresh()
   }
 
@@ -954,6 +994,12 @@ export class Editor {
       // no se mueve. Así se distingue el gesto antes de apretar.
       const world = this.worldAt(event)
       const hit = hitTest(this.diagram.visibleElements, world)
+      // Resalte de hover (M6-06): solo se repinta cuando cambia, no en cada movimiento.
+      const hovered = hit === null ? null : hit.element.id
+      if (this.hovered !== hovered) {
+        this.hovered = hovered
+        this.refresh()
+      }
       if (this.canvas !== null) {
         if (this.tool !== 'select') {
         // Con una herramienta puesta, el cursor es la cruz incluso sobre un pin.
@@ -1035,6 +1081,16 @@ export class Editor {
       this.diagram.move(drag.id, newPos)
     }
 
+  }
+
+  /** Al salir del lienzo se apaga el resalte y la sonda (M6-06). */
+  private readonly onPointerLeave = (): void => {
+    this.callbacks.onHoverChange?.(null, null, 1, 0, 0)
+    if (this.hovered === null) {
+      return
+    }
+    this.hovered = null
+    this.refresh()
   }
 
   private readonly onPointerUp = (event: PointerEvent): void => {
@@ -1428,7 +1484,20 @@ export class Editor {
     if (wiring) {
       const end = this.snappedEnd()
       if (end !== null && this.wire !== null) {
-        sketch.push({ kind: 'wire', p1: this.wire.from, p2: end, selected: false })
+        sketch.push({ kind: 'wire', p1: this.wire.from, p2: end, selected: false, signal: 'idle', bus: false })
+      }
+    }
+
+    // El color de cada cable depende de su señal (M6-03). Solo tiene sentido con la corriente
+    // puesta: apagado, un cable no lleva nada y va en reposo. Los buses no se sondean bit a
+    // bit: se pintan con su propio color por el grosor (M6-15).
+    const wireStates = new Map<Id, WireSignal>()
+    if (this.simulation.powered) {
+      for (const element of this.diagram.visibleElements) {
+        if (element.kind === 'wire' && element.bitWidth === 1) {
+          const value = this.simulation.probeValue(element)
+          wireStates.set(element.id, value === null ? 'floating' : value === 0 ? 'low' : 'high')
+        }
       }
     }
 
@@ -1436,7 +1505,9 @@ export class Editor {
       buildScene({
         elements: this.diagram.visibleElements,
         states: this.sim.devices,
+        wireStates,
         selected: this.selected,
+        hovered: this.hovered,
         camera: this.camera.state,
         theme: this.theme,
         showGrid: this.showGrid,
@@ -1455,15 +1526,15 @@ export class Editor {
         const x1 = Math.max(rect.start.x, rect.current.x)
         const y1 = Math.max(rect.start.y, rect.current.y)
         const zoom = this.camera.state.zoom
-        const grid = 18
+        const grid = GRID_SIZE
         const dpr = window.devicePixelRatio || 1
         const px0 = (this.camera.state.offsetX + x0 * grid * zoom) * dpr
         const py0 = (this.camera.state.offsetY + y0 * grid * zoom) * dpr
         const pw = (x1 - x0 + 1) * grid * zoom * dpr
         const ph = (y1 - y0 + 1) * grid * zoom * dpr
         ctx.save()
-        ctx.strokeStyle = 'rgba(59, 130, 246, 0.9)'
-        ctx.fillStyle = 'rgba(59, 130, 246, 0.15)'
+        ctx.strokeStyle = withAlpha(this.theme.selection, 0.9)
+        ctx.fillStyle = withAlpha(this.theme.selection, 0.15)
         ctx.lineWidth = 1
         ctx.fillRect(px0, py0, pw, ph)
         ctx.strokeRect(px0, py0, pw, ph)

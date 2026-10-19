@@ -7,10 +7,10 @@
  * marco podrían discrepar —y de hecho discrepaban. Aquí se delega.
  */
 
-import { readThemeChoice, storeThemeChoice, type ThemeChoice } from './theme'
+import { readThemeSelection, storeThemeSelection, type ThemeSelection } from './theme'
 
 export interface Settings {
-  theme: ThemeChoice
+  theme: ThemeSelection
   gridVisible: boolean
   snapToGrid: boolean
   autosaveEnabled: boolean
@@ -31,14 +31,14 @@ export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY)
     const stored = raw ? (JSON.parse(raw) as Partial<Settings>) : {}
-    return { ...DEFAULTS, ...stored, theme: readThemeChoice() }
+    return { ...DEFAULTS, ...stored, theme: readThemeSelection() }
   } catch {
-    return { ...DEFAULTS, theme: readThemeChoice() }
+    return { ...DEFAULTS, theme: readThemeSelection() }
   }
 }
 
 export function saveSettings(s: Settings): void {
-  storeThemeChoice(s.theme)
+  storeThemeSelection(s.theme)
   try {
     localStorage.setItem(KEY, JSON.stringify({ ...s }))
   } catch {

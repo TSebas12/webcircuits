@@ -6,6 +6,7 @@
   import Minimap from './Minimap.svelte'
   import LayersPanel from './LayersPanel.svelte'
   import SettingsPanel from './SettingsPanel.svelte'
+  import ThemeEditor from './ThemeEditor.svelte'
   import CommandPalette from './CommandPalette.svelte'
   import { deserializeProject, serializeProject } from '../core/persist/json'
   import { exportCircuitProject, importCircuitProject } from '../core/persist/circuitproject'
@@ -46,6 +47,7 @@
   let hoverInfo = $state<{ x: number; y: number; value: number; bitWidth: number } | null>(null)
   let contextMenu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null)
   let showSettings = $state(false)
+  let showThemeEditor = $state(false)
   let showCommandPalette = $state(false)
   let showLayers = $state(false)
   let canUndo = $state(false)
@@ -662,7 +664,17 @@
   {/if}
 
   {#if showSettings}
-    <SettingsPanel onClose={() => (showSettings = false)} />
+    <SettingsPanel
+      onClose={() => (showSettings = false)}
+      onEditTheme={() => {
+        showSettings = false
+        showThemeEditor = true
+      }}
+    />
+  {/if}
+
+  {#if showThemeEditor}
+    <ThemeEditor onClose={() => (showThemeEditor = false)} />
   {/if}
 
   {#if showCommandPalette && editor}

@@ -3,36 +3,33 @@
   import Diagram from './app/Diagram.svelte'
   import {
     applyTheme,
-    nextThemeChoice,
-    readThemeChoice,
-    storeThemeChoice,
-    type ThemeChoice,
+    nextThemeSelection,
+    readCustomTheme,
+    readThemeSelection,
+    storeThemeSelection,
+    themeSelectionLabel,
+    type ThemeSelection,
   } from './app/theme'
+  import type { Theme } from './core/theme/theme'
   import { SETTINGS_EVENT } from './app/settings'
 
   const version = '0.0.0'
 
-  /** Cómo se muestra cada estado del tema en el botón. */
-  const LABELS: Readonly<Record<ThemeChoice, string>> = {
-    auto: '◐ Auto',
-    light: '☀ Claro',
-    dark: '☾ Oscuro',
-  }
-
-  let choice = $state<ThemeChoice>('auto')
+  let selection = $state<ThemeSelection>('auto')
+  let custom = $state<Theme | null>(null)
 
   /** Lo rellena `onMount`. Antes de eso no hay nada que consultar. */
   let systemTheme: MediaQueryList | null = null
 
-  const show = (next: ThemeChoice): void => {
-    choice = next
-    applyTheme(next, systemTheme?.matches ?? false)
+  const show = (next: ThemeSelection): void => {
+    selection = next
+    applyTheme(next, { systemPrefersDark: systemTheme?.matches ?? false, custom })
   }
 
   const cycleTheme = (): void => {
-    const next = nextThemeChoice(choice)
+    const next = nextThemeSelection(selection)
     show(next)
-    storeThemeChoice(next)
+    storeThemeSelection(next)
   }
 
   onMount(() => {
@@ -40,17 +37,21 @@
 
     // Si manda el sistema, hay que enterarse de cuándo el usuario cambia Windows.
     const onSystemChange = (): void => {
-      if (choice === 'auto') {
+      if (selection === 'auto') {
         show('auto')
       }
     }
 
-    show(readThemeChoice())
+    custom = readCustomTheme()
+    show(readThemeSelection())
     systemTheme.addEventListener('change', onSystemChange)
 
     // El panel de Preferencias guarda el tema en el mismo sitio que este botón: si cambia
     // desde allí, hay que reflejarlo sin recargar.
-    const onSettings = (): void => show(readThemeChoice())
+    const onSettings = (): void => {
+      custom = readCustomTheme()
+      show(readThemeSelection())
+    }
     window.addEventListener(SETTINGS_EVENT, onSettings)
 
     return () => {
@@ -70,9 +71,9 @@
       class="theme"
       type="button"
       onclick={cycleTheme}
-      title="Cambiar entre tema automático, claro y oscuro"
+      title="Cambiar de tema (automático, claro, oscuro, alto contraste, daltónico, monocromo)"
     >
-      {LABELS[choice]}
+      {themeSelectionLabel(selection, custom)}
     </button>
   </header>
 

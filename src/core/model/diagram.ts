@@ -623,8 +623,42 @@ export class Diagram {
     })
   }
 
-  /** Mueve un elemento de la rejilla. Los cables se mueven moviendo sus dos puntas. */
-  move(id: Id, position: GridPoint): void {
+  /**
+   * Fija el color de un cable concreto (M6-14). `undefined` lo devuelve al color del tema.
+   *
+   * Es una propiedad del elemento, así que pasa por el historial: deshacer un cambio de color
+   * tiene que deshacerlo de verdad.
+   */
+  setWireColor(id: Id, color: string | undefined): void {
+    this.setWiresColor([id], color)
+  }
+
+  /**
+   * Fija el color de varios cables en **un solo paso** de historial (M6-14).
+   *
+   * Si se llamara a `setWireColor` en bucle, deshacer tendría que pulsarse una vez por cable.
+   */
+  setWiresColor(ids: readonly Id[], color: string | undefined): void {
+    const wires = ids
+      .map((id) => this.items.get(id))
+      .filter((element): element is Wire => element !== undefined && element.kind === 'wire')
+    if (wires.length === 0 || wires.every((wire) => wire.color === color)) {
+      return
+    }
+    this.change(() => {
+      for (const wire of wires) {
+        if (color === undefined) {
+          const { color: _previous, ...rest } = wire
+          this.items.set(wire.id, rest)
+        } else {
+          this.items.set(wire.id, { ...wire, color })
+        }
+      }
+      this.changed()
+    })
+  }
+
+  /** Mueve un elemento de la rejilla. Los cables se mueven moviendo sus dos puntas. */  move(id: Id, position: GridPoint): void {
     const element = this.items.get(id)
     if (element === undefined || element.kind === 'wire') {
       return

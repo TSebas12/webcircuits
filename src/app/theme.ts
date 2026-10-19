@@ -1,100 +1,170 @@
 /**
- * Tema claro/oscuro.
+ * Tema en la aplicación (M6-01/M6-02/M6-18).
  *
- * Esto es un adelanto del interruptor: la feature completa de **temas propios, colores
- * por categoría y color de cables** es el hito **M6**. Aquí solo se decide entre claro y
- * oscuro; nada más.
+ * El **modelo** (tokens, presets, serialización) vive en `src/core/theme/` y es puro. Aquí
+ * está lo que necesita el navegador: decidir qué tema toca y **volcarlo al documento**.
  *
- * Reparto de responsabilidades:
+ * Cómo se aplica un tema: se escriben **todas** sus variables CSS como estilo en línea en
+ * `<html>` (`style.setProperty`). El estilo en línea gana a cualquier regla de `app.css`, así
+ * que un tema propio con un par de colores cambiados funciona sin tocar el CSS. Las reglas de
+ * `app.css` quedan como **respaldo** para el instante previo a que arranque JavaScript (y para
+ * el script anti-destello de `index.html`).
  *
- * | Quién | Qué hace |
- * |---|---|
- * | `app.css` | Declara las paletas: una por valor de `data-theme` |
- * | **este módulo** | Decide **cuál** toca y lo escribe en `<html>` |
- * | `render/theme-bridge.ts` | Nota el cambio y repinta el lienzo |
- *
- * Consecuencia consciente: el tema **siempre** lo resuelve JavaScript. Es un precio
- * pequeño —el resto de la aplicación también lo hace— y a cambio cada paleta vive en un
- * único sitio, en vez de repetirse entre la media query del sistema y la elección del
- * usuario. En M6, con muchos más colores, esa diferencia se nota.
+ * `data-theme` (`light`/`dark`) ya no identifica al preset: dice el **color-scheme** (barras de
+ * scroll, controles nativos) y es lo que el script anti-destello puede resolver sin JS.
  */
 
-/** Lo que el usuario ha elegido. `auto` = que mande el sistema. */
-export type ThemeChoice = 'auto' | 'light' | 'dark'
+import {
+  DARK_THEME,
+  DEFAULT_THEME,
+  LIGHT_THEME,
+  presetById,
+} from '../core/theme/presets'
+import { cssVarsFor, parseTheme, serializeTheme, type Theme } from '../core/theme/theme'
 
-/** El tema real, ya resuelto. Es el valor que acaba en `data-theme`. */
-export type ResolvedTheme = 'light' | 'dark'
+/** Lo que el usuario ha elegido: automático, un preset, o su tema propio. */
+export type ThemeSelection =
+  | 'auto'
+  | 'light'
+  | 'dark'
+  | 'high-contrast'
+  | 'colorblind'
+  | 'monochrome'
+  | 'custom'
 
-/**
- * Dónde se guarda la elección.
- *
- * ⚠️ Lo lee también el script anti-destello de `index.html`. Si cambia aquí, cambia allí.
- */
+/** La elección guardada. ⚠️ La lee también el script anti-destello de `index.html`. */
 export const THEME_STORAGE_KEY = 'wc-theme'
 
-/** Orden del ciclo al pulsar el botón: auto → claro → oscuro → auto. */
-const NEXT: Readonly<Record<ThemeChoice, ThemeChoice>> = {
-  auto: 'light',
-  light: 'dark',
-  dark: 'auto',
+/** El tema propio del usuario, si lo tiene. */
+export const CUSTOM_THEME_KEY = 'wc-theme-custom'
+
+/** Orden del ciclo del botón del marco. */
+const CYCLE: readonly ThemeSelection[] = [
+  'auto',
+  'light',
+  'dark',
+  'high-contrast',
+  'colorblind',
+  'monochrome',
+]
+
+const SELECTIONS: readonly ThemeSelection[] = [...CYCLE, 'custom']
+
+/** La siguiente elección del ciclo (el tema propio no entra: se elige desde Preferencias). */
+export function nextThemeSelection(current: ThemeSelection): ThemeSelection {
+  const index = CYCLE.indexOf(current)
+  return index === -1 ? 'auto' : CYCLE[(index + 1) % CYCLE.length]!
 }
 
-/** El siguiente del ciclo. */
-export function nextThemeChoice(current: ThemeChoice): ThemeChoice {
-  return NEXT[current]
-}
-
-/** ¿Este texto es una elección válida? */
-function isThemeChoice(value: string): value is ThemeChoice {
-  return value === 'auto' || value === 'light' || value === 'dark'
+/** ¿Es una elección de fiar? */
+export function parseThemeSelection(value: string | null): ThemeSelection {
+  return value !== null && (SELECTIONS as readonly string[]).includes(value)
+    ? (value as ThemeSelection)
+    : 'auto'
 }
 
 /**
- * Convierte lo que haya guardado en una elección de fiar.
- * El almacenamiento lo puede tocar cualquiera, así que no nos fiamos de su contenido.
- */
-export function parseThemeChoice(value: string | null): ThemeChoice {
-  return value !== null && isThemeChoice(value) ? value : 'auto'
-}
-
-/**
- * Decide el tema real.
+ * Resuelve la elección a un tema de verdad.
  *
- * Es una función **pura**: toda la lógica del tema se prueba sin navegador.
+ * Es una función **pura**: toda la lógica de «qué tema toca» se prueba sin navegador.
  */
-export function resolveTheme(choice: ThemeChoice, systemPrefersDark: boolean): ResolvedTheme {
-  if (choice === 'auto') {
-    return systemPrefersDark ? 'dark' : 'light'
+export function resolveTheme(
+  selection: ThemeSelection,
+  systemPrefersDark: boolean,
+  custom: Theme | null = null,
+): Theme {
+  if (selection === 'auto') {
+    return systemPrefersDark ? DARK_THEME : LIGHT_THEME
   }
-  return choice
+  if (selection === 'custom') {
+    return custom ?? DEFAULT_THEME
+  }
+  return presetById(selection) ?? DEFAULT_THEME
 }
 
-/** Vuelca la elección al documento y devuelve el tema que ha quedado. */
-export function applyTheme(
-  choice: ThemeChoice,
-  systemPrefersDark: boolean,
-  root: HTMLElement = document.documentElement,
-): ResolvedTheme {
-  const resolved = resolveTheme(choice, systemPrefersDark)
-  root.setAttribute('data-theme', resolved)
-  return resolved
+/** Nombre legible de una elección, para botones y listas. */
+export function themeSelectionLabel(selection: ThemeSelection, custom: Theme | null): string {
+  if (selection === 'auto') {
+    return 'Automático'
+  }
+  if (selection === 'custom') {
+    return custom?.name ?? 'Personalizado'
+  }
+  return presetById(selection)?.name ?? selection
+}
+
+export interface ApplyThemeOptions {
+  readonly systemPrefersDark?: boolean
+  readonly custom?: Theme | null
+  readonly root?: HTMLElement
+}
+
+/** El elemento raíz de verdad, o el de mentira de un test. */
+function rootOf(options: ApplyThemeOptions): HTMLElement {
+  return options.root ?? document.documentElement
+}
+
+/**
+ * Vuelca un tema al documento: escribe sus variables y ajusta `data-theme`/`color-scheme`.
+ * Devuelve el tema que ha quedado, por comodidad.
+ */
+export function applyTheme(selection: ThemeSelection, options: ApplyThemeOptions = {}): Theme {
+  const theme = resolveTheme(selection, options.systemPrefersDark ?? false, options.custom ?? null)
+  const root = rootOf(options)
+
+  for (const [name, value] of cssVarsFor(theme)) {
+    root.style.setProperty(name, value)
+  }
+  root.setAttribute('data-theme', theme.base)
+  root.style.setProperty('color-scheme', theme.base)
+  return theme
 }
 
 /** Lee la elección guardada. Si no hay nada (o el almacenamiento está bloqueado), `auto`. */
-export function readThemeChoice(storage: Storage = localStorage): ThemeChoice {
+export function readThemeSelection(storage: Storage = localStorage): ThemeSelection {
   try {
-    return parseThemeChoice(storage.getItem(THEME_STORAGE_KEY))
+    return parseThemeSelection(storage.getItem(THEME_STORAGE_KEY))
   } catch {
-    // El almacenamiento puede estar bloqueado: modo privado, iframes restringidos…
     return 'auto'
   }
 }
 
-/** Guarda la elección. Si no se puede guardar, no pasa nada: durará la sesión. */
-export function storeThemeChoice(choice: ThemeChoice, storage: Storage = localStorage): void {
+/** Guarda la elección. Si no se puede guardar, la elección dura la sesión. */
+export function storeThemeSelection(selection: ThemeSelection, storage: Storage = localStorage): void {
   try {
-    storage.setItem(THEME_STORAGE_KEY, choice)
+    storage.setItem(THEME_STORAGE_KEY, selection)
   } catch {
-    // Sin persistencia, pero sin molestar al usuario con un error que no puede resolver.
+    // Sin persistencia, pero sin molestar al usuario.
+  }
+}
+
+/** Lee y valida el tema propio guardado. Si está corrupto, se ignora. */
+export function readCustomTheme(storage: Storage = localStorage): Theme | null {
+  try {
+    const raw = storage.getItem(CUSTOM_THEME_KEY)
+    if (raw === null) {
+      return null
+    }
+    return parseTheme(raw, DEFAULT_THEME.tokens)
+  } catch {
+    return null
+  }
+}
+
+/** Guarda el tema propio. */
+export function storeCustomTheme(theme: Theme, storage: Storage = localStorage): void {
+  try {
+    storage.setItem(CUSTOM_THEME_KEY, serializeTheme(theme))
+  } catch {
+    // Sin persistencia.
+  }
+}
+
+/** Borra el tema propio. */
+export function clearCustomTheme(storage: Storage = localStorage): void {
+  try {
+    storage.removeItem(CUSTOM_THEME_KEY)
+  } catch {
+    // Sin persistencia.
   }
 }

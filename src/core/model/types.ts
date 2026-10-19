@@ -135,6 +135,11 @@ export interface Wire extends ElementBase {
   readonly p2: GridPoint
   /** Cuántos bits transporta. `1` = cable simple. */
   readonly bitWidth: number
+  /**
+   * Color forzado a mano para **este** cable (M6-14). Va aparte de los colores por estado del
+   * tema: es una decisión del usuario sobre un cable concreto. Se guarda con el proyecto.
+   */
+  readonly color?: string
 }
 
 /**

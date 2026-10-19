@@ -53,6 +53,27 @@ describe('json persist (M4-05/06)', () => {
     expect(loaded.circuit(instance.targetCircuitId)).toBeDefined()
   })
 
+  it('conserva el color propio de un cable (M6-14)', () => {
+    const p = new CircuitProject('colores')
+    const wire = p.current.diagram.addWire({ x: 0, y: 0 }, { x: 4, y: 0 })
+    p.current.diagram.setWireColor(wire.id, '#123456')
+
+    const json = serializeProject(p)
+    expect(json).toContain('#123456')
+
+    const loaded = deserializeProject(json)
+    const back = loaded.current.elements.find((e) => e.kind === 'wire')
+    expect(back?.kind === 'wire' && back.color).toBe('#123456')
+  })
+
+  it('no escribe `color` si el cable no tiene uno propio', () => {
+    const p = new CircuitProject('sin-color')
+    p.current.diagram.addWire({ x: 0, y: 0 }, { x: 4, y: 0 })
+    const loaded = deserializeProject(serializeProject(p))
+    const wire = loaded.current.elements.find((e) => e.kind === 'wire')
+    expect(wire?.kind === 'wire' && wire.color).toBeUndefined()
+  })
+
   it('una pieza nueva tras cargar no pisa un id importado', () => {
     const p = new CircuitProject('ids')
     p.current.diagram.addGate('and', { x: 0, y: 0 }, 2)

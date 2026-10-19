@@ -135,7 +135,7 @@ describe('de modelo a piezas de dibujo', () => {
 
   it('los pines y el cable en construcción van los últimos, encima de todo', () => {
     const sketch: DrawWire[] = [
-      { kind: 'wire', p1: { x: 0, y: 0 }, p2: { x: 3, y: 3 }, selected: false },
+      { kind: 'wire', p1: { x: 0, y: 0 }, p2: { x: 3, y: 3 }, selected: false, signal: 'idle', bus: false },
     ]
     const pinDots = [{ kind: 'pinDot' as const, point: { x: 4, y: 3 }, connected: false }]
 

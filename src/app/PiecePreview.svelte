@@ -4,6 +4,7 @@
   import { pieceLayout } from './palette'
   import { shapeForGate } from '../render/symbols'
   import { symbolDrawing } from '../render/symbols'
+  import { LIGHT_THEME } from '../core/theme/presets'
 
   let { piece }: { piece: Piece } = $props()
 
@@ -44,8 +45,9 @@
     const offX = (size - layout.width * scale) / 2
     const offY = (size - layout.height * scale) / 2
 
-    const fill = getComputedStyle(document.documentElement).getPropertyValue('--wc-symbol-fill').trim() || '#ffffff'
-    const stroke = getComputedStyle(document.documentElement).getPropertyValue('--wc-symbol-stroke').trim() || '#22252b'
+    const styles = getComputedStyle(document.documentElement)
+    const fill = styles.getPropertyValue('--wc-symbol-fill').trim() || LIGHT_THEME.tokens['gate.fill']
+    const stroke = styles.getPropertyValue('--wc-symbol-stroke').trim() || LIGHT_THEME.tokens['gate.stroke']
 
     ctx.clearRect(0, 0, size, size)
     ctx.save()

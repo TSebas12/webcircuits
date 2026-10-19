@@ -19,12 +19,31 @@ export interface RenderTheme {
   readonly background: string
   readonly gridDot: string
   readonly gridDotStrong: string
-  readonly wire: string
+  /** Cable en reposo (edición, o sin corriente). */
+  readonly wireIdle: string
+  /** Cable con un 1. */
+  readonly wireHigh: string
+  /** Cable con un 0. */
+  readonly wireLow: string
+  /** Cable sin nada que lo fije. */
+  readonly wireFloating: string
+  /** Cable de bus (más de un bit). */
+  readonly wireBus: string
+  /** Cable seleccionado. */
+  readonly wireSelected: string
   readonly symbolFill: string
   readonly symbolStroke: string
+  /** Texto de las etiquetas de compuerta. */
+  readonly gateText: string
+  /** Color de error de una pieza (conflicto de salidas…). */
+  readonly gateError: string
   readonly selection: string
+  /** Resalte al pasar el ratón. */
+  readonly hover: string
   /** Punto de un pin donde todavía no hay nada conectado. */
   readonly pinDot: string
+  /** Tiradores de una selección (esquinas, puntos de control). */
+  readonly handle: string
   /** Símbolo apagado (sin energía en el circuito). */
   readonly stateOff: string
   /** Encendido, con un 0 dentro. */
@@ -32,6 +51,9 @@ export interface RenderTheme {
   /** Encendido, con un 1 dentro. */
   readonly stateOne: string
 }
+
+/** El estado eléctrico de un cable, para elegir su color. */
+export type WireSignal = 'idle' | 'high' | 'low' | 'floating'
 
 /** Un símbolo (compuerta, interruptor, LED) listo para pintar. */
 export interface DrawDevice {
@@ -44,6 +66,8 @@ export interface DrawDevice {
   readonly width: number
   readonly height: number
   readonly selected: boolean
+  /** El cursor está encima: se resalta con `theme.hover` (M6-06). */
+  readonly hovered?: boolean
   readonly state: DeviceState
 }
 
@@ -53,8 +77,14 @@ export interface DrawWire {
   readonly p1: GridPoint
   readonly p2: GridPoint
   readonly selected: boolean
-  /** Ancho en bits del cable (1 = cable simple). Sirve para el grosor del bus. */
-  readonly bitWidth?: number
+  /** El cursor está encima: se resalta con `theme.hover` (M6-06). */
+  readonly hovered?: boolean
+  /** Estado eléctrico: decide el color (M6-03). */
+  readonly signal: WireSignal
+  /** Transporta un bus (más de un bit): se pinta más grueso (M6-15). */
+  readonly bus: boolean
+  /** Color forzado a mano para este cable (M6-14). Gana al color por estado. */
+  readonly color?: string
   /**
    * Es un cable **provisional** (el que se está tendiendo), no del circuito.
    *

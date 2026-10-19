@@ -71,7 +71,7 @@
     cursor: pointer;
   }
   .ctx-item:hover { background: var(--panel-bg-hover) }
-  .ctx-item.danger { color: #e53935 }
+  .ctx-item.danger { color: var(--wc-error) }
   .ctx-item kbd {
     font: 0.7rem/1 var(--font-mono);
     color: var(--fg-muted);

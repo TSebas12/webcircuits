@@ -57,6 +57,7 @@ function mixItem(hash: number, item: DrawItem): number {
       result = mix(result, ROTATION_CODE[item.rotation] ?? 0)
       result = mix(result, STATE_CODE[item.state] ?? 0)
       result = mix(result, item.selected ? 1 : 0)
+      result = mix(result, item.hovered === true ? 1 : 0)
       for (const character of item.shape) {
         result = mix(result, character.charCodeAt(0))
       }
@@ -67,8 +68,15 @@ function mixItem(hash: number, item: DrawItem): number {
       result = mix(result, item.p2.x)
       result = mix(result, item.p2.y)
       result = mix(result, item.selected ? 1 : 0)
+      result = mix(result, item.hovered === true ? 1 : 0)
       result = mix(result, item.overlay === true ? 1 : 0)
-      result = mix(result, item.bitWidth ?? 1)
+      result = mix(result, item.bus ? 1 : 0)
+      result = mix(result, item.signal === 'high' ? 3 : item.signal === 'low' ? 2 : item.signal === 'floating' ? 1 : 0)
+      if (item.color !== undefined) {
+        for (const character of item.color) {
+          result = mix(result, character.charCodeAt(0))
+        }
+      }
       return result
     case 'junction':
       result = mix(result, item.point.x)
@@ -85,11 +93,20 @@ function themeKey(theme: RenderTheme): string {
     theme.background,
     theme.gridDot,
     theme.gridDotStrong,
-    theme.wire,
+    theme.wireIdle,
+    theme.wireHigh,
+    theme.wireLow,
+    theme.wireFloating,
+    theme.wireBus,
+    theme.wireSelected,
     theme.symbolFill,
     theme.symbolStroke,
+    theme.gateText,
+    theme.gateError,
     theme.selection,
+    theme.hover,
     theme.pinDot,
+    theme.handle,
     theme.stateOff,
     theme.stateZero,
     theme.stateOne,
