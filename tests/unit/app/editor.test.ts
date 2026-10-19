@@ -485,7 +485,7 @@ describe('los dos modos los gobierna la corriente (fidelidad del original)', () 
     dispose()
   })
 
-  it('apagar y encender no olvida los interruptores: al volver, el LED sigue encendido', () => {
+  it('volver a dar corriente reinicia los interruptores, como el original', () => {
     const { editor, canvas, dispose } = mount()
     editor.loadExample()
     editor.setPowered(true)
@@ -493,12 +493,20 @@ describe('los dos modos los gobierna la corriente (fidelidad del original)', () 
     clickAt(canvas, 3, 3)
     clickAt(canvas, 3, 5)
 
+    context.calls.length = 0
+    flushFrames()
+    expect(context.named('fill').some((call) => call.fillStyle === '#ff4a1f')).toBe(true)
+
     editor.setPowered(false)
     editor.setPowered(true)
 
     context.calls.length = 0
     flushFrames()
-    expect(context.named('fill').some((call) => call.fillStyle === '#ff4a1f')).toBe(true)
+    // Dar corriente vuelve a aplanar el circuito (`CircuitMap.Apply` → `new FunctionButton`),
+    // así que los interruptores arrancan en su sitio: un conmutador a medio pulsar no
+    // sobrevive a un apagón. No es que el editor se olvide de nada —es que el circuito que
+    // corre después es otro—, y es justo lo que hace el original.
+    expect(context.named('fill').some((call) => call.fillStyle === '#ff4a1f')).toBe(false)
 
     dispose()
   })

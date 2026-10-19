@@ -23,6 +23,8 @@
   let canRedo = $state(false)
   /** Se está tendiendo un cable: el cursor deja de ser la mano y pasa a ser la flecha. */
   let wiring = $state(false)
+  /** El circuito no se pudo simular. Se enseña y se quita al volver a dar corriente. */
+  let error = $state<string | null>(null)
 
   let fps = $state(0)
   let paintMs = $state(0)
@@ -53,6 +55,10 @@
       },
       onPoweredChange: (value) => {
         powered = value
+        // El aviso se limpia al cambiar de modo: el error se refiere a lo que había encendido,
+        // y al apagar deja de tener sentido. Se limpia aquí —y no en el botón— porque la
+        // corriente también se conmuta con `P`, desde dentro del editor.
+        error = null
       },
       // La herramienta la manda el editor, que también la cambia por su cuenta con `Esc` o con
       // un atajo. Si la fijara sólo el botón, al salir con `Esc` la barra seguiría marcando la
@@ -66,6 +72,11 @@
       },
       onWiringChange: (value) => {
         wiring = value
+      },
+      // El circuito no se puede simular. Se enseña en vez de callarse: simular mal es peor que
+      // no simular, y el original también avisa.
+      onError: (message) => {
+        error = message
       },
     })
     editor = instance
@@ -205,6 +216,13 @@
       ? 'Modo ejecución · solo se pulsan interruptores · ⚡ para editar'
       : 'Modo edición · ⚡ para probar el circuito'}
   </div>
+
+  {#if error !== null}
+    <div class="error-badge" role="alert">
+      <strong>El circuito no se puede simular.</strong>
+      {error}
+    </div>
+  {/if}
 
   {#if !powered && tool === 'erase'}
     <div class="tool-badge">Borrando · un clic se lleva lo que toques · Esc para salir</div>
@@ -359,6 +377,25 @@
     border: 1px solid color-mix(in srgb, var(--wc-state-one) 45%, transparent);
     border-radius: 0.4rem;
     background: color-mix(in srgb, var(--wc-state-one) 12%, var(--panel-bg));
+    font-size: 0.75rem;
+    color: var(--fg);
+    user-select: none;
+    pointer-events: none;
+  }
+
+  /* El aviso de que el circuito no se puede simular. Va en rojo de alarma —y no con un color
+     del tema— porque un error tiene que gritar igual en los dos temas: no es parte de la
+     paleta, es un aviso. Ocupa el sitio del aviso del borrador, que solo sale apagado: un
+     circuito que no se simula solo puede ser con la corriente puesta. */
+  .error-badge {
+    position: absolute;
+    top: 5.7rem;
+    left: 0.6rem;
+    max-width: min(30rem, calc(100% - 1.2rem));
+    padding: 0.35rem 0.6rem;
+    border: 1px solid color-mix(in srgb, #d93025 60%, transparent);
+    border-radius: 0.4rem;
+    background: color-mix(in srgb, #d93025 14%, var(--panel-bg));
     font-size: 0.75rem;
     color: var(--fg);
     user-select: none;

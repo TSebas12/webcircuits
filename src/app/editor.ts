@@ -62,7 +62,8 @@
 import { Diagram } from '../core/model/diagram'
 import { gateLayout, placedPins } from '../core/model/layout'
 import { connectionCounts, pointKey } from '../core/simulate/nets'
-import { MiniEngine, emptySimulationState, type SimulationState } from '../core/simulate/engine'
+import { Simulation } from './simulation'
+import type { SimulationState } from '../core/simulate/engine'
 import type { Button, Element, Gate, GridPoint, Id, Wire } from '../core/model/types'
 import { Camera } from '../render/camera'
 import { Canvas2DRenderer } from '../render/canvas2d'
@@ -127,6 +128,13 @@ export interface EditorCallbacks {
   /** Se está tendiendo un cable: el cursor tiene que dejar de ser la mano. */
   readonly onWiringChange?: (wiring: boolean) => void
   readonly onHistoryChange?: (history: HistoryState) => void
+  /**
+   * El circuito que corre tiene un problema: no se puede aplanar (un lazo imposible, una
+   * pieza que todavía no se simula) o no se asienta. El original enseña un diálogo; aquí se
+   * avisa para que la barra lo ponga en algún sitio, porque simular mal y callarse es peor
+   * que no simular.
+   */
+  readonly onError?: (message: string) => void
 }
 
 /** Arrastrando un símbolo. */
@@ -157,7 +165,18 @@ interface PanState {
 export class Editor {
   readonly diagram = new Diagram()
 
-  private readonly engine = new MiniEngine()
+  /**
+   * El circuito que corre. Enciende y apaga el motor de verdad y traduce su estado a la foto
+   * que el render sabe pintar (ver `simulation.ts`).
+   *
+   * Los dos avisos que da van a la barra: el repintado, porque un reloj cambia el circuito
+   * por su cuenta y sin temporizador del editor no habría forma de enterarse; y el error,
+   * porque un circuito que no se puede simular tiene que decirse.
+   */
+  private readonly simulation = new Simulation({
+    onRefresh: () => this.syncSimulation(),
+    onError: (message) => this.callbacks.onError?.(message),
+  })
   private readonly camera = new Camera()
   private readonly renderer = new Canvas2DRenderer()
 
@@ -166,7 +185,7 @@ export class Editor {
 
   private canvas: HTMLCanvasElement | null = null
   private theme = readTheme()
-  private sim: SimulationState = emptySimulationState()
+  private sim: SimulationState = this.simulation.snapshot
 
   private tool: Tool = 'select'
   private pan: PanState | null = null
@@ -192,7 +211,7 @@ export class Editor {
   }
 
   get isPowered(): boolean {
-    return this.engine.powered
+    return this.simulation.powered
   }
 
   get selection(): Id | null {
@@ -257,6 +276,9 @@ export class Editor {
     this.unsubscribe?.()
     this.unsubscribe = null
 
+    // El reloj del circuito, si lo había, no puede quedarse corriendo sin editor.
+    this.simulation.dispose()
+
     this.renderer.destroy()
     this.canvas = null
   }
@@ -280,7 +302,7 @@ export class Editor {
    * `CancelMove` y `ClearSelection`).
    */
   setPowered(powered: boolean): void {
-    this.engine.setPowered(powered)
+    this.simulation.setPowered(powered)
 
     if (powered) {
       // Si se enciende en mitad de un gesto, el gesto se queda a medias: se cierra la acción
@@ -303,7 +325,7 @@ export class Editor {
    * aquí solo queda reaccionar: la selección puede estar apuntando a algo que ya no existe.
    */
   undo(): boolean {
-    if (this.engine.powered) {
+    if (this.simulation.powered) {
       return false
     }
     const done = this.diagram.undo()
@@ -315,7 +337,7 @@ export class Editor {
 
   /** Rehace la última acción deshecha. */
   redo(): boolean {
-    if (this.engine.powered) {
+    if (this.simulation.powered) {
       return false
     }
     const done = this.diagram.redo()
@@ -327,7 +349,7 @@ export class Editor {
 
   clear(): void {
     this.diagram.clear()
-    this.engine.reset()
+    this.simulation.reset()
     this.select(null)
   }
 
@@ -407,7 +429,7 @@ export class Editor {
     this.diagram.beginChange()
     try {
       this.diagram.clear()
-      this.engine.reset()
+      this.simulation.reset()
 
       this.diagram.addButton({ x: 2, y: 2 }, { isToggle: true }) // salida en (4, 3)
       this.diagram.addButton({ x: 2, y: 4 }, { isToggle: true }) // salida en (4, 5)
@@ -443,7 +465,7 @@ export class Editor {
     // se edita. Es lo que hace el original (`Editor.InEditMode => !Power`: cada manejador del
     // ratón comprueba que se está en modo edición). Aquí el clic solo pulsa interruptores; el
     // resto del lienzo se sigue pudiendo desplazar, que eso no toca nada.
-    if (this.engine.powered) {
+    if (this.simulation.powered) {
       // Un pin cuenta como su símbolo: si se acierta el pin de un interruptor, se pulsa.
       const element = hit === null || hit.kind === 'wire' ? null : hit.element
       canvas.setPointerCapture(event.pointerId)
@@ -685,13 +707,13 @@ export class Editor {
     if (event.key.toLowerCase() === 'p') {
       event.preventDefault()
       if (!event.repeat) {
-        this.setPowered(!this.engine.powered)
+        this.setPowered(!this.simulation.powered)
       }
       return
     }
 
     // Con la corriente puesta no se edita, así que los atajos de edición no hacen nada.
-    if (this.engine.powered) {
+    if (this.simulation.powered) {
       return
     }
 
@@ -760,8 +782,8 @@ export class Editor {
    * si el interruptor es momentáneo, se suelta al levantar el botón (`finishButtonPress`).
    */
   private pressButton(button: Button): void {
-    const previous = this.engine.isPressed(button.id)
-    this.engine.setPressed(button.id, button.isToggle ? !previous : true)
+    const previous = this.simulation.isPressed(button.id)
+    this.simulation.setPressed(button.id, button.isToggle ? !previous : true)
     this.buttonPress = { id: button.id, previous }
     this.evaluate()
   }
@@ -776,7 +798,7 @@ export class Editor {
     const element = this.diagram.get(press.id)
     // Un interruptor momentáneo vuelve a 0 al soltar; uno que se queda, se queda.
     if (element !== undefined && element.kind === 'button' && !element.isToggle) {
-      this.engine.setPressed(press.id, false)
+      this.simulation.setPressed(press.id, false)
       this.evaluate()
       this.refresh()
     }
@@ -789,7 +811,7 @@ export class Editor {
     }
     this.buttonPress = null
     // Se deshace: el gesto ha resultado ser otra cosa.
-    this.engine.setPressed(press.id, press.previous)
+    this.simulation.setPressed(press.id, press.previous)
     this.evaluate()
     this.refresh()
   }
@@ -889,7 +911,19 @@ export class Editor {
   }
 
   private evaluate(): void {
-    this.sim = this.engine.evaluate(this.diagram.elements)
+    this.sim = this.simulation.evaluate(this.diagram.elements)
+  }
+
+  /**
+   * El circuito que corre ha cambiado **por su cuenta** —el reloj— y hay que repintarlo.
+   *
+   * No pasa por `evaluate`: la simulación ya tiene el estado evaluado; aquí solo se recoge la
+   * foto nueva. El reloj avisa como mucho una vez por fotograma, así que no hay riesgo de
+   * repintar doscientas veces por segundo.
+   */
+  private syncSimulation(): void {
+    this.sim = this.simulation.snapshot
+    this.refresh()
   }
 
   private refresh(): void {
@@ -903,7 +937,7 @@ export class Editor {
     const wiring = this.wire !== null
     const showFreePins = this.camera.state.zoom >= FREE_PIN_MIN_ZOOM
 
-    if (!this.engine.powered) {
+    if (!this.simulation.powered) {
       const counts = connectionCounts(this.diagram.elements)
 
       for (const device of this.diagram.devices) {

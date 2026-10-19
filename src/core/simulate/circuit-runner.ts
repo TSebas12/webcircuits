@@ -74,6 +74,16 @@ export class CircuitRunner {
   }
 
   /**
+   * Volteos de reloj pendientes (original: el `flipCount` que consulta el bucle).
+   *
+   * Quien lleva el temporizador lo mira para **ponerse al día**: si el navegador se ha
+   * saltado avisos, aquí es donde se ve cuántos.
+   */
+  get pendingFlips(): number {
+    return this.flipCount
+  }
+
+  /**
    * ¿Hay probetas en el circuito? (original: `HasProbes`).
    *
    * Lo dice el estado al aplanar. Hoy siempre es falso porque `FunctionProbe` no existe
