@@ -424,6 +424,41 @@ export class Diagram {
     })
   }
 
+  /** Duplica una capa: copia todos sus elementos a una nueva capa. */
+  duplicateLayer(id: Id): Layer | null {
+    const src = this.layers.find((l) => l.id === id)
+    if (!src) return null
+    const newLayer = this.createLayer(`${src.name} (copia)`)
+    this.change(() => {
+      for (const el of this.items.values()) {
+        if (el.layerId === id) {
+          const copy = { ...el, id: this.nextId(el.kind), layerId: newLayer.id }
+          this.items.set(copy.id, copy)
+        }
+      }
+      this.changed()
+    })
+    return newLayer
+  }
+
+  /** Fusiona una capa en otra: mueve sus elementos y borra la origen. */
+  mergeLayer(fromId: Id, intoId: Id): boolean {
+    if (fromId === intoId) return false
+    if (fromId === DEFAULT_LAYER_ID) return false
+    if (!this.layers.some((l) => l.id === fromId)) return false
+    if (!this.layers.some((l) => l.id === intoId)) return false
+    this.change(() => {
+      for (const [eid, el] of this.items) {
+        if (el.layerId === fromId) {
+          this.items.set(eid, { ...el, layerId: intoId })
+        }
+      }
+      this.layers = this.layers.filter((l) => l.id !== fromId)
+      this.changed()
+    })
+    return true
+  }
+
   moveElementToLayer(elementId: Id, layerId: Id): void {
     const el = this.items.get(elementId)
     if (el === undefined) return
