@@ -65,7 +65,8 @@ export function buildScene(options: SceneOptions): RenderScene {
     }
 
     // El LED es una compuerta, y el interruptor no; de ahí el `?? 'button'`.
-    const shape = element.kind === 'gate' ? shapeForGate(element.gateType) : 'button'
+    const shape =
+      element.kind === 'gate' ? shapeForGate(element.gateType, element.invertedOutput) : 'button'
     if (shape === null) {
       // Compuerta que todavía no sabemos dibujar. Se ignora en vez de reventar: así
       // cargar un circuito con compuertas de M2 no rompe nada.

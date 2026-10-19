@@ -115,6 +115,12 @@ export function drawDevice(
     ctx.stroke(drawing.indicator)
   }
 
+  // Las rayas que no son borde del cuerpo (la onda del reloj, la raya de la XOR, la
+  // habilitación del tri-estado): solo se perfilan, con el mismo color que el contorno.
+  if (drawing.stroke !== undefined) {
+    ctx.stroke(drawing.stroke)
+  }
+
   ctx.restore()
 }
 

@@ -71,15 +71,43 @@ describe('caché de siluetas (M1-07)', () => {
 })
 
 describe('qué silueta le toca a cada compuerta', () => {
-  it('la AND y el LED ya saben dibujarse', () => {
+  it('cada compuerta que se puede colocar sabe dibujarse', () => {
     expect(shapeForGate('and')).toBe('and')
+    expect(shapeForGate('not')).toBe('not')
+    expect(shapeForGate('or')).toBe('or')
+    expect(shapeForGate('xor')).toBe('xor')
+    expect(shapeForGate('clock')).toBe('clock')
+    expect(shapeForGate('triState1')).toBe('triState1')
+    expect(shapeForGate('triState2')).toBe('triState2')
     expect(shapeForGate('led')).toBe('led')
   })
 
-  it('las que faltan devuelven `null` en vez de inventarse una forma', () => {
-    // Así, un circuito con compuertas de M2 se dibuja a medias en vez de reventar.
-    expect(shapeForGate('or')).toBeNull()
-    expect(shapeForGate('not')).toBeNull()
-    expect(shapeForGate('clock')).toBeNull()
+  it('las que no son compuertas devuelven `null` en vez de inventarse una forma', () => {
+    expect(shapeForGate('nop')).toBeNull()
+    expect(shapeForGate('probe')).toBeNull()
+  })
+
+  it('una compuerta negada devuelve `null`: sin su bolita, dibujarla sería mentir', () => {
+    // Una NAND es una AND negada. Pintarla como una AND normal diría justo lo contrario de lo
+    // que hace, así que no se pinta hasta que exista la bolita.
+    expect(shapeForGate('and', true)).toBeNull()
+    expect(shapeForGate('or', true)).toBeNull()
+  })
+
+  it('el tri-estado lleva su raya aparte, que solo se perfila', () => {
+    const drawing = symbolDrawing('triState1', 3, 4)
+
+    expect(drawing.bodyFill).toBe('symbol')
+    expect(drawing.stroke).toBeDefined()
+  })
+
+  it('la XOR lleva la raya suelta y el reloj la onda', () => {
+    expect(symbolDrawing('xor', 3, 4).stroke).toBeDefined()
+    expect(symbolDrawing('clock', 2, 2).stroke).toBeDefined()
+  })
+
+  it('la OR y la NOT son solo cuerpo, como la AND', () => {
+    expect(symbolDrawing('or', 3, 4).stroke).toBeUndefined()
+    expect(symbolDrawing('not', 3, 4).stroke).toBeUndefined()
   })
 })

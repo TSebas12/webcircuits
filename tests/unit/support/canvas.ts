@@ -105,6 +105,8 @@ export function installFakePath2D(): { built(): number; reset(): void } {
     lineTo(): void {}
     arc(): void {}
     arcTo(): void {}
+    quadraticCurveTo(): void {}
+    bezierCurveTo(): void {}
     closePath(): void {}
   }
 

@@ -14,10 +14,22 @@
 import type { GateType } from '../../core/model/types'
 import { andShape } from './and'
 import { buttonShape } from './button'
+import { clockShape } from './clock'
 import { ledShape } from './led'
+import { notShape, triState1Shape, triState2Shape } from './not'
+import { orShape, xorShape } from './or'
 
 /** Las formas que sabemos dibujar. Irá creciendo con los símbolos nuevos. */
-export type SymbolShape = 'and' | 'button' | 'led'
+export type SymbolShape =
+  | 'and'
+  | 'not'
+  | 'or'
+  | 'xor'
+  | 'clock'
+  | 'triState1'
+  | 'triState2'
+  | 'button'
+  | 'led'
 
 /**
  * Las partes de un símbolo.
@@ -30,11 +42,17 @@ export type SymbolShape = 'and' | 'button' | 'led'
  *
  * El **indicador** es opcional y siempre va pintado con el color del estado: es la barrita
  * de los interruptores, que dice de un vistazo si están en 1 o en 0.
+ *
+ * El **trazo** es opcional y va solo perfilado: son las rayas que no son borde del cuerpo —la
+ * onda del reloj, la raya suelta de la XOR, la habilitación del tri-estado—. Van aparte
+ * porque rellenarlas pintaría de más: al rellenar una curva abierta, el lienzo la cierra por
+ * su cuenta y quedaría una telaraña del color del símbolo sobre el fondo.
  */
 export interface SymbolDrawing {
   readonly body: Path2D
   readonly bodyFill: 'symbol' | 'state'
   readonly indicator?: Path2D
+  readonly stroke?: Path2D
 }
 
 /** Construye la silueta de una forma con un tamaño dado. */
@@ -42,6 +60,12 @@ type ShapeBuilder = (width: number, height: number) => SymbolDrawing
 
 const BUILDERS: Readonly<Record<SymbolShape, ShapeBuilder>> = {
   and: andShape,
+  not: notShape,
+  or: orShape,
+  xor: xorShape,
+  clock: clockShape,
+  triState1: triState1Shape,
+  triState2: triState2Shape,
   button: buttonShape,
   led: ledShape,
 }
@@ -69,13 +93,34 @@ export function symbolDrawing(shape: SymbolShape, width: number, height: number)
 /**
  * Qué silueta le corresponde a una compuerta. `null` = todavía no sabemos dibujarla.
  *
- * El LED es una compuerta (`GateType.Led`) que se dibuja con la silueta del LED; las
- * demás compuertas aún no tienen forma propia.
+ * ⚠️ **Lo que no se dibuja, no se pinta a medias.** Una compuerta negada (`invertedOutput`:
+ * una NAND es una AND negada) devuelve `null`, porque dibujarla como una AND normal sería
+ * mentir: el dibujo diría lo que el circuito no hace. La bolita de negación es el paso
+ * siguiente; hasta que esté, la paleta no ofrece compuertas negadas.
+ *
+ * `nop`, `odd`, `even` y `probe` no entran: no son compuertas que se puedan colocar
+ * (`layout.ts` las rechaza).
  */
-export function shapeForGate(gateType: GateType): SymbolShape | null {
+export function shapeForGate(gateType: GateType, invertedOutput = false): SymbolShape | null {
+  if (invertedOutput) {
+    return null
+  }
+
   switch (gateType) {
     case 'and':
       return 'and'
+    case 'not':
+      return 'not'
+    case 'or':
+      return 'or'
+    case 'xor':
+      return 'xor'
+    case 'clock':
+      return 'clock'
+    case 'triState1':
+      return 'triState1'
+    case 'triState2':
+      return 'triState2'
     case 'led':
       return 'led'
     default:

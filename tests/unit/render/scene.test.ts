@@ -148,11 +148,12 @@ describe('de modelo a piezas de dibujo', () => {
 
   it('una compuerta que todavía no sabemos dibujar se ignora en vez de reventar', () => {
     const diagram = new Diagram()
-    diagram.addGate('or', { x: 2, y: 2 }, 2)
+    // Una OR negada: el motor ya la simula, pero sin la bolita de negación no se dibuja.
+    diagram.addGate('or', { x: 2, y: 2 }, 2, true)
 
     const items = sceneOf(diagram).items
 
-    // Cargar un circuito con compuertas de M2 no puede tumbar la aplicación.
+    // Cargar un circuito con compuertas que aún no se dibujan no puede tumbar la aplicación.
     expect(items).toHaveLength(0)
   })
 })
