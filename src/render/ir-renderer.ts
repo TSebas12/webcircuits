@@ -69,6 +69,11 @@ export interface DrawDevice {
   /** El cursor está encima: se resalta con `theme.hover` (M6-06). */
   readonly hovered?: boolean
   readonly state: DeviceState
+  /**
+   * Texto que va dentro del símbolo: el valor de una constante, el nombre de un subcircuito
+   * o el de un pin de hoja. No se guarda en la silueta porque cambia con el elemento.
+   */
+  readonly label?: string
 }
 
 /** Un cable listo para pintar. */

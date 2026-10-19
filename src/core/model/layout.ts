@@ -408,6 +408,14 @@ const EMPTY_LAYOUT: SymbolLayout = {
 }
 
 /**
+ * Cómo encontrar el circuito que representa una instancia.
+ *
+ * Se pasa como función para que `layout.ts` siga sin depender de `CircuitProject`: el modelo
+ * solo necesita saber «dame este circuito», no quién se lo guarda.
+ */
+export type CircuitResolver = (id: Id) => Circuit | undefined
+
+/**
  * La forma de un dispositivo colocado.
  *
  * Es la traducción de `Circuit.SymbolWidth/Height` del original: cada símbolo sabe cuánto
@@ -420,7 +428,7 @@ const EMPTY_LAYOUT: SymbolLayout = {
  */
 export function deviceLayout(
   device: PlacedElement,
-  resolveCircuit?: (id: Id) => Circuit | undefined,
+  resolveCircuit?: CircuitResolver,
 ): SymbolLayout {
   switch (device.kind) {
     case 'gate':
@@ -456,7 +464,7 @@ export interface PlacedPin {
 
 export function placedPins(
   device: PlacedElement,
-  resolveCircuit?: (id: Id) => Circuit | undefined,
+  resolveCircuit?: CircuitResolver,
 ): PlacedPin[] {
   const layout = deviceLayout(device, resolveCircuit)
   return layout.pins.map((pin) => ({
@@ -474,7 +482,7 @@ export function placedPins(
  */
 export function deviceBounds(
   device: PlacedElement,
-  resolveCircuit?: (id: Id) => Circuit | undefined,
+  resolveCircuit?: CircuitResolver,
 ): GridRect {
   const layout = deviceLayout(device, resolveCircuit)
   const corners: readonly GridPoint[] = [

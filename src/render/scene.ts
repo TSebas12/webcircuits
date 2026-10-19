@@ -9,9 +9,9 @@
  * escena y la repinta cuando hace falta.
  */
 
-import { deviceLayout } from '../core/model/layout'
+import { deviceLayout, type CircuitResolver } from '../core/model/layout'
 import { junctionPoints } from '../core/simulate/nets'
-import type { DeviceState, Element, Id } from '../core/model/types'
+import type { Constant, DeviceState, DrawableDevice, Element, Id } from '../core/model/types'
 import type { CameraState } from './camera'
 import type {
   DrawDevice,
@@ -22,7 +22,7 @@ import type {
   RenderTheme,
   WireSignal,
 } from './ir-renderer'
-import { shapeForGate } from './symbols'
+import { shapeForGate, type SymbolShape } from './symbols'
 
 export interface SceneOptions {
   readonly elements: readonly Element[]
@@ -38,6 +38,11 @@ export interface SceneOptions {
   readonly camera: CameraState
   readonly theme: RenderTheme
   readonly showGrid: boolean
+  /**
+   * Cómo encontrar el circuito que representa una instancia. Sin esto, un subcircuito se
+   * mide como una caja vacía 2×2 y se pinta sin sus pines.
+   */
+  readonly resolveCircuit?: CircuitResolver
   /** Puntitos de pin que hay que destacar (mientras se cablea). */
   readonly pinDots?: readonly DrawPinDot[]
   /** Cables que se están dibujando ahora mismo. Van los últimos, encima de todo. */
@@ -79,16 +84,15 @@ export function buildScene(options: SceneOptions): RenderScene {
       continue
     }
 
-    // El LED es una compuerta, y el interruptor no; de ahí el `?? 'button'`.
-    const shape =
-      element.kind === 'gate' ? shapeForGate(element.gateType, element.invertedOutput) : 'button'
+    const shape = shapeForDevice(element)
     if (shape === null) {
       // Compuerta que todavía no sabemos dibujar. Se ignora en vez de reventar: así
       // cargar un circuito con compuertas de M2 no rompe nada.
       continue
     }
 
-    const layout = deviceLayout(element)
+    const layout = deviceLayout(element, options.resolveCircuit)
+    const label = labelFor(element, options.resolveCircuit)
     const device: DrawDevice = {
       kind: 'device',
       shape,
@@ -99,6 +103,7 @@ export function buildScene(options: SceneOptions): RenderScene {
       selected: options.selected.has(element.id),
       hovered: options.hovered === element.id,
       state: options.states.get(element.id) ?? 'off',
+      ...(label === undefined ? {} : { label }),
     }
     items.push(device)
   }
@@ -118,4 +123,64 @@ export function buildScene(options: SceneOptions): RenderScene {
     showGrid: options.showGrid,
     items,
   }
+}
+
+/**
+ * La silueta de un símbolo, según lo que sea.
+ *
+ * Las compuertas pueden no tener silueta todavía (`shapeForGate` devuelve `null` para los
+ * tipos que el motor no sabe negar); el resto siempre la tiene.
+ */
+function shapeForDevice(element: DrawableDevice): SymbolShape | null {
+  switch (element.kind) {
+    case 'gate':
+      return shapeForGate(element.gateType, element.invertedOutput)
+    case 'button':
+      return 'button'
+    case 'pin':
+      // La punta de un pin de entrada asoma por la derecha; la de uno de salida, por la
+      // izquierda (ver `pinLayout`). El cheurón de la silueta apunta hacia la punta.
+      return element.pinType === 'output' ? 'pinOutput' : 'pinInput'
+    case 'constant':
+      return 'constant'
+    case 'splitter':
+      return 'splitter'
+    case 'circuit':
+      return 'circuit'
+  }
+}
+
+/**
+ * El texto que va dentro del símbolo, si lo lleva.
+ *
+ * Los pines y las constantes muestran su nombre o su valor; los subcircuitos, el nombre de
+ * la hoja que representan. Las compuertas e interruptores no llevan etiqueta: su forma ya
+ * lo dice todo y el original tampoco les pinta texto.
+ */
+function labelFor(
+  element: DrawableDevice,
+  resolveCircuit?: CircuitResolver,
+): string | undefined {
+  switch (element.kind) {
+    case 'pin': {
+      const name = element.name.trim()
+      return name === '' ? undefined : name
+    }
+    case 'constant':
+      return constantLabel(element)
+    case 'circuit':
+      return resolveCircuit?.(element.targetCircuitId)?.name
+    default:
+      return undefined
+  }
+}
+
+/** El valor de una constante como texto corto: decimal si cabe, hexadecimal si no. */
+function constantLabel(constant: Constant): string {
+  const bits = Math.max(1, Math.min(32, constant.bitWidth))
+  const mask = bits === 32 ? 0xffffffff : 2 ** bits - 1
+  // `&` trabaja con enteros de 32 bits con signo; `>>> 0` lo devuelve a sin signo para que
+  // una constante de 32 bits con el bit alto puesto no se pinte como un número negativo.
+  const value = (constant.value & mask) >>> 0
+  return bits <= 4 ? String(value) : `0x${value.toString(16).toUpperCase()}`
 }

@@ -29,6 +29,7 @@
     ctx.clearRect(0, 0, cssW, cssH)
 
     const elements = editor.diagram.elements
+    const resolveCircuit = (id: string) => editor?.project.circuit(id)
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
     for (const el of elements) {
       if (el.kind === 'wire') {
@@ -37,7 +38,7 @@
         maxX = Math.max(maxX, el.p1.x, el.p2.x)
         maxY = Math.max(maxY, el.p1.y, el.p2.y)
       } else {
-        const box = deviceBounds(el)
+        const box = deviceBounds(el, resolveCircuit)
         minX = Math.min(minX, box.x0)
         minY = Math.min(minY, box.y0)
         maxX = Math.max(maxX, box.x1)
@@ -69,7 +70,7 @@
         ctx.stroke()
         ctx.globalAlpha = 0.45
       } else {
-        const box = deviceBounds(el)
+        const box = deviceBounds(el, resolveCircuit)
         ctx.fillRect(toX(box.x0), toY(box.y0), Math.max(1, (box.x1 - box.x0) * grid * scale), Math.max(1, (box.y1 - box.y0) * grid * scale))
       }
     }

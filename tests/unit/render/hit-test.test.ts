@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Diagram } from '../../../src/core/model/diagram'
-import { placedPins } from '../../../src/core/model/layout'
-import type { Button, Gate, GridPoint } from '../../../src/core/model/types'
+import { circuitInstanceLayout, placedPins } from '../../../src/core/model/layout'
+import type { Button, Circuit, Gate, GridPoint } from '../../../src/core/model/types'
 import { distanceToSegment, hitTest, nearestPointOnSegment } from '../../../src/render/hit-test'
 
 /** El circuito del corte vertical, que tiene de todo: pines, símbolos y cables. */
@@ -94,5 +94,30 @@ describe('qué hay bajo el cursor (M1-09)', () => {
 
     expect(hit?.kind).toBe('pin')
     expect(hit?.kind === 'pin' ? hit.element.kind : null).toBe('button')
+  })
+
+  it('acierta el cuerpo y los pines de un subcircuito con su resolvedor', () => {
+    const sheet = new Diagram()
+    sheet.addPin({ x: 0, y: 0 }, { pinType: 'input', side: 'left' })
+    sheet.addPin({ x: 6, y: 0 }, { pinType: 'output', side: 'right' })
+    const target: Circuit = { id: 'sub', name: 'Sub', elements: sheet.storedElements }
+
+    const main = new Diagram()
+    const instance = main.addCircuitInstance({ x: 2, y: 3 }, target.id)
+    const resolve = (id: string): Circuit | undefined => (id === target.id ? target : undefined)
+    const size = circuitInstanceLayout(target)
+    const center = {
+      x: instance.position.x + size.width / 2,
+      y: instance.position.y + size.height / 2,
+    }
+
+    const body = hitTest(main.elements, center, resolve)
+    expect(body?.kind).toBe('device')
+    expect(body?.kind === 'device' ? body.element.kind : null).toBe('circuit')
+
+    const pin = placedPins(instance, resolve)[0]!
+    const pinHit = hitTest(main.elements, pin.point, resolve)
+    expect(pinHit?.kind).toBe('pin')
+    expect(pinHit?.kind === 'pin' ? pinHit.point : null).toEqual(pin.point)
   })
 })

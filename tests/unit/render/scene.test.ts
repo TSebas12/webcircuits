@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { Diagram } from '../../../src/core/model/diagram'
-import type { DeviceState } from '../../../src/core/model/types'
+import { circuitInstanceLayout } from '../../../src/core/model/layout'
+import type { Circuit, DeviceState } from '../../../src/core/model/types'
 import { Camera } from '../../../src/render/camera'
 import type { DrawDevice, DrawWire } from '../../../src/render/ir-renderer'
 import { buildScene } from '../../../src/render/scene'
@@ -29,6 +30,7 @@ function sceneOf(
     selected?: ReadonlySet<string>
     sketch?: DrawWire[]
     pinDots?: { kind: 'pinDot'; point: { x: number; y: number }; connected: boolean }[]
+    resolveCircuit?: (id: string) => Circuit | undefined
   } = {},
 ) {
   return buildScene({
@@ -38,6 +40,7 @@ function sceneOf(
     camera: new Camera().state,
     theme: THEME,
     showGrid: true,
+    resolveCircuit: options.resolveCircuit,
     sketch: options.sketch,
     pinDots: options.pinDots,
   })
@@ -87,6 +90,45 @@ describe('de modelo a piezas de dibujo', () => {
 
     const button = devices.find((item) => item.shape === 'button')
     expect([button?.width, button?.height]).toEqual([2, 2])
+  })
+
+  it('pines, constantes y repartidores ya tienen silueta y etiqueta', () => {
+    const diagram = new Diagram()
+    diagram.addPin({ x: 0, y: 0 }, { pinType: 'input', side: 'left', name: 'A' })
+    diagram.addConstant({ x: 4, y: 0 }, { bitWidth: 1, value: 1, pinSide: 'right' })
+    diagram.addSplitter({ x: 8, y: 0 }, { bitWidth: 4, pinCount: 2 })
+
+    const devices = sceneOf(diagram).items.filter(
+      (item): item is DrawDevice => item.kind === 'device',
+    )
+
+    expect(devices.find((item) => item.shape === 'pinInput')?.label).toBe('A')
+    expect(devices.find((item) => item.shape === 'constant')?.label).toBe('1')
+    expect(devices.find((item) => item.shape === 'splitter')).toBeDefined()
+  })
+
+  it('un subcircuito toma su caja y su nombre del circuito que representa', () => {
+    const sheet = new Diagram()
+    sheet.addPin({ x: 0, y: 0 }, { pinType: 'input', side: 'left' })
+    sheet.addPin({ x: 6, y: 0 }, { pinType: 'output', side: 'right' })
+    const target: Circuit = { id: 'sub', name: 'Suma', elements: sheet.storedElements }
+
+    const main = new Diagram()
+    main.addCircuitInstance({ x: 2, y: 3 }, target.id)
+    const resolveCircuit = (id: string): Circuit | undefined =>
+      id === target.id ? target : undefined
+
+    const device = sceneOf(main, { resolveCircuit }).items.find(
+      (item): item is DrawDevice => item.kind === 'device',
+    )
+    const size = circuitInstanceLayout(target)
+
+    expect(device).toMatchObject({
+      shape: 'circuit',
+      width: size.width,
+      height: size.height,
+      label: 'Suma',
+    })
   })
 
   it('un dispositivo sin estado conocido se pinta apagado, no encendido por accidente', () => {

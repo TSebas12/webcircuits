@@ -2,9 +2,24 @@
   import { onMount } from 'svelte'
   import type { Piece } from './palette'
   import { pieceLayout } from './palette'
-  import { shapeForGate } from '../render/symbols'
-  import { symbolDrawing } from '../render/symbols'
+  import { shapeForGate, symbolDrawing, type SymbolShape } from '../render/symbols'
   import { LIGHT_THEME } from '../core/theme/presets'
+
+  /** La silueta que le toca a la pieza. */
+  function shapeForPiece(piece: Piece): SymbolShape | null {
+    switch (piece.kind) {
+      case 'gate':
+        return shapeForGate(piece.gateType, piece.invertedOutput)
+      case 'button':
+        return 'button'
+      case 'pin':
+        return piece.pinType === 'output' ? 'pinOutput' : 'pinInput'
+      case 'constant':
+        return 'constant'
+      case 'splitter':
+        return 'splitter'
+    }
+  }
 
   let { piece }: { piece: Piece } = $props()
 
@@ -34,11 +49,10 @@
           : piece.inputCount
         : 2
     const layout = pieceLayout(piece, count)
-    const shape =
-      piece.kind === 'button' ? 'button' : shapeForGate(piece.gateType, piece.invertedOutput)
+    const shape = shapeForPiece(piece)
     if (shape === null) return
 
-    const drawing = symbolDrawing(shape as never, layout.width, layout.height)
+    const drawing = symbolDrawing(shape, layout.width, layout.height)
     // Fit symbol into canvas with margin
     const margin = 2
     const scale = (size - margin * 2) / Math.max(layout.width, layout.height)
@@ -67,6 +81,13 @@
     if (drawing.indicator !== undefined) {
       ctx.fillStyle = stroke
       ctx.fill(drawing.indicator)
+    }
+    if (piece.kind === 'constant') {
+      ctx.fillStyle = stroke
+      ctx.font = `600 ${Math.min(0.7, Math.min(layout.width, layout.height) * 0.32)}px system-ui, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(String(piece.value), layout.width / 2, layout.height / 2, layout.width - 0.45)
     }
     ctx.restore()
   }

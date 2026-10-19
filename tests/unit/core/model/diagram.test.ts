@@ -231,15 +231,27 @@ describe('lo que el documento no hace por su cuenta', () => {
 })
 
 describe('la vista del editor y los datos guardados', () => {
-  it('los pines y subcircuitos viajan en `storedElements` aunque el lienzo no los dibuje', () => {
+  it('los pines y subcircuitos viajan en `storedElements` y ya se dibujan', () => {
     const diagram = new Diagram()
     diagram.addGate('and', { x: 0, y: 0 }, 2)
     diagram.addPin({ x: 0, y: 4 })
+    diagram.importElement({
+      kind: 'memory',
+      id: 'mem-1',
+      circuitId: 'main',
+      layerId: 'principal',
+      position: { x: 6, y: 0 },
+      rotation: 'up',
+      addressBitWidth: 4,
+      dataBitWidth: 8,
+      isRom: true,
+    })
 
-    expect(diagram.storedElements).toHaveLength(2)
-    // `elements` es la vista dibujable: solo compuertas, interruptores y cables.
-    expect(diagram.elements).toHaveLength(1)
-    expect(diagram.elements[0]!.kind).toBe('gate')
+    expect(diagram.storedElements).toHaveLength(3)
+    // `elements` es la vista dibujable: todo lo que tiene silueta, más los cables. La
+    // memoria sigue guardada y se simula, pero todavía no se pinta.
+    expect(diagram.elements.map((element) => element.kind)).toEqual(['gate', 'pin'])
+    expect(diagram.devices.map((device) => device.kind)).toEqual(['gate', 'pin'])
   })
 
   it('los elementos creados llevan el `circuitId` del diagrama, no siempre el principal', () => {

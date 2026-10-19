@@ -62,11 +62,20 @@
 import { Diagram, MAIN_CIRCUIT_ID } from '../core/model/diagram'
 import { DEFAULT_LAYER_ID } from '../core/model/types'
 import { CircuitProject } from '../core/model/circuit'
-import { deviceBounds, placedPins } from '../core/model/layout'
+import { circuitInstanceLayout, deviceBounds, placedPins } from '../core/model/layout'
 import { connectionCounts, pointKey } from '../core/simulate/nets'
 import { Simulation } from './simulation'
 import type { SimulationState } from '../core/simulate/engine'
-import type { Button, Gate, GridPoint, Id, PlacedElement, StoredElement, Wire } from '../core/model/types'
+import type {
+  Button,
+  Circuit,
+  DrawableDevice,
+  GridPoint,
+  Id,
+  PlacedElement,
+  StoredElement,
+  Wire,
+} from '../core/model/types'
 import { Camera, MAX_ZOOM } from '../render/camera'
 import { Canvas2DRenderer } from '../render/canvas2d'
 import { GRID_SIZE } from '../render/geometry'
@@ -97,7 +106,7 @@ import {
  * interruptores. El borrador se queda puesto hasta que se elija otra cosa, igual que las de
  * colocación, porque es un **modo** y no una acción suelta.
  */
-export type Tool = 'select' | 'erase' | 'wire' | PlaceTool
+export type Tool = 'select' | 'erase' | 'wire' | 'subcircuit' | PlaceTool
 
 /** A partir de cuántas unidades de rejilla un clic se convierte en un arrastre. */
 const DRAG_THRESHOLD = 0.45
@@ -284,7 +293,15 @@ export class Editor {
   /** Posiciones iniciales de los elementos seleccionados al empezar a arrastrar (M2-20). */
   private dragGroup: Map<Id, GridPoint> | null = null
   /** Portapapeles en memoria (M2-24). */
-  private clipboard: { readonly elements: readonly (Gate | Button)[]; readonly wires: readonly Wire[] } | null = null
+  private clipboard: { readonly elements: readonly DrawableDevice[]; readonly wires: readonly Wire[] } | null = null
+  /**
+   * Circuito que se colocará con la herramienta `subcircuit`.
+   *
+   * La paleta puede ofrecer varias instancias; esta es la que está elegida. Se guarda aquí,
+   * y no en la pieza, porque los subcircuitos no están en el catálogo estático: nacen y
+   * mueren con el proyecto.
+   */
+  private placeCircuit: Id | null = null
   private wire: WireState | null = null
   private wirePress: WirePress | null = null
   private buttonPress: ButtonPress | null = null
@@ -304,6 +321,14 @@ export class Editor {
   constructor(callbacks: EditorCallbacks = {}) {
     this.callbacks = callbacks
   }
+
+  /**
+   * Cómo medir un subcircuito.
+   *
+   * El modelo (`layout.ts`) no conoce el proyecto; el editor sí. Esta función es el puente:
+   * se pasa a todo lo que tenga que saber cuánto mide una instancia o dónde tiene sus pines.
+   */
+  private readonly resolveCircuit = (id: Id): Circuit | undefined => this.project.circuit(id)
 
   get currentTool(): Tool {
     return this.tool
@@ -358,7 +383,7 @@ export class Editor {
     const rect = this.canvas?.getBoundingClientRect()
     if (rect === undefined) return null
     const world = this.camera.toWorld(clientX - rect.left, clientY - rect.top)
-    return hitTest(this.diagram.visibleElements, world)
+    return hitTest(this.diagram.visibleElements, world, this.resolveCircuit)
   }
 
   /** El valor de un cable para la sonda (1/0), o `null` si no se puede saber. */
@@ -381,6 +406,7 @@ export class Editor {
   loadProject(project: CircuitProject): void {
     this.project = project
     this.circuitPathIds = [MAIN_CIRCUIT_ID]
+    this.placeCircuit = null
     this.selected.clear()
     this.savedRevision = this.diagram.revision
     this.followDiagram()
@@ -421,7 +447,7 @@ export class Editor {
       } else {
         // La caja real del símbolo (giro incluido), no un 2×2 a ojo: una compuerta de alto 4
         // o un símbolo girado se salían del encuadre.
-        const box = deviceBounds(el)
+        const box = deviceBounds(el, this.resolveCircuit)
         minX = Math.min(minX, box.x0)
         minY = Math.min(minY, box.y0)
         maxX = Math.max(maxX, box.x1)
@@ -569,6 +595,28 @@ export class Editor {
     return this.inputs
   }
 
+  /** El subcircuito que se colocará con la herramienta `subcircuit`, si hay uno elegido. */
+  get placeCircuitId(): Id | null {
+    return this.placeCircuit
+  }
+
+  /**
+   * Elige qué subcircuito se coloca y activa esa herramienta.
+   *
+   * Si el circuito no existe —por ejemplo, porque se borró mientras la paleta lo enseñaba—
+   * no se cambia nada: es mejor no hacer nada que poner una herramienta que no va a colocar.
+   */
+  setPlaceCircuit(id: Id): void {
+    if (this.project.circuit(id) === undefined) {
+      return
+    }
+    const changed = this.tool !== 'subcircuit'
+    this.placeCircuit = id
+    if (changed) {
+      this.setTool('subcircuit')
+    }
+  }
+
   /**
    * Enciende o apaga la corriente.
    *
@@ -656,16 +704,16 @@ export class Editor {
       const device = this.diagram.get(id)
       if (device === undefined || device.kind === 'wire') continue
       if (this.diagram.isLayerLocked(device.layerId)) continue
-      const oldPins = placedPins(device)
+      const oldPins = placedPins(device, this.resolveCircuit)
       const oldPoints = oldPins.map((p) => p.point)
       // ⚠️ Los cables hay que buscarlos **antes** de girar: en cuanto el símbolo gira, sus
       // pines se mueven y los cables siguen en los viejos, así que preguntar por los pines
       // nuevos no encontraría ninguno. (Ese era el fallo: girar dejaba los cables atrás.)
-      const attached = attachedWires(this.diagram.elements, device)
-      this.diagram.rotate(id, clockwise)
+      const attached = attachedWires(this.diagram.elements, device, this.resolveCircuit)
+      this.diagram.rotate(id, clockwise, this.resolveCircuit)
       const newDevice = this.diagram.get(id)
       if (newDevice === undefined || newDevice.kind === 'wire') continue
-      const newPins = placedPins(newDevice)
+      const newPins = placedPins(newDevice, this.resolveCircuit)
       // Mover los cables adjuntos: cada extremo que estaba en un pin viejo va al pin nuevo.
       const pinMap = new Map<string, GridPoint>()
       for (let i = 0; i < oldPoints.length && i < newPins.length; i++) {
@@ -714,11 +762,11 @@ export class Editor {
   copy(): void {
     const ids = new Set(this.selected)
     const elements = this.diagram.elements.filter(
-      (e): e is Gate | Button => e.kind !== 'wire' && ids.has(e.id),
+      (e): e is DrawableDevice => e.kind !== 'wire' && ids.has(e.id),
     )
     const selectedPinPoints = new Set<string>()
     for (const el of elements) {
-      for (const placed of placedPins(el)) {
+      for (const placed of placedPins(el, this.resolveCircuit)) {
         selectedPinPoints.add(pointKey(placed.point))
       }
     }
@@ -737,13 +785,41 @@ export class Editor {
     this.diagram.beginChange()
     const idMap = new Map<Id, Id>()
     for (const el of clip.elements) {
+      const position = { x: el.position.x + 1, y: el.position.y + 1 }
       let newId: Id
-      if (el.kind === 'gate') {
-        const g = this.diagram.addGate(el.gateType, { x: el.position.x + 1, y: el.position.y + 1 }, el.inputCount, el.invertedOutput, el.bitWidth)
-        newId = g.id
-      } else {
-        const b = this.diagram.addButton({ x: el.position.x + 1, y: el.position.y + 1 }, { isToggle: el.isToggle, inverted: el.inverted, bitWidth: el.bitWidth })
-        newId = b.id
+      switch (el.kind) {
+        case 'gate':
+          newId = this.diagram.addGate(el.gateType, position, el.inputCount, el.invertedOutput, el.bitWidth).id
+          break
+        case 'button':
+          newId = this.diagram.addButton(position, { isToggle: el.isToggle, inverted: el.inverted, bitWidth: el.bitWidth }).id
+          break
+        case 'pin':
+          newId = this.diagram.addPin(position, {
+            pinType: el.pinType,
+            side: el.side,
+            bitWidth: el.bitWidth,
+            inverted: el.inverted,
+            name: el.name,
+          }).id
+          break
+        case 'constant':
+          newId = this.diagram.addConstant(position, {
+            bitWidth: el.bitWidth,
+            value: el.value,
+            pinSide: el.pinSide,
+          }).id
+          break
+        case 'splitter':
+          newId = this.diagram.addSplitter(position, {
+            bitWidth: el.bitWidth,
+            pinCount: el.pinCount,
+            clockwise: el.clockwise,
+          }).id
+          break
+        case 'circuit':
+          newId = this.diagram.addCircuitInstance(position, el.targetCircuitId).id
+          break
       }
       idMap.set(el.id, newId)
     }
@@ -751,7 +827,9 @@ export class Editor {
       // Un extremo que colgaba de una pieza copiada se desplaza con ella; uno suelto se queda
       // donde estaba. (Antes el segundo extremo se desplazaba siempre, aunque estuviera suelto.)
       const onCopied = (point: GridPoint): boolean =>
-        clip.elements.some((e) => placedPins(e).some((pp) => pointKey(pp.point) === pointKey(point)))
+        clip.elements.some((e) =>
+          placedPins(e, this.resolveCircuit).some((pp) => pointKey(pp.point) === pointKey(point)),
+        )
       const newP1 = onCopied(w.p1) ? { x: w.p1.x + 1, y: w.p1.y + 1 } : w.p1
       const newP2 = onCopied(w.p2) ? { x: w.p2.x + 1, y: w.p2.y + 1 } : w.p2
       this.diagram.addWire(newP1, newP2, w.bitWidth)
@@ -830,7 +908,7 @@ export class Editor {
 
     const attached = element.kind === 'wire'
       ? []
-      : attachedWires(this.diagram.elements, element).filter(
+      : attachedWires(this.diagram.elements, element, this.resolveCircuit).filter(
           (wire) => !this.diagram.isLayerLocked(wire.layerId),
         )
 
@@ -964,6 +1042,7 @@ export class Editor {
     if (!this.circuitPathIds.includes(id)) {
       this.circuitPathIds = [...this.circuitPathIds, id]
     }
+    this.placeCircuit = null
     this.selected.clear()
     this.forgetSelectionIfGone()
     this.callbacks.onCircuitChange?.(this.circuitPathIds)
@@ -979,6 +1058,7 @@ export class Editor {
     const parent = this.circuitPathIds[this.circuitPathIds.length - 2] as Id
     this.circuitPathIds = this.circuitPathIds.slice(0, -1)
     this.project.openCircuit(parent)
+    this.placeCircuit = null
     this.selected.clear()
     this.forgetSelectionIfGone()
     this.callbacks.onCircuitChange?.(this.circuitPathIds)
@@ -1018,7 +1098,7 @@ export class Editor {
 
     const world = this.worldAt(event)
     const grid = this.gridAt(event)
-    const hit = hitTest(this.diagram.visibleElements, world)
+    const hit = hitTest(this.diagram.visibleElements, world, this.resolveCircuit)
 
     // Modo ejecución: la corriente está puesta, así que el circuito se está probando y no
     // se edita. Es lo que hace el original (`Editor.InEditMode => !Power`: cada manejador del
@@ -1079,7 +1159,7 @@ export class Editor {
     // y entonces se interactúa con él. Si no, la herramienta se queda pegada y pulsar un
     // interruptor recién puesto no haría nada, que es justo lo que pasaba.
     if (this.tool !== 'select' && this.tool !== 'wire' && (hit === null || (hit.kind !== 'device' && hit.kind !== 'pin'))) {
-      this.place(this.tool as PlaceTool, grid)
+      this.place(this.tool, grid)
       return
     }
 
@@ -1186,7 +1266,7 @@ export class Editor {
       // Al pasar por encima de un pin, el cursor deja de ser la mano: ahí se cablea,
       // no se mueve. Así se distingue el gesto antes de apretar.
       const world = this.worldAt(event)
-      const hit = hitTest(this.diagram.visibleElements, world)
+      const hit = hitTest(this.diagram.visibleElements, world, this.resolveCircuit)
       // Resalte de hover (M6-06): solo se repinta cuando cambia, no en cada movimiento.
       const hovered = hit === null ? null : hit.element.id
       if (this.hovered !== hovered) {
@@ -1256,8 +1336,12 @@ export class Editor {
           const initial = this.dragGroup.get(id)
           if (initial === undefined) continue
           this.diagram.move(id, { x: initial.x + dx, y: initial.y + dy })
-          const attached = event.shiftKey ? [] : attachedWires(this.diagram.elements, el)
-          const pins = new Set(placedPins(el).map((placed) => pointKey(placed.point)))
+          const attached = event.shiftKey
+            ? []
+            : attachedWires(this.diagram.elements, el, this.resolveCircuit)
+          const pins = new Set(
+            placedPins(el, this.resolveCircuit).map((placed) => pointKey(placed.point)),
+          )
           for (const wire of attached) {
             if (pins.has(pointKey(wire.p1))) {
               this.diagram.moveWireEnd(wire.id, 1, { x: wire.p1.x + dx, y: wire.p1.y + dy })
@@ -1268,8 +1352,12 @@ export class Editor {
           }
         }
       } else if (dx !== 0 || dy !== 0) {
-        const attached = event.shiftKey ? [] : attachedWires(this.diagram.elements, device)
-        const pins = new Set(placedPins(device).map((placed) => pointKey(placed.point)))
+        const attached = event.shiftKey
+          ? []
+          : attachedWires(this.diagram.elements, device, this.resolveCircuit)
+        const pins = new Set(
+          placedPins(device, this.resolveCircuit).map((placed) => pointKey(placed.point)),
+        )
         this.diagram.move(drag.id, newPos)
         for (const wire of attached) {
           if (pins.has(pointKey(wire.p1))) {
@@ -1451,12 +1539,31 @@ export class Editor {
    * El hueco se mide con el modelo (`pieceLayout`), no a ojo: si el dibujo y el hueco libre se
    * calcularan por separado, cualquier día no coincidirían y se apilarían símbolos.
    */
-  private place(tool: PlaceTool, grid: GridPoint): void {
+  private place(tool: Tool, grid: GridPoint): void {
     if (this.diagram.isLayerLocked(this.diagram.activeLayerId)) {
       return
     }
-    const piece = findPiece(tool)
-    const size = pieceLayout(piece, this.placeInputs)
+
+    let size: { readonly width: number; readonly height: number }
+    let piece: ReturnType<typeof findPiece> | null = null
+    let target: Circuit | null = null
+
+    if (tool === 'subcircuit') {
+      target =
+        this.placeCircuit === null ? null : this.project.circuit(this.placeCircuit) ?? null
+      if (target === null) {
+        // La paleta podía tener una instancia elegida que ya no existe. No se coloca nada.
+        return
+      }
+      size = circuitInstanceLayout(target)
+    } else {
+      if (tool === 'select' || tool === 'erase' || tool === 'wire') {
+        return
+      }
+      piece = findPiece(tool)
+      size = pieceLayout(piece, this.placeInputs)
+    }
+
     const position: GridPoint = {
       x: grid.x - Math.floor(size.width / 2),
       y: grid.y - Math.floor(size.height / 2),
@@ -1467,14 +1574,24 @@ export class Editor {
       return
     }
 
-    placePiece(this.diagram, piece, position, this.placeInputs)
+    if (target !== null) {
+      this.diagram.addCircuitInstance(position, target.id)
+    } else if (piece !== null) {
+      placePiece(this.diagram, piece, position, this.placeInputs)
+    }
   }
 
   /** ¿Hay ya algún símbolo en alguna de las celdas que ocuparía el nuevo? */
   private isOccupied(position: GridPoint, size: { width: number; height: number }): boolean {
     for (let y = 0; y < size.height; y += 1) {
       for (let x = 0; x < size.width; x += 1) {
-        if (this.diagram.deviceAt({ x: position.x + x, y: position.y + y }) !== undefined) {
+        if (
+          this.diagram.deviceAt(
+            { x: position.x + x, y: position.y + y },
+            undefined,
+            this.resolveCircuit,
+          ) !== undefined
+        ) {
           return true
         }
       }
@@ -1642,7 +1759,7 @@ export class Editor {
    * él: hay que caer en uno de sus extremos.
    */
   private endAtWorld(point: GridPoint): GridPoint {
-    const hit = hitTest(this.diagram.visibleElements, point)
+    const hit = hitTest(this.diagram.visibleElements, point, this.resolveCircuit)
     if (hit !== null && hit.kind === 'pin') {
       return hit.point
     }
@@ -1684,9 +1801,9 @@ export class Editor {
   }
 
   private evaluate(): void {
-    // La simulación ve **todos** los elementos, no solo los dibujables: un pin de hoja o un
-    // subcircuito importados cuentan aunque el lienzo todavía no sepa pintarlos. Y no se
-    // filtra por capas: ocultar una capa es cosa de la vista, no del circuito.
+    // La simulación ve **todos** los elementos, no solo los dibujables: una memoria o un
+    // sensor importados cuentan aunque el lienzo todavía no sepa pintarlos. Y no se filtra
+    // por capas: ocultar una capa es cosa de la vista, no del circuito.
     this.sim = this.simulation.evaluate(this.diagram.storedElements)
   }
 
@@ -1716,10 +1833,10 @@ export class Editor {
     // Los pines conectados se ven siempre (incluso con la corriente puesta), porque son
     // información del cableado. Los libres solo tienen sentido editando: con corriente
     // sobran, y en edición se ocultan si no hay zoom suficiente para no ser ruido.
-    const counts = connectionCounts(this.diagram.visibleElements)
+    const counts = connectionCounts(this.diagram.visibleElements, this.resolveCircuit)
 
     for (const device of this.diagram.devices) {
-      for (const placed of placedPins(device)) {
+      for (const placed of placedPins(device, this.resolveCircuit)) {
         // Un pin negado **ya se ve**: es la bolita que dibuja la silueta (una NAND es una
         // AND con la salida negada). Pintarle encima el puntito dejaría una mota dentro.
         if (placed.pin.inverted) {
@@ -1775,6 +1892,7 @@ export class Editor {
         theme: this.theme,
         showGrid: this.showGrid,
         paintWiresOnPower: paintMode,
+        resolveCircuit: this.resolveCircuit,
         pinDots,
         sketch,
       }),
@@ -1857,8 +1975,12 @@ const SHORTCUT_TOOLS: Readonly<Record<string, Tool | undefined>> = {
  * encima de uno de sus pines. Los pines no se guardan en el dispositivo —`layout.ts` los deduce
  * del tipo y del tamaño— así que la cuenta se hace preguntando por sitios, no por nombres.
  */
-function attachedWires(elements: readonly StoredElement[], device: PlacedElement): Wire[] {
-  const pins = new Set(placedPins(device).map((placed) => pointKey(placed.point)))
+function attachedWires(
+  elements: readonly StoredElement[],
+  device: PlacedElement,
+  resolveCircuit?: (id: Id) => Circuit | undefined,
+): Wire[] {
+  const pins = new Set(placedPins(device, resolveCircuit).map((placed) => pointKey(placed.point)))
   const found: Wire[] = []
 
   for (const element of elements) {

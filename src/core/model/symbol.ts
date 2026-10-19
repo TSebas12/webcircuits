@@ -33,6 +33,7 @@ import {
   buttonLayout,
   circuitInstanceLayout,
   circuitSymbolLayout,
+  constantLayout,
   deviceLayout,
   gateLayout,
   pinLayout,
@@ -333,6 +334,12 @@ function describe(
     case 'splitter':
       return { depicted: { kind: 'splitter', element }, layout: splitterLayout(element) }
 
+    case 'constant':
+      // La constante ya sabe simularse (`defineConstant` en `circuit-map.ts`); lo que
+      // faltaba era su símbolo. Tiene una sola punta de salida, del ancho del valor, y
+      // `collect` crea un resultado por bit.
+      return { depicted: { kind: 'device', element }, layout: constantLayout(element) }
+
     case 'circuit': {
       const circuit = index.circuit(element.targetCircuitId)
       if (circuit === undefined) {
@@ -346,17 +353,16 @@ function describe(
       }
     }
 
-    case 'constant':
     case 'memory':
     case 'ledMatrix':
     case 'sensor':
     case 'sound':
     case 'graphicsArray':
-      // Estas sí son primitivas, pero su forma todavía no está portada: la constante y la
-      // memoria llegan con M2-05, y el resto con M2-12. Se avisa en vez de inventarse un
-      // tamaño, porque un tamaño inventado movería los pines y el circuito simularía mal.
+      // Estas sí son primitivas, pero su forma todavía no está portada: llegan con M2-12.
+      // Se avisa en vez de inventarse un tamaño, porque un tamaño inventado movería los
+      // pines y el circuito simularía mal.
       throw new Error(
-        `CircuitSymbol: la forma de «${element.kind}» todavía no está portada (M2-05/M2-12)`,
+        `CircuitSymbol: la forma de «${element.kind}» todavía no está portada (M2-12)`,
       )
   }
 }
@@ -491,8 +497,25 @@ function buildJams(
     }
 
     case 'device':
-      throw new Error(
-        `CircuitSymbol: las puntas de «${element.kind}» todavía no están portadas (M2-05/M2-12)`,
+      // Solo la constante llega aquí: las demás primitivas avisan en `describe` antes de
+      // construir puntas. Su símbolo tiene una única salida del ancho del valor; los bits
+      // se reparten luego en `collect`.
+      return symbol.layout.pins.map(
+        (pin, position) =>
+          new Jam(
+            symbol,
+            position,
+            pin,
+            {
+              sheet: false,
+              type: pin.type,
+              bitWidth: pin.bitWidth,
+              inverted: pin.inverted,
+              name: '',
+            },
+            null,
+            null,
+          ),
       )
   }
 }

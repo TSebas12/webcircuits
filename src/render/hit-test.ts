@@ -12,8 +12,8 @@
  * Se devuelve el primer acierto, no todos: el editor solo necesita uno.
  */
 
-import { deviceBounds, placedPins } from '../core/model/layout'
-import type { Button, Element, Gate, GridPoint, Wire } from '../core/model/types'
+import { deviceBounds, placedPins, type CircuitResolver } from '../core/model/layout'
+import type { DrawableDevice, Element, GridPoint, Wire } from '../core/model/types'
 import type { WorldPoint } from './camera'
 
 /**
@@ -31,13 +31,13 @@ const WIRE_HIT_RADIUS = 0.3
 /** Se acertó un dispositivo (y no uno de sus pines). */
 export interface DeviceHit {
   readonly kind: 'device'
-  readonly element: Gate | Button
+  readonly element: DrawableDevice
 }
 
 /** Se acertó un pin concreto. */
 export interface PinHit {
   readonly kind: 'pin'
-  readonly element: Gate | Button
+  readonly element: DrawableDevice
   /** Posición del pin en la rejilla. */
   readonly point: GridPoint
 }
@@ -52,13 +52,17 @@ export interface WireHit {
 
 export type Hit = DeviceHit | PinHit | WireHit
 
-export function hitTest(elements: readonly Element[], world: WorldPoint): Hit | null {
-  const pin = findPin(elements, world)
+export function hitTest(
+  elements: readonly Element[],
+  world: WorldPoint,
+  resolveCircuit?: CircuitResolver,
+): Hit | null {
+  const pin = findPin(elements, world, resolveCircuit)
   if (pin !== null) {
     return pin
   }
 
-  const device = findDevice(elements, world)
+  const device = findDevice(elements, world, resolveCircuit)
   if (device !== null) {
     return device
   }
@@ -66,7 +70,11 @@ export function hitTest(elements: readonly Element[], world: WorldPoint): Hit | 
   return findWire(elements, world)
 }
 
-function findPin(elements: readonly Element[], world: WorldPoint): PinHit | null {
+function findPin(
+  elements: readonly Element[],
+  world: WorldPoint,
+  resolveCircuit?: CircuitResolver,
+): PinHit | null {
   let best: PinHit | null = null
   let bestDistance = PIN_HIT_RADIUS
 
@@ -74,7 +82,7 @@ function findPin(elements: readonly Element[], world: WorldPoint): PinHit | null
     if (element.kind === 'wire') {
       continue
     }
-    for (const placed of placedPins(element)) {
+    for (const placed of placedPins(element, resolveCircuit)) {
       const distance = Math.hypot(placed.point.x - world.x, placed.point.y - world.y)
       if (distance <= bestDistance) {
         bestDistance = distance
@@ -86,14 +94,18 @@ function findPin(elements: readonly Element[], world: WorldPoint): PinHit | null
   return best
 }
 
-function findDevice(elements: readonly Element[], world: WorldPoint): DeviceHit | null {
+function findDevice(
+  elements: readonly Element[],
+  world: WorldPoint,
+  resolveCircuit?: CircuitResolver,
+): DeviceHit | null {
   // Al revés: lo último colocado está encima, y debe ganar.
   for (let index = elements.length - 1; index >= 0; index -= 1) {
     const element = elements[index]
     if (element === undefined || element.kind === 'wire') {
       continue
     }
-    const box = deviceBounds(element)
+    const box = deviceBounds(element, resolveCircuit)
     if (world.x >= box.x0 && world.x <= box.x1 && world.y >= box.y0 && world.y <= box.y1) {
       return { kind: 'device', element }
     }

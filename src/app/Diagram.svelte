@@ -73,6 +73,19 @@ import Icon from './Icon.svelte'
   let error = $state<string | null>(null)
   /** Ruta de circuitos (jerarquía). El primero es siempre el principal. */
   let circuitPath = $state<readonly string[]>(['main'])
+  /** La misma ruta, con nombres, para el breadcrumb. */
+  let breadcrumb = $state<readonly { readonly id: string; readonly name: string }[]>([
+    { id: 'main', name: 'Main' },
+  ])
+  /** Todos los circuitos del proyecto, para ofrecerlos en la paleta. */
+  let circuits = $state<readonly { readonly id: string; readonly name: string }[]>([])
+  /** El circuito que se está editando: no se ofrece a sí mismo como subcircuito. */
+  let currentCircuitId = $state('main')
+  /** Subcircuito elegido para colocar. */
+  let placeCircuitId = $state<string | null>(null)
+
+  /** Los subcircuitos que se pueden colocar ahora mismo. */
+  let otherCircuits = $derived(circuits.filter((circuit) => circuit.id !== currentCircuitId))
   /** Cuántas entradas tendrá la próxima compuerta que se coloque desde la paleta. */
   let placeInputs = $state(2)
 
@@ -85,6 +98,24 @@ import Icon from './Icon.svelte'
    * propósito: no hay nada que redibujar cuando cambia, solo hay que poder llamarlo.
    */
   let editor = $state<Editor | null>(null)
+
+  /**
+   * Vuelca la jerarquía del editor a la interfaz.
+   *
+   * La paleta necesita saber qué circuitos existen y cuál es el actual; el breadcrumb,
+   * cómo se llaman. Se hace en un solo sitio para que no se queden desincronizados al
+   * crear, entrar o salir de un subcircuito.
+   */
+  const syncHierarchy = (instance: Editor): void => {
+    circuitPath = instance.circuitPath
+    breadcrumb = instance.circuitBreadcrumb
+    currentCircuitId = instance.currentCircuitId
+    circuits = instance.project.circuitsList.map((circuit) => ({
+      id: circuit.id,
+      name: circuit.name,
+    }))
+    unsupported = instance.diagram.storedElements.length - instance.diagram.elements.length
+  }
 
   onMount(() => {
     const canvas = canvasEl
@@ -149,9 +180,11 @@ import Icon from './Icon.svelte'
       onError: (message) => {
         error = message
       },
-      onCircuitChange: (path) => {
-        circuitPath = path
-        unsupported = instance.diagram.storedElements.length - instance.diagram.elements.length
+      onCircuitChange: () => {
+        placeCircuitId = null
+        isEmpty = instance.elementCount === 0
+        dirty = instance.dirty
+        syncHierarchy(instance)
         syncLayers()
       },
     })
@@ -189,8 +222,8 @@ import Icon from './Icon.svelte'
     canRedo = instance.canRedo
     placeInputs = instance.placeInputs
     isEmpty = instance.elementCount === 0
-    circuitPath = instance.circuitPath
     dirty = instance.dirty
+    syncHierarchy(instance)
     syncLayers()
 
     // Preferencias del usuario (M4-10): rejilla, imán y autoguardado. Sin esto, el panel de
@@ -423,6 +456,28 @@ import Icon from './Icon.svelte'
     editor?.setTool(id)
   }
 
+  /** Elige un subcircuito de la paleta para colocarlo. */
+  const chooseSubcircuit = (id: string): void => {
+    placeCircuitId = id
+    editor?.setPlaceCircuit(id)
+  }
+
+  /**
+   * Abre el subcircuito que hay bajo el doble clic.
+   *
+   * Es el gesto natural para «entrar» en una pieza jerárquica y evita tener que buscar el
+   * botón del breadcrumb: la instancia es la puerta.
+   */
+  const openSubcircuitAt = (event: MouseEvent): void => {
+    if (editor === null || powered) return
+    const hit = editor.hitAt(event.clientX, event.clientY)
+    if (hit?.kind === 'device' && hit.element.kind === 'circuit') {
+      if (editor.enterSubcircuit(hit.element.targetCircuitId)) {
+        editor.fitToContent()
+      }
+    }
+  }
+
   /**
    * El número de entradas de la próxima compuerta.
    *
@@ -502,11 +557,17 @@ import Icon from './Icon.svelte'
   const newSubcircuit = (): void => {
     if (editor === null) return
     const id = editor.createSubcircuit()
-    editor.enterSubcircuit(id)
+    if (editor.enterSubcircuit(id)) {
+      // Un subcircuito nace vacío: se deja la vista en el origen para que el primer pin
+      // aparezca donde se está mirando y no en mitad de la nada.
+      editor.resetView()
+    }
   }
 
   const goUp = (): void => {
-    editor?.exitSubcircuit()
+    if (editor?.exitSubcircuit() === true) {
+      editor.fitToContent()
+    }
   }
 
   const saveVersionNow = (): void => {
@@ -552,12 +613,24 @@ import Icon from './Icon.svelte'
     class:wiring
     aria-label="Lienzo del circuito"
     onpointerleave={() => (hoverInfo = null)}
+    ondblclick={openSubcircuitAt}
     oncontextmenu={(e) => {
       e.preventDefault()
       if (editor === null) return
       const hit = editor.hitAt(e.clientX, e.clientY)
       const items: MenuItem[] = []
       if (hit?.kind === 'device') {
+        if (hit.element.kind === 'circuit') {
+          const target = hit.element.targetCircuitId
+          items.push({
+            label: 'Abrir subcircuito',
+            action: () => {
+              if (editor?.enterSubcircuit(target) === true) {
+                editor.fitToContent()
+              }
+            },
+          })
+        }
         items.push({ label: 'Rotar 90°', shortcut: 'R', action: () => { editor?.select(hit.element.id); editor?.rotateSelection(true) } })
         items.push({ label: 'Duplicar', shortcut: 'Ctrl+D', action: () => { editor?.select(hit.element.id); editor?.duplicate() } })
         items.push({ label: 'Borrar', shortcut: 'Del', danger: true, action: () => { editor?.select(hit.element.id); editor?.removeSelected() } })
@@ -761,12 +834,44 @@ import Icon from './Icon.svelte'
         </div>
       </div>
     {/each}
+
+    <!-- Los subcircuitos no están en el catálogo estático: existen en el proyecto y cambian
+         mientras se edita. Por eso su grupo se pinta aparte y se alimenta de `circuits`. -->
+    <div class="palette-group">
+      <span class="group-title">Subcircuitos</span>
+      {#if otherCircuits.length === 0}
+        <p class="palette-hint">
+          Crea uno con «+ Subcircuito», añade pines dentro y vuelve aquí para colocarlo como
+          una pieza.
+        </p>
+      {:else}
+        <div class="pieces">
+          {#each otherCircuits as circuit (circuit.id)}
+            <button
+              type="button"
+              class="piece sub-piece"
+              class:active={tool === 'subcircuit' && placeCircuitId === circuit.id}
+              title={powered
+                ? 'Con la corriente puesta no se edita: apágala para colocar'
+                : `Colocar «${circuit.name}» como una pieza`}
+              aria-pressed={tool === 'subcircuit' && placeCircuitId === circuit.id}
+              disabled={powered}
+              onclick={() => chooseSubcircuit(circuit.id)}
+            >
+              <span class="sub-preview" aria-hidden="true">SUB</span>
+              <span class="sub-name">{circuit.name}</span>
+            </button>
+          {/each}
+        </div>
+        <p class="palette-hint">Doble clic en una instancia del lienzo para editarla.</p>
+      {/if}
+    </div>
   </aside>
 
   <div class="breadcrumb" aria-label="Ruta de circuitos">
-    {#each circuitPath as id, i (id)}
-      <span class="crumb">{id === 'main' ? 'Principal' : id}</span>
-      {#if i < circuitPath.length - 1}<span class="sep">›</span>{/if}
+    {#each breadcrumb as crumb, i (crumb.id)}
+      <span class="crumb" title={crumb.name}>{crumb.id === 'main' ? 'Principal' : crumb.name}</span>
+      {#if i < breadcrumb.length - 1}<span class="sep">›</span>{/if}
     {/each}
     <button type="button" class="crumb-btn" onclick={newSubcircuit} disabled={powered} title="Crear y entrar en un subcircuito">+ Subcircuito</button>
     {#if circuitPath.length > 1}
@@ -777,8 +882,15 @@ import Icon from './Icon.svelte'
 
   {#if isEmpty && !powered}
     <div class="empty-state" aria-live="polite">
-      <p class="empty-title">Lienzo vacío</p>
-      <p class="hint">Elige una pieza de la paleta y haz clic; después cablea arrastrando desde un pin o con dos clics.</p>
+      <p class="empty-title">{currentCircuitId === 'main' ? 'Lienzo vacío' : 'Subcircuito vacío'}</p>
+      {#if currentCircuitId === 'main'}
+        <p class="hint">Elige una pieza de la paleta y haz clic; después cablea arrastrando desde un pin o con dos clics.</p>
+      {:else}
+        <p class="hint">
+          Añade pines de entrada y salida en «Pines de la hoja» para definir la interfaz.
+          Después sube con «↑ Subir» y colócalo como una pieza desde «Subcircuitos».
+        </p>
+      {/if}
       <div class="empty-actions">
         <button type="button" onclick={openFile}>Abrir…</button>
         <button type="button" onclick={loadExample}>Ejemplo</button>
@@ -830,7 +942,7 @@ import Icon from './Icon.svelte'
     {/if}
     {#if unsupported > 0}
       <div class="info-badge" role="status">
-        {unsupported} {unsupported === 1 ? 'pieza' : 'piezas'} del circuito aún no se {unsupported === 1 ? 'dibuja' : 'dibujan'} (pines, repartidores, constantes o subcircuitos). Se conservan al guardar.
+        {unsupported} {unsupported === 1 ? 'pieza' : 'piezas'} del circuito aún no se {unsupported === 1 ? 'dibuja' : 'dibujan'} (memorias, sensores, matrices o notas). Se conservan y se simulan al guardar.
         <button type="button" aria-label="Ocultar aviso" onclick={() => (unsupported = 0)}>×</button>
       </div>
     {/if}
@@ -1141,6 +1253,45 @@ import Icon from './Icon.svelte'
 
   .piece:disabled {
     cursor: default;
+  }
+
+  /* Un subcircuito ocupa toda la fila: su nombre es más largo que el de una compuerta y
+     partirlo en dos columnas lo dejaría ilegible. */
+  .sub-piece {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    text-align: left;
+  }
+
+  .sub-preview {
+    flex: 0 0 auto;
+    padding: 0.05rem 0.25rem;
+    border: 1px solid var(--wc-symbol-stroke);
+    border-radius: 0.2rem;
+    background: var(--wc-symbol-fill);
+    color: var(--wc-gate-text);
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .sub-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .palette-hint {
+    margin: 0.1rem 0.15rem 0;
+    color: var(--fg-muted);
+    font-size: 0.68rem;
+    line-height: 1.35;
+  }
+
+  .palette.disabled .palette-hint {
+    opacity: 0.45;
   }
 
   /* ── Avisos ─────────────────────────────────────────────────────────── */

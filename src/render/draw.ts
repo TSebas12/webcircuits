@@ -181,7 +181,87 @@ export function drawDevice(
     ctx.stroke(drawing.bubble)
   }
 
+  // Etiqueta del símbolo: el nombre de un pin o de un subcircuito, o el valor de una
+  // constante. Va dentro de la transformación para que gire con el símbolo, como el texto
+  // del original. El tamaño se limita al lado menor para que no se salga de la caja.
+  if (device.label !== undefined && device.label !== '') {
+    drawSymbolLabel(ctx, device, theme)
+  }
+
   ctx.restore()
+}
+
+/** Pinta la etiqueta centrada de un símbolo. */
+function drawSymbolLabel(
+  ctx: CanvasRenderingContext2D,
+  device: DrawDevice,
+  theme: RenderTheme,
+): void {
+  // Un subcircuito lleva los pines justo en el borde, así que su etiqueta necesita más aire
+  // que la de un pin o una constante; si no, el texto se monta encima de los puntos.
+  const circuit = device.shape === 'circuit'
+  const size = circuit
+    ? Math.min(0.62, Math.min(device.width, device.height) * 0.3)
+    : Math.min(0.7, Math.min(device.width, device.height) * 0.32)
+  const maxWidth = Math.max(0.2, device.width - (circuit ? 1 : 0.45))
+  const text = device.label ?? ''
+  ctx.fillStyle = theme.gateText
+  ctx.font = `600 ${size}px system-ui, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+
+  // Los nombres de pines y subcircuitos pueden llevar espacios («Sumador de 4 bits»). En una
+  // caja de 3 unidades, una sola línea quedaría comprimida hasta ser ilegible, así que se
+  // parte en como mucho dos líneas. Los valores de constante van siempre en una.
+  const lines = wrapsLabel(device) ? wrapText(ctx, text, maxWidth, size) : [text]
+  const lineHeight = size * 1.15
+  const startY = device.height / 2 - ((lines.length - 1) * lineHeight) / 2
+  lines.forEach((line, index) => {
+    ctx.fillText(line, device.width / 2, startY + index * lineHeight, maxWidth)
+  })
+}
+
+/** ¿Merece la pena partir esta etiqueta en varias líneas? */
+function wrapsLabel(device: DrawDevice): boolean {
+  return device.shape === 'circuit' || device.shape === 'pinInput' || device.shape === 'pinOutput'
+}
+
+/** Parte un texto en dos líneas como mucho, midiendo con la fuente ya puesta. */
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  size: number,
+): string[] {
+  const words = text.split(/\s+/).filter((word) => word !== '')
+  if (words.length <= 1) {
+    return [text]
+  }
+
+  const measure = (value: string): number =>
+    typeof ctx.measureText === 'function' ? ctx.measureText(value).width : value.length * size * 0.55
+
+  const lines: string[] = []
+  let line = ''
+  for (const word of words) {
+    const candidate = line === '' ? word : `${line} ${word}`
+    if (line !== '' && measure(candidate) > maxWidth) {
+      lines.push(line)
+      line = word
+    } else {
+      line = candidate
+    }
+  }
+  if (line !== '') {
+    lines.push(line)
+  }
+
+  // Más de dos líneas no caben en un símbolo de este tamaño: lo que sobre se junta en la
+  // segunda y `fillText` lo comprime. Es preferible a que el texto se salga de la caja.
+  if (lines.length > 2) {
+    return [lines[0]!, lines.slice(1).join(' ')]
+  }
+  return lines
 }
 
 /**

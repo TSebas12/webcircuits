@@ -20,8 +20,8 @@
  * cable lo dice el motor (`core/simulate/`), y cómo se pinta, el renderizador.
  */
 
-import { deviceBounds, deviceLayout, pinPosition } from './layout'
-import type { Button, CircuitInstance, Constant, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Pin, PinSide, PinType, Rotation, Splitter, StoredElement, Wire } from './types'
+import { deviceBounds, deviceLayout, pinPosition, type CircuitResolver } from './layout'
+import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Pin, PinSide, PinType, PlacedElement, Rotation, Splitter, StoredElement, Wire } from './types'
 import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
@@ -98,7 +98,7 @@ export class Diagram {
   }
 
   /**
-   * Los elementos que el editor sabe dibujar (compuertas, interruptores y cables),
+   * Los elementos que el editor sabe dibujar (todos los símbolos con silueta y los cables),
    * ordenados por capa (z-order) y, dentro de una capa, por orden de creación.
    *
    * El orden por capa es lo que pinta «una capa encima de otra»: la primera del array se
@@ -127,7 +127,7 @@ export class Diagram {
     this.layers.forEach((layer, index) => layerOrder.set(layer.id, index))
     const result: Element[] = []
     for (const item of items) {
-      if (item.kind === 'gate' || item.kind === 'button' || item.kind === 'wire') {
+      if (isDrawableElement(item)) {
         result.push(item)
       }
     }
@@ -769,7 +769,14 @@ export class Diagram {
     })
   }
 
-  rotate(id: Id, clockwise = true): void {
+  /**
+   * Gira un símbolo 90°.
+   *
+   * `resolveCircuit` hace falta para los subcircuitos: su caja no es fija, la decide el
+   * circuito que representan. Sin él, se girarían como una caja 2×2 y el recolocado dejaría
+   * el símbolo desplazado.
+   */
+  rotate(id: Id, clockwise = true, resolveCircuit?: CircuitResolver): void {
     const element = this.items.get(id)
     if (element === undefined || element.kind === 'wire') {
       return
@@ -781,10 +788,7 @@ export class Diagram {
         ? (idx + 1) % rotations.length
         : (idx + rotations.length - 1) % rotations.length
       const newRotation = rotations[nextIdx] as Rotation
-      // El recolocado solo tiene sentido para símbolos que ya se dibujan; el resto de
-      // dispositivos aún no se editan, así que se gira sin más (su caja es 2×2).
-      const layout =
-        element.kind === 'gate' || element.kind === 'button' ? deviceLayout(element) : { width: 2, height: 2, pins: [] }
+      const layout = deviceLayout(element, resolveCircuit)
       const w = layout.width
       const h = layout.height
       const dx = Math.round((w - h) / 2)
@@ -835,14 +839,17 @@ export class Diagram {
   }
 
   /**
-   * Los dispositivos que el editor dibuja y edita hoy (compuertas e interruptores) en capas
-   * visibles. Los pines, repartidores y subcircuitos no entran todavía: no tienen símbolo.
+   * Los símbolos con silueta de las capas visibles.
+   *
+   * Se usa para pintar sus pines y para saber qué hay debajo del cursor. Los dispositivos sin
+   * símbolo (memorias, sensores…) no entran: existen en el documento, pero no se ven ni se
+   * tocan.
    */
-  get devices(): (Gate | Button)[] {
+  get devices(): DrawableDevice[] {
     const visible = new Set(this.layers.filter((l) => l.visible).map((l) => l.id))
-    const result: (Gate | Button)[] = []
+    const result: DrawableDevice[] = []
     for (const item of this.items.values()) {
-      if ((item.kind === 'gate' || item.kind === 'button') && visible.has(item.layerId)) {
+      if (isDrawableDevice(item) && visible.has(item.layerId)) {
         result.push(item)
       }
     }
@@ -853,18 +860,45 @@ export class Diagram {
    * Qué dispositivo hay en un punto de la rejilla, si hay alguno.
    *
    * Se usa para no dejar que dos símbolos se solapen: en el original tampoco se puede.
+   * `resolveCircuit` es necesario para medir un subcircuito, que puede ser más grande que
+   * la caja 2×2 de reserva.
    */
-  deviceAt(point: GridPoint, ignoreId?: Id): Gate | Button | undefined {
+  deviceAt(point: GridPoint, ignoreId?: Id, resolveCircuit?: CircuitResolver): DrawableDevice | undefined {
     for (const device of this.devices) {
       if (device.id === ignoreId) {
         continue
       }
-      const box = deviceBounds(device)
+      const box = deviceBounds(device, resolveCircuit)
       if (point.x >= box.x0 && point.x < box.x1 && point.y >= box.y0 && point.y < box.y1) {
         return device
       }
     }
     return undefined
+  }
+}
+
+/**
+ * ¿Este elemento guardado tiene silueta propia?
+ *
+ * Los cables también cuentan: son parte de lo que se dibuja. Lo que no entra son memorias,
+ * sensores, matrices, sonido ni notas, que se conservan y simulan pero aún no se pintan.
+ */
+function isDrawableElement(item: StoredElement): item is Element {
+  return item.kind === 'wire' || isDrawableDevice(item)
+}
+
+/** ¿Este elemento es un símbolo que sabemos dibujar? */
+function isDrawableDevice(item: StoredElement): item is DrawableDevice {
+  switch (item.kind) {
+    case 'gate':
+    case 'button':
+    case 'pin':
+    case 'constant':
+    case 'splitter':
+    case 'circuit':
+      return true
+    default:
+      return false
   }
 }
 
@@ -899,8 +933,12 @@ export function wireBounds(wire: Wire): GridRect {
 }
 
 /** ¿Qué pines de este dispositivo caen sobre el punto indicado? */
-export function pinsAt(device: Gate | Button, point: GridPoint): number[] {
-  const layout = deviceLayout(device)
+export function pinsAt(
+  device: PlacedElement,
+  point: GridPoint,
+  resolveCircuit?: CircuitResolver,
+): number[] {
+  const layout = deviceLayout(device, resolveCircuit)
   const found: number[] = []
   for (let index = 0; index < layout.pins.length; index += 1) {
     const pin = layout.pins[index]

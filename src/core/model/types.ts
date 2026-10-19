@@ -183,11 +183,8 @@ export interface CircuitInstance extends Device {
  *
  * Los cables van aparte porque se colocan distinto: no tienen posición, tienen dos puntas.
  *
- * ⚠️ De todo esto, el editor solo sabe colocar hoy compuertas e interruptores. Los pines de
- * hoja y los subcircuitos están modelados porque el mapa de simulación ya los entiende
- * (M2-07) y no había razón para rehacerlo luego; los demás dispositivos (constantes,
- * memorias, sensores, repartidores…) están modelados **y nada más**: su forma y su
- * comportamiento llegan con M2-05 y M2-12, y hasta entonces no saben dibujarse.
+ * No todo lo que cabe aquí sabe dibujarse todavía: memorias, sensores, matrices, sonido y
+ * notas siguen esperando su símbolo. El editor los conserva y los simula, pero no los pinta.
  */
 export type PlacedElement =
   | Gate
@@ -201,6 +198,15 @@ export type PlacedElement =
   | Sound
   | GraphicsArray
   | Splitter
+
+/**
+ * Los símbolos que el editor sabe **dibujar y colocar** hoy.
+ *
+ * Es a propósito más estrecho que `PlacedElement`: una memoria importada debe conservarse y
+ * simularse, pero no ofrecerse en la paleta ni responder al clic como si se viera. El día
+ * que tenga silueta, se añade aquí y aparece en todas partes a la vez.
+ */
+export type DrawableDevice = Gate | Button | Pin | CircuitInstance | Constant | Splitter
 
 /** Un símbolo colocado sobre la rejilla. */
 export interface Device extends ElementBase {
@@ -333,17 +339,15 @@ export interface Button extends Device {
 }
 
 /**
- * **Lo que el editor sabe colocar y dibujar hoy**: compuertas, interruptores y cables.
+ * **Lo que el editor sabe colocar y dibujar hoy**: todos los símbolos con silueta, más los
+ * cables.
  *
  * No es «todo lo que puede haber en un documento» —eso es `StoredElement`—, sino el
- * subconjunto con el que el lienzo y el editor trabajan de verdad. Los pines de hoja, los
- * subcircuitos, los repartidores y las constantes existen en el modelo y **viajan en los
- * ficheros** (`StoredElement`), pero todavía no se dibujan ni se editan: por eso `Diagram`
- * los guarda y los expone por una vista aparte (`storedElements`), y `elements` sigue
- * devolviendo solo este subconjunto. Así el día que llegue su símbolo (M2-05/M2-12) no hay
- * que reescribir el editor: se amplía `Element` y se toca un solo sitio.
+ * subconjunto con el que el lienzo y el editor trabajan de verdad. Las memorias, los
+ * sensores, las matrices y las notas siguen viajando en los ficheros y simulándose, pero no
+ * aparecen aquí hasta que tengan símbolo.
  */
-export type Element = Gate | Button | Wire
+export type Element = DrawableDevice | Wire
 
 /**
  * Un circuito: una hoja (lo que se dibuja) o un subcircuito.

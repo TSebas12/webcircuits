@@ -20,12 +20,22 @@ import type { Diagram } from '../core/model/diagram'
 import {
   MAX_GATE_INPUTS,
   buttonLayout,
+  constantLayout,
   gateLayout,
+  pinLayout,
+  splitterLayout,
   type SymbolLayout,
 } from '../core/model/layout'
-import type { Element, GateType, GridPoint } from '../core/model/types'
+import type {
+  Constant,
+  Element,
+  GateType,
+  GridPoint,
+  PinType,
+  Splitter,
+} from '../core/model/types'
 
-export type PieceGroup = 'gates' | 'tristate' | 'io'
+export type PieceGroup = 'gates' | 'tristate' | 'io' | 'pins' | 'bits'
 
 /** Campos comunes a toda pieza que se puede colocar. */
 interface PieceBase {
@@ -51,7 +61,27 @@ interface ButtonPiece extends PieceBase {
   readonly inverted: boolean
 }
 
-export type Piece = GatePiece | ButtonPiece
+/** Un pin de la hoja: la conexión de un subcircuito con el exterior. */
+interface PinPiece extends PieceBase {
+  readonly kind: 'pin'
+  readonly pinType: Exclude<PinType, 'none'>
+}
+
+/** Una constante de un bit. El ancho se podrá elegir en el inspector más adelante. */
+interface ConstantPiece extends PieceBase {
+  readonly kind: 'constant'
+  readonly value: number
+}
+
+/** Un repartidor de bits con un ancho y un número de salidas fijos. */
+interface SplitterPiece extends PieceBase {
+  readonly kind: 'splitter'
+  readonly bitWidth: number
+  readonly pinCount: number
+  readonly clockwise: boolean
+}
+
+export type Piece = GatePiece | ButtonPiece | PinPiece | ConstantPiece | SplitterPiece
 
 /**
  * Cuántas entradas se pueden pedir desde el panel.
@@ -189,6 +219,58 @@ export const PIECES = [
     isToggle: true,
     inverted: false,
   },
+  {
+    kind: 'pin',
+    id: 'pin-input',
+    label: 'Pin IN',
+    title: 'Pin de entrada de la hoja: la señal entra al subcircuito por aquí',
+    group: 'pins',
+    pinType: 'input',
+  },
+  {
+    kind: 'pin',
+    id: 'pin-output',
+    label: 'Pin OUT',
+    title: 'Pin de salida de la hoja: la señal sale del subcircuito por aquí',
+    group: 'pins',
+    pinType: 'output',
+  },
+  {
+    kind: 'constant',
+    id: 'const-0',
+    label: 'Const 0',
+    title: 'Constante de un bit con valor 0',
+    group: 'bits',
+    value: 0,
+  },
+  {
+    kind: 'constant',
+    id: 'const-1',
+    label: 'Const 1',
+    title: 'Constante de un bit con valor 1',
+    group: 'bits',
+    value: 1,
+  },
+  {
+    kind: 'splitter',
+    id: 'splitter-4',
+    label: 'Bus 4→2',
+    title: 'Repartidor: un bus de 4 bits en dos cables de 2 bits',
+    group: 'bits',
+    bitWidth: 4,
+    pinCount: 2,
+    clockwise: true,
+  },
+  {
+    kind: 'splitter',
+    id: 'splitter-8',
+    label: 'Bus 8→2',
+    title: 'Repartidor: un bus de 8 bits en dos cables de 4 bits',
+    group: 'bits',
+    bitWidth: 8,
+    pinCount: 2,
+    clockwise: true,
+  },
 ] as const satisfies readonly Piece[]
 
 /** Las piezas que el editor sabe colocar. */
@@ -199,6 +281,8 @@ export const PIECE_GROUPS: readonly { readonly id: PieceGroup; readonly title: s
   { id: 'gates', title: 'Compuertas' },
   { id: 'tristate', title: 'Tri-estado' },
   { id: 'io', title: 'Entradas y salidas' },
+  { id: 'pins', title: 'Pines de la hoja' },
+  { id: 'bits', title: 'Buses y constantes' },
 ]
 
 const BY_ID = new Map<PlaceTool, Piece>(PIECES.map((piece) => [piece.id, piece]))
@@ -218,10 +302,40 @@ export function findPiece(id: PlaceTool): Piece {
  * Solo las compuertas de entradas variables miran lo que haya elegido el panel; el resto manda.
  */
 export function pieceInputs(piece: Piece, chosen: number): number {
-  if (piece.kind === 'button') {
+  if (piece.kind !== 'gate') {
     return 0
   }
   return piece.inputCount === 'variable' ? chosen : piece.inputCount
+}
+
+/** Una constante de mentira, solo para preguntar al modelo cuánto ocupa. */
+function previewConstant(piece: ConstantPiece): Constant {
+  return {
+    kind: 'constant',
+    id: 'preview',
+    circuitId: 'preview',
+    layerId: 'preview',
+    position: { x: 0, y: 0 },
+    rotation: 'up',
+    bitWidth: 1,
+    value: piece.value,
+    pinSide: 'right',
+  }
+}
+
+/** Un repartidor de mentira, solo para preguntar al modelo cuánto ocupa. */
+function previewSplitter(piece: SplitterPiece): Splitter {
+  return {
+    kind: 'splitter',
+    id: 'preview',
+    circuitId: 'preview',
+    layerId: 'preview',
+    position: { x: 0, y: 0 },
+    rotation: 'up',
+    bitWidth: piece.bitWidth,
+    pinCount: piece.pinCount,
+    clockwise: piece.clockwise,
+  }
 }
 
 /**
@@ -231,9 +345,18 @@ export function pieceInputs(piece: Piece, chosen: number): number {
  * calcularan por separado, cualquier día no coincidirían y se apilarían símbolos.
  */
 export function pieceLayout(piece: Piece, chosen: number): SymbolLayout {
-  return piece.kind === 'button'
-    ? buttonLayout(piece.inverted)
-    : gateLayout(piece.gateType, pieceInputs(piece, chosen), piece.invertedOutput)
+  switch (piece.kind) {
+    case 'gate':
+      return gateLayout(piece.gateType, pieceInputs(piece, chosen), piece.invertedOutput)
+    case 'button':
+      return buttonLayout(piece.inverted)
+    case 'pin':
+      return pinLayout({ pinType: piece.pinType, bitWidth: 1, inverted: false })
+    case 'constant':
+      return constantLayout(previewConstant(piece))
+    case 'splitter':
+      return splitterLayout(previewSplitter(piece))
+  }
 }
 
 /**
@@ -248,15 +371,37 @@ export function placePiece(
   position: GridPoint,
   chosen: number,
 ): Element {
-  if (piece.kind === 'button') {
-    return diagram.addButton(position, { isToggle: piece.isToggle, inverted: piece.inverted })
+  switch (piece.kind) {
+    case 'gate':
+      return diagram.addGate(
+        piece.gateType,
+        position,
+        pieceInputs(piece, chosen),
+        piece.invertedOutput,
+      )
+    case 'button':
+      return diagram.addButton(position, { isToggle: piece.isToggle, inverted: piece.inverted })
+    case 'pin':
+      // El pin de entrada se dibuja a la izquierda de la hoja y el de salida a la derecha,
+      // que es el lado por defecto del original (`BasePin.DefaultSide`).
+      return diagram.addPin(position, {
+        pinType: piece.pinType,
+        side: piece.pinType === 'input' ? 'left' : 'right',
+        bitWidth: 1,
+      })
+    case 'constant':
+      return diagram.addConstant(position, {
+        bitWidth: 1,
+        value: piece.value,
+        pinSide: 'right',
+      })
+    case 'splitter':
+      return diagram.addSplitter(position, {
+        bitWidth: piece.bitWidth,
+        pinCount: piece.pinCount,
+        clockwise: piece.clockwise,
+      })
   }
-  return diagram.addGate(
-    piece.gateType,
-    position,
-    pieceInputs(piece, chosen),
-    piece.invertedOutput,
-  )
 }
 
 /** El tope de entradas, reexportado para que el panel no tenga que saber de `layout`. */

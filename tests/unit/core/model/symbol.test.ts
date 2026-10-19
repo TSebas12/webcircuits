@@ -16,6 +16,7 @@ import type {
   CircuitInstance,
   Constant,
   Gate,
+  Memory,
   Pin,
   Project,
   StoredElement,
@@ -276,8 +277,8 @@ describe('las puntas de un subcircuito (portado de CircuitGlyph.CreateJam)', () 
   }
 })
 
-describe('lo que todavía no está portado', () => {
-  it('la forma de un dispositivo sin portar avisa en vez de inventarse un tamaño', () => {
+describe('símbolos primitivos', () => {
+  it('la constante tiene una salida del ancho de su valor', () => {
     const constant: Constant = {
       kind: 'constant',
       id: 'k1',
@@ -285,14 +286,37 @@ describe('lo que todavía no está portado', () => {
       layerId: 'principal',
       position: { x: 0, y: 0 },
       rotation: 'up',
-      value: 0,
-      bitWidth: 1,
+      value: 5,
+      bitWidth: 4,
       pinSide: 'right',
     }
     const index = new SymbolIndex(projectSymbolSource(smallProject(constant)))
     index.addCircuit(mainCircuit(constant))
 
-    expect(() => index.symbol(constant)).toThrow(/no está portada/)
+    const symbol = index.symbol(constant)
+    expect(symbol.jams).toHaveLength(1)
+    expect(symbol.jams[0]!.pin.type).toBe('output')
+    expect(symbol.jams[0]!.bitWidth).toBe(4)
+  })
+})
+
+describe('lo que todavía no está portado', () => {
+  it('la forma de un dispositivo sin portar avisa en vez de inventarse un tamaño', () => {
+    const memory: Memory = {
+      kind: 'memory',
+      id: 'm1',
+      circuitId: 'main',
+      layerId: 'principal',
+      position: { x: 0, y: 0 },
+      rotation: 'up',
+      addressBitWidth: 4,
+      dataBitWidth: 8,
+      isRom: true,
+    }
+    const index = new SymbolIndex(projectSymbolSource(smallProject(memory)))
+    index.addCircuit(mainCircuit(memory))
+
+    expect(() => index.symbol(memory)).toThrow(/no está portada/)
   })
 })
 
@@ -315,7 +339,7 @@ function text(jam: { effectivePinType: string; point: { x: number; y: number } }
 }
 
 /** Un proyecto mínimo con un solo elemento en la hoja principal. */
-function smallProject(...elements: readonly (Gate | Button | Constant)[]): Project {
+function smallProject(...elements: readonly StoredElement[]): Project {
   return {
     id: 'p',
     name: 'P',

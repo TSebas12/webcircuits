@@ -15,10 +15,13 @@ import type { GateType } from '../../core/model/types'
 import { andShape } from './and'
 import { withNegation } from './bubble'
 import { buttonShape } from './button'
+import { circuitShape } from './circuit'
 import { clockShape } from './clock'
+import { constantShape } from './constant'
 import { ledShape } from './led'
 import { notShape, triState1Shape, triState2Shape } from './not'
 import { orShape, xorShape } from './or'
+import { pinInputShape, pinOutputShape } from './pin'
 import { splitterShape } from './splitter'
 
 /** Las formas que sabemos dibujar. Irá creciendo con los símbolos nuevos. */
@@ -37,6 +40,10 @@ export type SymbolShape =
   | 'button'
   | 'led'
   | 'splitter'
+  | 'pinInput'
+  | 'pinOutput'
+  | 'constant'
+  | 'circuit'
 
 /**
  * Las partes de un símbolo.
@@ -84,6 +91,10 @@ const BUILDERS: Readonly<Record<SymbolShape, ShapeBuilder>> = {
   button: buttonShape,
   led: ledShape,
   splitter: splitterShape,
+  pinInput: pinInputShape,
+  pinOutput: pinOutputShape,
+  constant: constantShape,
+  circuit: circuitShape,
 }
 
 /** `forma:ancho x alto` → silueta ya construida. */

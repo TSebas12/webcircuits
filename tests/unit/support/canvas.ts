@@ -44,6 +44,7 @@ const METHODS = [
   'fillRect',
   'clearRect',
   'setLineDash',
+  'fillText',
 ] as const
 
 export function makeFakeContext(): FakeContext {
@@ -59,7 +60,11 @@ export function makeFakeContext(): FakeContext {
     lineDash: [] as number[],
   }
 
-  const target: Record<string, unknown> = {}
+  const target: Record<string, unknown> = {
+    // Una medida aproximada basta para que el código de etiquetas pueda partir líneas. El
+    // ancho no se comprueba en los tests; lo que importa es que las llamadas se registren.
+    measureText: (text: string) => ({ width: String(text).length * 0.5 }),
+  }
   for (const method of METHODS) {
     target[method] = (...args: unknown[]): void => {
       if (method === 'setLineDash') {

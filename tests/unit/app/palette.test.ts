@@ -7,8 +7,13 @@ import { PIECES, findPiece, pieceInputs, pieceLayout, placePiece } from '../../.
 import { Diagram } from '../../../src/core/model/diagram'
 import {
   buttonLayout,
+  circuitInstanceLayout,
+  constantLayout,
+  deviceBounds,
   gateLayout,
+  pinLayout,
   placedPins,
+  splitterLayout,
   type SymbolLayout,
 } from '../../../src/core/model/layout'
 import { projectIndex } from '../../../src/core/model/symbol'
@@ -29,6 +34,67 @@ installFakePath2D()
  * parezca que se cuelan.
  */
 const MUDOS_SIN_HABILITAR = new Set(['triState1', 'triState2'])
+
+/**
+ * Las piezas que producen una señal por sí mismas y se pueden probar con el cableado
+ * genérico. Un pin de hoja es una interfaz (no tiene fuente) y un repartidor necesita un bus,
+ * así que ambos van en pruebas propias.
+ */
+const SIGNAL_PIECES = PIECES.filter(
+  (piece) => piece.kind === 'gate' || piece.kind === 'button' || piece.kind === 'constant',
+)
+
+/** La silueta que le toca a una pieza de la paleta, para comprobar que se puede dibujar. */
+function pieceShape(piece: Piece): string | null {
+  switch (piece.kind) {
+    case 'gate':
+      return shapeForGate(piece.gateType, piece.invertedOutput)
+    case 'button':
+      return 'button'
+    case 'pin':
+      return piece.pinType === 'output' ? 'pinOutput' : 'pinInput'
+    case 'constant':
+      return 'constant'
+    case 'splitter':
+      return 'splitter'
+  }
+}
+
+/** El hueco que debería reservar una pieza según el modelo. */
+function modelLayout(piece: Piece): SymbolLayout {
+  switch (piece.kind) {
+    case 'gate':
+      return gateLayout(piece.gateType, pieceInputs(piece, 2), piece.invertedOutput)
+    case 'button':
+      return buttonLayout(piece.inverted)
+    case 'pin':
+      return pinLayout({ pinType: piece.pinType, bitWidth: 1, inverted: false })
+    case 'constant':
+      return constantLayout({
+        kind: 'constant',
+        id: 'preview',
+        circuitId: 'preview',
+        layerId: 'preview',
+        position: { x: 0, y: 0 },
+        rotation: 'up',
+        bitWidth: 1,
+        value: piece.value,
+        pinSide: 'right',
+      })
+    case 'splitter':
+      return splitterLayout({
+        kind: 'splitter',
+        id: 'preview',
+        circuitId: 'preview',
+        layerId: 'preview',
+        position: { x: 0, y: 0 },
+        rotation: 'up',
+        bitWidth: piece.bitWidth,
+        pinCount: piece.pinCount,
+        clockwise: piece.clockwise,
+      })
+  }
+}
 
 /** Dónde acaba el LED de un circuito cableado, que es la señal de que la pieza conduce. */
 function ledOf(elements: readonly Element[]): Element {
@@ -126,15 +192,12 @@ describe('el catálogo de piezas (M2-27)', () => {
 
   it('todas se pueden dibujar: si no se viera, no estaría en la paleta', () => {
     for (const piece of PIECES) {
-      if (piece.kind === 'button') {
-        continue
-      }
-      expect(shapeForGate(piece.gateType, piece.invertedOutput), piece.id).not.toBeNull()
+      expect(pieceShape(piece), piece.id).not.toBeNull()
     }
   })
 
   it('todas se pueden simular: cableadas, el circuito se asienta y da señal', () => {
-    for (const piece of PIECES) {
+    for (const piece of SIGNAL_PIECES) {
       const elements = wireUp(piece)
       const { devices } = simulate(elements)
       const state = devices.get(ledOf(elements).id)
@@ -148,14 +211,63 @@ describe('el catálogo de piezas (M2-27)', () => {
 
   it('el hueco que reserva la paleta antes de colocar es el que dice el modelo', () => {
     for (const piece of PIECES) {
-      const size: SymbolLayout = pieceLayout(piece, 2)
-      const expected =
-        piece.kind === 'button'
-          ? buttonLayout(piece.inverted)
-          : gateLayout(piece.gateType, pieceInputs(piece, 2), piece.invertedOutput)
-
-      expect([piece.id, size], piece.id).toEqual([piece.id, expected])
+      expect(pieceLayout(piece, 2), piece.id).toEqual(modelLayout(piece))
     }
+  })
+
+  it('un pin de hoja se coloca como interfaz, no como compuerta', () => {
+    const diagram = new Diagram()
+    const input = placePiece(diagram, findPiece('pin-input'), { x: 0, y: 0 }, 2)
+    const output = placePiece(diagram, findPiece('pin-output'), { x: 6, y: 0 }, 2)
+    if (input.kind !== 'pin' || output.kind !== 'pin') {
+      throw new Error('la paleta debería colocar pines')
+    }
+
+    expect(diagram.elements.map((element) => element.kind)).toEqual(['pin', 'pin'])
+    expect(placedPins(input)[0]?.pin.side).toBe('right')
+    expect(placedPins(output)[0]?.pin.side).toBe('left')
+  })
+
+  it('un subcircuito colocado mide y expone los pines de su hoja', () => {
+    // La hoja del subcircuito: un pin de entrada a la izquierda y uno de salida a la derecha.
+    const sheet = new Diagram()
+    sheet.addPin({ x: 0, y: 0 }, { pinType: 'input', side: 'left' })
+    sheet.addPin({ x: 6, y: 0 }, { pinType: 'output', side: 'right' })
+    const circuit: Circuit = { id: 'sub', name: 'Sub', elements: sheet.storedElements }
+
+    const main = new Diagram()
+    const instance = main.addCircuitInstance({ x: 2, y: 3 }, circuit.id)
+    const resolve = (id: string): Circuit | undefined => (id === circuit.id ? circuit : undefined)
+    const size = circuitInstanceLayout(circuit)
+    const box = deviceBounds(instance, resolve)
+
+    expect(box.x1 - box.x0).toBe(size.width)
+    expect(box.y1 - box.y0).toBe(size.height)
+    // Desde fuera los pines de un subcircuito son pasamanos (`none`), como en el original:
+    // el sentido lo decide el circuito de dentro. Lo que importa es que estén todos y en su
+    // lado, no que el mapa los llame «input» u «output».
+    const pins = placedPins(instance, resolve)
+    expect(pins.map((placed) => placed.pin.side)).toEqual(['left', 'right'])
+    expect(pins.map((placed) => placed.pin.bitWidth)).toEqual([1, 1])
+  })
+
+  it('el repartidor ofrece un bus de entrada y sus salidas', () => {
+    const diagram = new Diagram()
+    const splitter = placePiece(diagram, findPiece('splitter-4'), { x: 0, y: 0 }, 2)
+    if (splitter.kind !== 'splitter') {
+      throw new Error('la paleta debería colocar un repartidor')
+    }
+    const pins = placedPins(splitter)
+
+    expect(pins).toHaveLength(3)
+    expect(pins.filter((placed) => placed.pin.side === 'left')).toEqual([
+      expect.objectContaining({ pin: expect.objectContaining({ bitWidth: 4 }) }),
+    ])
+    expect(
+      pins
+        .filter((placed) => placed.pin.side === 'right')
+        .map((placed) => placed.pin.bitWidth),
+    ).toEqual([2, 2])
   })
 
   it('las entradas variables las manda quien coloca, y las fijas no', () => {

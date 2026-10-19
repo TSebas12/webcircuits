@@ -12,6 +12,15 @@
     selected = (id ? (editor.diagram.get(id) ?? null) : null) as Element | null
   }
 
+  /** Entra en el subcircuito seleccionado, si lo hay. */
+  const openSelected = (): void => {
+    if (editor === null || selected === null || selected.kind !== 'circuit') return
+    if (editor.enterSubcircuit(selected.targetCircuitId)) {
+      editor.fitToContent()
+    }
+    refresh()
+  }
+
   /**
    * El color de cable del tema actual (M6-14).
    *
@@ -38,13 +47,32 @@
   <aside class="inspector" aria-label="Propiedades">
     <h3>Propiedades</h3>
     <div class="row"><span>Tipo</span><span>{selected.kind}</span></div>
-    {#if selected.kind === 'gate' || selected.kind === 'button'}
+    {#if selected.kind === 'gate'}
       <div class="row"><span>Bit-width</span><span>{selected.bitWidth ?? 1}</span></div>
-      {#if selected.kind === 'gate'}
-        <div class="row"><span>Entradas</span><span>{selected.inputCount}</span></div>
-        <div class="row"><span>Invertido</span><span>{selected.invertedOutput ? 'sí' : 'no'}</span></div>
-      {/if}
+      <div class="row"><span>Entradas</span><span>{selected.inputCount}</span></div>
+      <div class="row"><span>Invertido</span><span>{selected.invertedOutput ? 'sí' : 'no'}</span></div>
+    {:else if selected.kind === 'button'}
+      <div class="row"><span>Bit-width</span><span>{selected.bitWidth ?? 1}</span></div>
+      <div class="row"><span>Fijo</span><span>{selected.isToggle ? 'sí' : 'no'}</span></div>
+    {:else if selected.kind === 'pin'}
+      <div class="row"><span>Dirección</span><span>{selected.pinType === 'input' ? 'entrada' : 'salida'}</span></div>
+      <div class="row"><span>Lado</span><span>{selected.side}</span></div>
+      <div class="row"><span>Bit-width</span><span>{selected.bitWidth}</span></div>
+      {#if selected.name !== ''}<div class="row"><span>Nombre</span><span>{selected.name}</span></div>{/if}
+    {:else if selected.kind === 'constant'}
+      <div class="row"><span>Valor</span><span>{selected.value}</span></div>
+      <div class="row"><span>Bit-width</span><span>{selected.bitWidth}</span></div>
+    {:else if selected.kind === 'splitter'}
+      <div class="row"><span>Bits</span><span>{selected.bitWidth}</span></div>
+      <div class="row"><span>Salidas</span><span>{selected.pinCount}</span></div>
+    {:else if selected.kind === 'circuit'}
+      <div class="row"><span>Circuito</span><span>{editor?.project.circuit(selected.targetCircuitId)?.name ?? '?'}</span></div>
+    {/if}
+    {#if selected.kind !== 'wire'}
       <button type="button" onclick={() => { editor?.rotateSelection(true); refresh() }}>Rotar 90°</button>
+    {/if}
+    {#if selected.kind === 'circuit'}
+      <button type="button" onclick={openSelected}>Abrir subcircuito</button>
     {/if}
     {#if selected.kind === 'wire'}
       <div class="row"><span>De</span><span>{selected.p1.x},{selected.p1.y}</span></div>

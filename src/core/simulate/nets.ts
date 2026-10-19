@@ -22,7 +22,7 @@
  * punto de unión ([`junctionPoints`]) y qué pines están conectados ([`connectionCounts`]).
  */
 
-import { placedPins } from '../model/layout'
+import { placedPins, type CircuitResolver } from '../model/layout'
 import type { Element, GridPoint, Wire } from '../model/types'
 
 /** La clave de un punto de la rejilla. */
@@ -86,7 +86,10 @@ export function junctionPoints(elements: readonly Element[]): GridPoint[] {
  * cable que **pasa por encima** de un pin no suma, y el pin se queda pintado como libre,
  * que es lo que de verdad es.
  */
-export function connectionCounts(elements: readonly Element[]): Map<string, number> {
+export function connectionCounts(
+  elements: readonly Element[],
+  resolveCircuit?: CircuitResolver,
+): Map<string, number> {
   const counts = new Map<string, number>()
 
   const add = (point: GridPoint): void => {
@@ -100,7 +103,7 @@ export function connectionCounts(elements: readonly Element[]): Map<string, numb
       add(element.p2)
       continue
     }
-    for (const placed of placedPins(element)) {
+    for (const placed of placedPins(element, resolveCircuit)) {
       add(placed.point)
     }
   }

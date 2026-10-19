@@ -195,6 +195,21 @@ describe('dibujar un símbolo', () => {
     expect(turned.named('rotate')[0]?.args[0]).toBeCloseTo(Math.PI / 2, 10)
   })
 
+  it('dibuja la etiqueta del símbolo y parte los nombres largos en dos líneas', () => {
+    const { ctx, named } = makeFakeContext()
+    drawDevice(
+      ctx,
+      device({ shape: 'circuit', label: 'Sumador de 4 bits', width: 3, height: 4 }),
+      THEME,
+    )
+
+    const texts = named('fillText')
+    expect(texts).toHaveLength(2)
+    expect(texts[0]?.args[0]).toBe('Sumador')
+    expect(texts[1]?.args[0]).toBe('de 4 bits')
+    expect(texts.every((call) => call.fillStyle === THEME.gateText)).toBe(true)
+  })
+
   it('deja el contexto como lo encontró: lo que dibuja uno no afecta al siguiente', () => {
     const { ctx, named } = makeFakeContext()
     drawDevice(ctx, device(), THEME)
