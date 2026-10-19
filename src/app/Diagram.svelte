@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { Editor, type Tool } from './editor'
+  import ContextMenu, { type MenuItem } from './ContextMenu.svelte'
   import { deserializeProject, serializeProject } from '../core/persist/json'
   import { importCircuitProject } from '../core/persist/circuitproject'
   import { IdbProvider } from './files/idb-provider'
@@ -36,6 +37,7 @@
   let recovered = $state(false)
   let openError = $state<string | null>(null)
   let hoverInfo = $state<{ x: number; y: number; value: number; bitWidth: number } | null>(null)
+  let contextMenu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null)
   let canUndo = $state(false)
   let canRedo = $state(false)
   /** Se está tendiendo un cable: el cursor deja de ser la mano y pasa a ser la flecha. */
@@ -310,6 +312,24 @@
     class:wiring
     aria-label="Lienzo del circuito"
     onpointerleave={() => (hoverInfo = null)}
+    oncontextmenu={(e) => {
+      e.preventDefault()
+      if (editor === null) return
+      const hit = editor.hitAt(e.clientX, e.clientY)
+      const items: MenuItem[] = []
+      if (hit?.kind === 'device') {
+        items.push({ label: 'Rotar 90°', shortcut: 'R', action: () => { editor?.select(hit.element.id); editor?.rotateSelection(true) } })
+        items.push({ label: 'Duplicar', shortcut: 'Ctrl+D', action: () => { editor?.select(hit.element.id); editor?.duplicate() } })
+        items.push({ label: 'Borrar', shortcut: 'Del', danger: true, action: () => { editor?.select(hit.element.id); editor?.removeSelected() } })
+      } else if (hit?.kind === 'wire') {
+        items.push({ label: 'Borrar cable', shortcut: 'Del', danger: true, action: () => { editor?.select(hit.element.id); editor?.removeSelected() } })
+      } else {
+        items.push({ label: 'Pegar', shortcut: 'Ctrl+V', action: () => editor?.paste() })
+        items.push({ label: 'Zoom to fit', action: () => editor?.fitToContent() })
+        items.push({ label: 'Vaciar lienzo', danger: true, action: () => editor?.clear() })
+      }
+      contextMenu = { x: e.clientX, y: e.clientY, items }
+    }}
   ></canvas>
 
   {#if hoverInfo}
@@ -475,8 +495,15 @@
 
   {#if isEmpty && !powered}
     <div class="empty-state" aria-live="polite">
-      <p>Lienzo vacío</p>
-      <p class="hint">Elige una pieza de la paleta y haz clic, o pulsa <kbd>Ejemplo</kbd>.</p>
+      <p class="empty-title">Lienzo vacío</p>
+      <p class="hint">Elige una pieza de la paleta y haz clic, o arrastra un fichero aquí.</p>
+      <div class="empty-actions">
+        <button type="button" onclick={loadExample}>Ejemplo</button>
+        <button type="button" onclick={() => editor?.fitToContent()}>Encuadrar</button>
+      </div>
+      <p class="empty-shortcuts">
+        <kbd>S</kbd> seleccionar · <kbd>E</kbd> borrar · <kbd>R</kbd> rotar · <kbd>P</kbd> corriente · <kbd>Ctrl+K</kbd> comandos
+      </p>
     </div>
   {/if}
 
@@ -500,6 +527,10 @@
   {/if}
   {#if openError !== null}
     <div class="error-badge" role="alert">{openError}</div>
+  {/if}
+
+  {#if contextMenu}
+    <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => (contextMenu = null)} />
   {/if}
 
   {#if !powered && tool === 'erase'}
@@ -868,6 +899,10 @@
     font: inherit;
     font-size: 0.78rem;
   }
+  .empty-state .empty-title { font-size: 1.1rem; font-weight: 600; color: var(--fg) }
+  .empty-state .empty-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; pointer-events: auto }
+  .empty-state .empty-actions button { padding: 0.4rem 0.8rem; border: 1px solid var(--border); border-radius: 0.35rem; background: var(--panel-bg); color: var(--fg); cursor: pointer }
+  .empty-state .empty-shortcuts { font-size: 0.72rem; margin-top: 0.8rem }
 
   /* ── Medidas ────────────────────────────────────────────────────────── */
 

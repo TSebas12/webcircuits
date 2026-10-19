@@ -255,6 +255,14 @@ export class Editor {
     return this.diagram.elements.length
   }
 
+  /** Qué hay bajo el cursor (para menú contextual). */
+  hitAt(clientX: number, clientY: number): ReturnType<typeof hitTest> {
+    const rect = this.canvas?.getBoundingClientRect()
+    if (rect === undefined) return null
+    const world = this.camera.toWorld(clientX - rect.left, clientY - rect.top)
+    return hitTest(this.diagram.elements, world)
+  }
+
   private savedRevision = 0
   get revision(): number {
     return this.diagram.revision
@@ -1199,7 +1207,7 @@ export class Editor {
     this.callbacks.onWiringChange?.(wiring)
   }
 
-  private select(id: Id | null): void {
+  select(id: Id | null): void {
     if (id === null) {
       if (this.selected.size === 0) {
         return
