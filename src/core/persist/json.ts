@@ -234,6 +234,12 @@ export function deserializeProject(json: string): CircuitProject {
     if (circuit === undefined) {
       continue
     }
+    // Las capas van **antes** que los elementos: `importElement` decide si el `layerId` que
+    // trae el fichero existe, y para eso la lista tiene que estar ya cargada. Si no, un
+    // elemento de una capa secundaria se recolocaría en la principal por error.
+    // Se normaliza siempre, aunque el fichero no traiga capas: los elementos sin `layerId`
+    // (ficheros anteriores a M5) caen en la principal y no quedan invisibles e inalcanzables.
+    circuit.diagram.setLayers((sc.layers ?? []) as Layer[])
     for (const el of sc.elements) {
       const mapped = {
         ...deserializeElement(el),
@@ -245,9 +251,6 @@ export function deserializeProject(json: string): CircuitProject {
       } else {
         circuit.diagram.importElement(mapped)
       }
-    }
-    if (sc.layers) {
-      circuit.diagram.setLayers(sc.layers as Layer[])
     }
   }
 

@@ -43,6 +43,13 @@
   let isEmpty = $state(true)
   let dirty = $state(false)
   let recovered = $state(false)
+  /** Piezas del circuito que el lienzo todavía no sabe dibujar (pines, repartidores…). */
+  let unsupported = $state(0)
+  /** Diagnóstico de capas: sin esto, ocultar o bloquear una capa parece «la app no responde». */
+  let hiddenLayers = $state(0)
+  let visibleCount = $state(0)
+  let activeLayerLocked = $state(false)
+  let activeLayerName = $state('')
   let openError = $state<string | null>(null)
   let hoverInfo = $state<{ x: number; y: number; value: number; bitWidth: number } | null>(null)
   let contextMenu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null)
@@ -77,6 +84,9 @@
       return
     }
 
+    /** El autoguardado espera a que el usuario deje de mover cosas (ver `scheduleAutosave`). */
+    let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+
     const instance = new Editor({
       onStats: (stats) => {
         fps = stats.fps
@@ -104,10 +114,16 @@
       onHistoryChange: (history) => {
         canUndo = history.canUndo
         canRedo = history.canRedo
-        if (editor !== null) {
-          isEmpty = editor.elementCount === 0
-          dirty = editor.dirty
-        }
+      },
+      // Cada cambio del documento —no solo los que mueven el historial— actualiza el punto
+      // de «sin guardar» y programa el autoguardado. Antes solo se enteraba al aparecer la
+      // posibilidad de deshacer, así que después de guardar el aviso se quedaba apagado.
+      onDocumentChange: () => {
+        dirty = instance.dirty
+        isEmpty = instance.elementCount === 0
+        unsupported = instance.diagram.storedElements.length - instance.diagram.elements.length
+        syncLayers()
+        scheduleAutosave()
       },
       onWiringChange: (value) => {
         wiring = value
@@ -127,10 +143,35 @@
       },
       onCircuitChange: (path) => {
         circuitPath = path
+        unsupported = instance.diagram.storedElements.length - instance.diagram.elements.length
+        syncLayers()
       },
     })
     editor = instance
-    instance.mount(canvas)
+
+    /**
+     * Lo que la paleta tapa por la izquierda.
+     *
+     * La cámara tiene que dejar el origen a su derecha: con el margen antiguo, el circuito de
+     * ejemplo —y cualquier proyecto guardado con coordenadas pequeñas— aparecía **debajo** de
+     * la paleta, y el lienzo parecía blanco.
+     */
+    const railInset = (): number => {
+      const rail = document.querySelector<HTMLElement>('.left-rail')
+      if (rail === null) return 0
+      return Math.max(0, rail.getBoundingClientRect().right - canvas.getBoundingClientRect().left + 12)
+    }
+
+    instance.mount(canvas, { insets: { left: railInset() } })
+
+    // Al cambiar el ancho (ventana estrecha) la paleta se hace más pequeña; el hueco se
+    // recalcula para que «Encuadrar» siga encuadrando en lo que se ve.
+    const syncInsets = (): void => instance.setViewportInsets({ left: railInset() })
+    window.addEventListener('resize', syncInsets)
+    const insetsObserver = new ResizeObserver(syncInsets)
+    insetsObserver.observe(canvas)
+    const rail = document.querySelector<HTMLElement>('.left-rail')
+    if (rail !== null) insetsObserver.observe(rail)
 
     // El editor manda: él sabe con qué corriente, con qué herramienta y con cuánto historial
     // arranca de verdad, así que el estado inicial se lee de ahí y no se duplica aquí.
@@ -142,6 +183,7 @@
     isEmpty = instance.elementCount === 0
     circuitPath = instance.circuitPath
     dirty = instance.dirty
+    syncLayers()
 
     // Preferencias del usuario (M4-10): rejilla, imán y autoguardado. Sin esto, el panel de
     // Preferencias guardaba los valores y no pasaba nada.
@@ -163,7 +205,10 @@
         const project = deserializeProject(json)
         instance.loadProject(project)
         instance.markSaved()
+        instance.fitToContent()
         dirty = instance.dirty
+        unsupported = instance.diagram.storedElements.length - instance.diagram.elements.length
+        syncLayers()
       } catch {
         // ignore
       }
@@ -171,15 +216,23 @@
 
     // Recuperación de sesión (M4-19): si hay autosave y el lienzo está vacío, cargarlo.
     if (instance.elementCount === 0) {
-      idb.open().then((saved) => {
-        if (saved && editor === instance) {
+      void idb.open().then((saved) => {
+        // Si el usuario ya ha empezado a trabajar mientras IndexedDB abría, no se le pisa.
+        if (saved && editor === instance && instance.elementCount === 0 && !instance.dirty) {
           try {
             const project = deserializeProject(saved.content)
             instance.loadProject(project)
             instance.markSaved()
             dirty = instance.dirty
             isEmpty = instance.elementCount === 0
-            recovered = true
+            unsupported = instance.diagram.storedElements.length - instance.diagram.elements.length
+            syncLayers()
+            // Un autoguardado vacío no es una sesión que anunciar: se carga (es el estado
+            // guardado), pero no se enseña «Sesión recuperada» sobre un lienzo en blanco.
+            if (instance.elementCount > 0) {
+              instance.fitToContent()
+              recovered = true
+            }
           } catch {
             // ignore
           }
@@ -187,17 +240,41 @@
       })
     }
 
-    // Autoguardado periódico (M4-17): cada 30 s si hay cambios y el usuario lo tiene puesto.
-    const autosave = (): void => {
+    /**
+     * Escribe el autoguardado, si hay algo que guardar y el usuario lo tiene activado.
+     *
+     * Se separa del temporizador porque también lo llaman los gestos de salida (`pagehide`,
+     * pestaña oculta) y el autoguardado diferido.
+     */
+    const writeAutosave = (): void => {
       if (editor !== instance) return
       if (!instance.dirty) return
       if (!loadSettings().autosaveEnabled) return
       const payload = serializeProject(instance.project)
       idb.save(payload, 'autosave').catch(() => {})
     }
-    const autosaveTimer = setInterval(autosave, 30000)
 
-    // Guardar al ocultar la pestaña.
+    /**
+     * Autoguardado diferido (M4-17): 800 ms después del último cambio.
+     *
+     * Antes solo se guardaba cada 30 s, así que recargar enseguida —lo normal cuando se está
+     * probando— recuperaba una versión vieja o vacía. El temporizador de 30 s se queda como
+     * red de seguridad para cambios que no pasen por aquí.
+     */
+    function scheduleAutosave(): void {
+      if (autosaveTimer !== null) {
+        clearTimeout(autosaveTimer)
+      }
+      autosaveTimer = setTimeout(() => {
+        autosaveTimer = null
+        writeAutosave()
+      }, 800)
+    }
+
+    const autosaveInterval = setInterval(writeAutosave, 30000)
+
+    // Guardar al ocultar la pestaña o al recargar/cerrar. `pagehide` es el que se dispara de
+    // verdad en una recarga; `visibilitychange` no siempre llega a tiempo.
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return
       const key = e.key.toLowerCase()
@@ -215,18 +292,25 @@
     window.addEventListener('keydown', onKey)
 
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden' && editor === instance && instance.dirty && loadSettings().autosaveEnabled) {
-        const payload = serializeProject(instance.project)
-        idb.save(payload, 'autosave').catch(() => {})
+      if (document.visibilityState === 'hidden') {
+        writeAutosave()
       }
     }
+    const onPageHide = () => writeAutosave()
     document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', onPageHide)
 
     return () => {
-      clearInterval(autosaveTimer)
+      if (autosaveTimer !== null) {
+        clearTimeout(autosaveTimer)
+      }
+      clearInterval(autosaveInterval)
       window.removeEventListener('keydown', onKey)
       window.removeEventListener(SETTINGS_EVENT, applySettings)
+      window.removeEventListener('resize', syncInsets)
+      window.removeEventListener('pagehide', onPageHide)
       document.removeEventListener('visibilitychange', onVisibility)
+      insetsObserver.disconnect()
       instance.unmount()
       editor = null
     }
@@ -241,6 +325,34 @@
   const files = createFileProvider()
 
   /**
+   * Refresca el diagnóstico de capas.
+   *
+   * Sirve para explicar lo que antes era un silencio: con una capa oculta el lienzo puede
+   * parecer vacío, y con una capa bloqueada se puede colocar pero no mover, cablear ni
+   * pulsar interruptores. Ninguna de las dos cosas se veía en la interfaz.
+   */
+  function syncLayers(): void {
+    if (editor === null) return
+    const diagram = editor.diagram
+    hiddenLayers = diagram.layersList.filter((layer) => !layer.visible).length
+    visibleCount = diagram.visibleElements.length
+    activeLayerLocked = diagram.isLayerLocked(diagram.activeLayerId)
+    activeLayerName = diagram.layersList.find((layer) => layer.id === diagram.activeLayerId)?.name ?? ''
+  }
+
+  /** Vuelve a mostrar todas las capas (sale de un «aislar» o de una ocultación). */
+  const showAllLayers = (): void => {
+    editor?.diagram.showAllLayers()
+  }
+
+  /** Desbloquea la capa activa: la edición vuelve a responder. */
+  const unlockActiveLayer = (): void => {
+    if (editor !== null) {
+      editor.diagram.setLayerLocked(editor.diagram.activeLayerId, false)
+    }
+  }
+
+  /**
    * Carga en el editor el texto de un fichero, sea JSON nuestro o `.CircuitProject` del
    * original. Se decide por el nombre y, si no está claro, por el contenido.
    */
@@ -253,8 +365,11 @@
           : deserializeProject(text)
       editor.loadProject(project)
       editor.markSaved()
+      editor.fitToContent()
       dirty = editor.dirty
       isEmpty = editor.elementCount === 0
+      unsupported = editor.diagram.storedElements.length - editor.diagram.elements.length
+      syncLayers()
       addRecent(name)
     } catch (err) {
       openError = err instanceof Error ? err.message : 'Fichero no válido'
@@ -333,10 +448,17 @@
   const clearAll = (): void => {
     if (editor && editor.elementCount > 0 && !confirm('¿Vaciar el lienzo?')) return
     editor?.clear()
+    // Un lienzo vacío vuelve a la vista inicial: si se había encuadrado a 300 %, dejarlo así
+    // hacía que la primera pieza nueva saliera gigante.
+    editor?.resetView()
   }
 
   const loadExample = (): void => {
-    editor?.loadExample()
+    if (editor === null) return
+    editor.loadExample()
+    // Encuadrar después de cargarlo: si el usuario había movido la vista, el ejemplo podía
+    // aparecer fuera de pantalla y parecer que no se había cargado nada.
+    editor.fitToContent()
   }
 
   const removeSelected = (): void => {
@@ -409,7 +531,7 @@
         items.push({ label: 'Borrar cable', shortcut: 'Del', danger: true, action: () => { editor?.select(hit.element.id); editor?.removeSelected() } })
       } else {
         items.push({ label: 'Pegar', shortcut: 'Ctrl+V', action: () => editor?.paste() })
-        items.push({ label: 'Zoom to fit', action: () => editor?.fitToContent() })
+        items.push({ label: 'Encuadrar', action: () => editor?.fitToContent() })
         items.push({ label: 'Vaciar lienzo', danger: true, action: () => { if (confirm('¿Vaciar el lienzo?')) editor?.clear() } })
       }
       contextMenu = { x: e.clientX, y: e.clientY, items }
@@ -552,6 +674,11 @@
   <!-- La paleta y el breadcrumb viven en la misma columna: así no pueden solaparse. Antes eran
        dos cajas absolutas con el mismo `left` y el breadcrumb se pintaba encima de la paleta. -->
   <div class="left-rail">
+    <!-- Las capas viven en la misma columna que la paleta, no encima de ella. Antes eran una
+         caja absoluta con el mismo `left` y la paleta quedaba debajo. -->
+    {#if showLayers && editor}
+      <LayersPanel {editor} onClose={() => (showLayers = false)} />
+    {/if}
     <aside class="palette" class:disabled={powered} aria-label="Piezas para colocar">
     <div class="palette-head">
       <span class="palette-title">Piezas</span>
@@ -608,11 +735,10 @@
   {#if isEmpty && !powered}
     <div class="empty-state" aria-live="polite">
       <p class="empty-title">Lienzo vacío</p>
-      <p class="hint">Elige una pieza de la paleta y haz clic, o arrastra un fichero aquí.</p>
+      <p class="hint">Elige una pieza de la paleta y haz clic; después cablea arrastrando desde un pin o con dos clics.</p>
       <div class="empty-actions">
         <button type="button" onclick={openFile}>Abrir…</button>
         <button type="button" onclick={loadExample}>Ejemplo</button>
-        <button type="button" onclick={() => editor?.fitToContent()}>Encuadrar</button>
       </div>
       <p class="empty-shortcuts">
         <kbd>S</kbd> seleccionar · <kbd>E</kbd> borrar · <kbd>R</kbd> rotar · <kbd>P</kbd> corriente · <kbd>Ctrl+K</kbd> comandos · <kbd>Ctrl+O</kbd> abrir
@@ -627,6 +753,26 @@
         : 'Modo edición · ⚡ para probar el circuito'}
     </div>
 
+    <!-- Diagnóstico de capas. Antes, ocultar la capa principal dejaba el lienzo en blanco
+         sin decir nada, y bloquear una capa hacía que no respondieran ni mover ni cablear ni
+         los interruptores. Con estos avisos, el motivo se lee y se puede deshacer. -->
+    {#if hiddenLayers > 0}
+      <div class="info-badge" role="status">
+        {#if visibleCount === 0 && !isEmpty}
+          Todo el circuito está en capas ocultas ({hiddenLayers}).
+        {:else}
+          {hiddenLayers} {hiddenLayers === 1 ? 'capa oculta' : 'capas ocultas'}.
+        {/if}
+        <button type="button" onclick={showAllLayers}>Ver todas</button>
+      </div>
+    {/if}
+    {#if activeLayerLocked && !powered}
+      <div class="info-badge" role="status">
+        Capa «{activeLayerName}» bloqueada: no se puede editar.
+        <button type="button" onclick={unlockActiveLayer}>Desbloquear</button>
+      </div>
+    {/if}
+
     {#if error !== null}
       <div class="error-badge" role="alert">
         <strong>El circuito no se puede simular.</strong>
@@ -639,11 +785,20 @@
         <button type="button" onclick={() => (recovered = false)}>×</button>
       </div>
     {/if}
+    {#if unsupported > 0}
+      <div class="info-badge" role="status">
+        {unsupported} {unsupported === 1 ? 'pieza' : 'piezas'} del circuito aún no se {unsupported === 1 ? 'dibuja' : 'dibujan'} (pines, repartidores, constantes o subcircuitos). Se conservan al guardar.
+        <button type="button" aria-label="Ocultar aviso" onclick={() => (unsupported = 0)}>×</button>
+      </div>
+    {/if}
     {#if openError !== null}
       <div class="error-badge" role="alert">{openError}</div>
     {/if}
     {#if !powered && tool === 'erase'}
       <div class="tool-badge">Borrando · un clic se lleva lo que toques · Esc para salir</div>
+    {/if}
+    {#if wiring}
+      <div class="tool-badge">Cableando · suelta o haz clic en el destino · Esc para cancelar</div>
     {/if}
   </div>
 
@@ -655,11 +810,7 @@
     <Inspector {editor} />
   {/if}
 
-  {#if showLayers && editor}
-    <LayersPanel {editor} />
-  {/if}
-
-  {#if editor}
+  {#if editor && !isEmpty}
     <Minimap {editor} />
   {/if}
 

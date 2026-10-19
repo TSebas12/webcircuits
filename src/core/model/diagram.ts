@@ -55,6 +55,8 @@ interface Snapshot {
 export class Diagram {
   private readonly items = new Map<Id, StoredElement>()
   private layers: Layer[] = [{ id: DEFAULT_LAYER_ID, name: 'Principal', visible: true, locked: false, color: '#888888', opacity: 1 }]
+  /** Capa donde caen los elementos nuevos. No se guarda: es estado de edición. */
+  private activeLayer: Id = DEFAULT_LAYER_ID
   private readonly listeners = new Set<() => void>()
   private counter = 0
   private layerCounter = 0
@@ -297,7 +299,7 @@ export class Diagram {
         kind: 'gate',
         id: this.nextId('gate'),
         circuitId: this.circuitId,
-        layerId: DEFAULT_LAYER_ID,
+        layerId: this.activeLayer,
         position,
         rotation: 'up',
         gateType,
@@ -327,7 +329,7 @@ export class Diagram {
         kind: 'button',
         id: this.nextId('button'),
         circuitId: this.circuitId,
-        layerId: DEFAULT_LAYER_ID,
+        layerId: this.activeLayer,
         position,
         rotation: 'up',
         bitWidth: Math.max(1, Math.min(options.bitWidth ?? 1, MAX_BIT_WIDTH)),
@@ -350,7 +352,7 @@ export class Diagram {
         kind: 'pin',
         id: this.nextId('pin'),
         circuitId: this.circuitId,
-        layerId: DEFAULT_LAYER_ID,
+        layerId: this.activeLayer,
         position,
         rotation: 'up',
         pinType: options.pinType ?? 'input',
@@ -375,7 +377,7 @@ export class Diagram {
         kind: 'constant',
         id: this.nextId('constant'),
         circuitId: this.circuitId,
-        layerId: DEFAULT_LAYER_ID,
+        layerId: this.activeLayer,
         position,
         rotation: 'up',
         bitWidth: Math.max(1, Math.min(options.bitWidth ?? 1, MAX_BIT_WIDTH)),
@@ -398,7 +400,7 @@ export class Diagram {
         kind: 'splitter',
         id: this.nextId('splitter'),
         circuitId: this.circuitId,
-        layerId: DEFAULT_LAYER_ID,
+        layerId: this.activeLayer,
         position,
         rotation: 'up',
         bitWidth: Math.max(1, Math.min(options.bitWidth ?? 4, MAX_BIT_WIDTH)),
@@ -421,7 +423,7 @@ export class Diagram {
         kind: 'circuit',
         id: this.nextId('circuit'),
         circuitId: this.circuitId,
-        layerId: DEFAULT_LAYER_ID,
+        layerId: this.activeLayer,
         position,
         rotation: 'up',
         targetCircuitId,
@@ -435,6 +437,33 @@ export class Diagram {
   /** Lista de capas (solo lectura). */
   get layersList(): readonly Layer[] {
     return this.layers
+  }
+
+  /** Capa que recibe los elementos nuevos. */
+  get activeLayerId(): Id {
+    return this.activeLayer
+  }
+
+  set activeLayerId(id: Id) {
+    this.activeLayer = this.layers.some((layer) => layer.id === id) ? id : DEFAULT_LAYER_ID
+    // La capa activa **nunca** puede estar oculta. Si lo estuviera, las piezas nuevas caerían
+    // en un sitio que no se ve y el lienzo parecería no responder. Se muestra al activarla.
+    this.ensureActiveLayerVisible()
+  }
+
+  /**
+   * Deja visible la capa activa.
+   *
+   * Es una invariante de edición, no una preferencia: colocar piezas en una capa oculta es
+   * indistinguible de «no funciona». Si hay que cambiarla, se avisa a la vista.
+   */
+  private ensureActiveLayerVisible(): void {
+    if (this.layers.some((layer) => layer.id === this.activeLayer && !layer.visible)) {
+      this.layers = this.layers.map((layer) =>
+        layer.id === this.activeLayer ? { ...layer, visible: true } : layer,
+      )
+      this.changed()
+    }
   }
 
   /**
@@ -459,6 +488,10 @@ export class Diagram {
       }
     }
     this.layers = next
+    if (!next.some((layer) => layer.id === this.activeLayer)) {
+      this.activeLayer = DEFAULT_LAYER_ID
+    }
+    this.ensureActiveLayerVisible()
     this.changed()
   }
 
@@ -505,6 +538,9 @@ export class Diagram {
     if (!this.layers.some((l) => l.id === id)) return false
     this.change(() => {
       this.layers = this.layers.filter((l) => l.id !== id)
+      if (this.activeLayer === id) {
+        this.activeLayer = DEFAULT_LAYER_ID
+      }
       // Mover elementos de la capa borrada a la por defecto.
       for (const [eid, el] of this.items) {
         if (el.layerId === id) {
@@ -519,6 +555,15 @@ export class Diagram {
   setLayerVisible(id: Id, visible: boolean): void {
     this.change(() => {
       this.layers = this.layers.map((l) => (l.id === id ? { ...l, visible } : l))
+      // Ocultar la capa donde se estaba editando dejaría las piezas nuevas invisibles. El
+      // trabajo se traslada a la primera capa visible; si no queda ninguna, la activa se
+      // queda donde está (y la vista avisa de que todo está oculto).
+      if (!visible && this.activeLayer === id) {
+        const fallback = this.layers.find((layer) => layer.visible)
+        if (fallback !== undefined) {
+          this.activeLayer = fallback.id
+        }
+      }
       this.changed()
     })
   }
@@ -579,6 +624,53 @@ export class Diagram {
     return true
   }
 
+  /**
+   * Cambia una capa de sitio en el orden de dibujado.
+   *
+   * El array de capas **es** el z-order: la última se pinta encima. `delta` positivo la sube
+   * (la dibuja más tarde) y negativo la baja. No se puede sacar de los extremos.
+   */
+  moveLayer(id: Id, delta: number): boolean {
+    const index = this.layers.findIndex((layer) => layer.id === id)
+    const target = index + Math.sign(delta)
+    if (index < 0 || target < 0 || target >= this.layers.length || delta === 0) {
+      return false
+    }
+    this.change(() => {
+      const next = [...this.layers]
+      const [layer] = next.splice(index, 1)
+      if (layer !== undefined) {
+        next.splice(target, 0, layer)
+      }
+      this.layers = next
+      this.changed()
+    })
+    return true
+  }
+
+  /** Vuelve a mostrar todas las capas (deshace un «aislar»). */
+  showAllLayers(): void {
+    this.change(() => {
+      this.layers = this.layers.map((layer) => ({ ...layer, visible: true }))
+      this.changed()
+    })
+  }
+
+  /** Deja visible solo la capa indicada. Las demás se ocultan, no se borran. */
+  isolateLayer(id: Id): boolean {
+    if (!this.layers.some((layer) => layer.id === id)) {
+      return false
+    }
+    this.change(() => {
+      this.layers = this.layers.map((layer) => ({ ...layer, visible: layer.id === id }))
+      // Al aislar se trabaja en la capa aislada: si la activa fuera otra, quedaría oculta y
+      // las piezas nuevas no se verían.
+      this.activeLayer = id
+      this.changed()
+    })
+    return true
+  }
+
   moveElementToLayer(elementId: Id, layerId: Id): void {
     const el = this.items.get(elementId)
     if (el === undefined) return
@@ -602,7 +694,12 @@ export class Diagram {
    */
   importElement(element: StoredElement): void {
     this.reserveId(element.id)
-    this.items.set(element.id, element)
+    // Un fichero viejo (o de otra herramienta) puede no traer `layerId`, o traer uno que no
+    // existe. Antes se guardaba tal cual: el elemento contaba para el circuito y se simulaba,
+    // pero quedaba fuera de `visibleElements` —no se dibujaba ni se podía tocar— y el lienzo
+    // parecía vacío o roto sin ningún aviso. Se recoge en la capa principal.
+    const known = this.layers.some((layer) => layer.id === element.layerId)
+    this.items.set(element.id, known ? element : { ...element, layerId: DEFAULT_LAYER_ID })
     this.changed()
   }
 
@@ -612,7 +709,7 @@ export class Diagram {
         kind: 'wire',
         id: this.nextId('wire'),
         circuitId: this.circuitId,
-        layerId: DEFAULT_LAYER_ID,
+        layerId: this.activeLayer,
         p1,
         p2,
         bitWidth,

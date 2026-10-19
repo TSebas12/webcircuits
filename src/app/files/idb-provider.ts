@@ -31,13 +31,18 @@ export class IdbProvider implements IFileProvider {
       const tx = db.transaction(STORE, 'readonly')
       const store = tx.objectStore(STORE)
       const req = store.getAll()
-      const rows = await new Promise<{ name: string; content: string }[]>((resolve, reject) => {
-        req.onsuccess = () => resolve(req.result as { name: string; content: string }[])
+      const rows = await new Promise<{ name: string; content: string; savedAt?: number }[]>((resolve, reject) => {
+        req.onsuccess = () => resolve(req.result as { name: string; content: string; savedAt?: number }[])
         req.onerror = () => reject(req.error)
       })
       db.close()
       if (rows.length === 0) return null
-      const last = rows[rows.length - 1]!
+      // `getAll()` devuelve por clave, no por fecha. Se elige la escritura más reciente: si
+      // algún día conviven varias (autosave y otra cosa), la recuperación no debe cargar una
+      // versión vieja solo porque su nombre ordene después.
+      const last = rows.reduce((newest, row) =>
+        (row.savedAt ?? 0) > (newest.savedAt ?? 0) ? row : newest,
+      )
       return { name: last.name, content: last.content }
     } catch {
       return null

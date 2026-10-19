@@ -9,6 +9,7 @@ import { Editor, type EditorCallbacks, type HistoryState, type Tool } from '../.
 import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS } from '../../../src/app/palette'
 import { GRID_SIZE } from '../../../src/render/geometry'
 import type { Element } from '../../../src/core/model/types'
+import { DEFAULT_LAYER_ID } from '../../../src/core/model/types'
 import { installFakePath2D, makeFakeContext, type FakeContext } from '../support/canvas'
 
 /** Los fotogramas que `requestAnimationFrame` deja apuntados, para poder dispararlos a mano. */
@@ -69,7 +70,10 @@ function flushFrames(): void {
   }
 }
 
-function mount(callbacks: EditorCallbacks = {}): {
+function mount(
+  callbacks: EditorCallbacks = {},
+  options: Parameters<Editor['mount']>[1] = {},
+): {
   editor: Editor
   canvas: HTMLCanvasElement
   dispose: () => void
@@ -82,7 +86,7 @@ function mount(callbacks: EditorCallbacks = {}): {
   canvas.hasPointerCapture = (): boolean => false
 
   const editor = new Editor(callbacks)
-  editor.mount(canvas)
+  editor.mount(canvas, options)
 
   return {
     editor,
@@ -259,6 +263,63 @@ describe('interacción con el ratón (M1-10 y M1-12)', () => {
     dispose()
   })
 
+  it('cablear también funciona con dos clics: uno en cada pin', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+
+    const before = editor.diagram.count
+
+    // Primer clic: el cable queda armado, no se tiende todavía.
+    clickAt(canvas, 11, 4)
+    expect(editor.diagram.count).toBe(before)
+
+    // Segundo clic en la rejilla: ahí acaba.
+    clickAt(canvas, 11, 10)
+
+    const wires = editor.diagram.elements.filter((element) => element.kind === 'wire')
+    const created = wires.at(-1)
+    expect(editor.diagram.count).toBe(before + 1)
+    expect(created?.kind === 'wire' ? created.p1 : null).toEqual({ x: 11, y: 4 })
+    expect(created?.kind === 'wire' ? created.p2 : null).toEqual({ x: 11, y: 10 })
+
+    dispose()
+  })
+
+  it('la cámara deja el origen a la derecha del hueco que tapa la paleta', () => {
+    const { editor, dispose } = mount({}, { insets: { left: 200 } })
+
+    // Margen inicial (24) + hueco de la paleta (200). Sin esto, el ejemplo y los proyectos
+    // guardados con coordenadas pequeñas se dibujaban debajo de la paleta.
+    expect(editor.cameraState.offsetX).toBe(224)
+
+    dispose()
+  })
+
+  it('una capa bloqueada no se borra ni se gira aunque esté seleccionada', () => {
+    const { editor, dispose } = mount()
+    editor.loadExample()
+
+    const gate = editor.diagram.devices[0]!
+    editor.diagram.setLayerLocked('principal', true)
+    editor.select(gate.id)
+
+    const before = editor.diagram.count
+    editor.removeSelected()
+    expect(editor.diagram.count).toBe(before)
+
+    editor.rotateSelection()
+    const rotated = editor.diagram.get(gate.id)
+    expect(rotated?.kind === 'wire' ? null : rotated?.rotation).toBe(gate.rotation)
+
+    // Al desbloquear, la misma acción sí surte efecto.
+    editor.diagram.setLayerLocked('principal', false)
+    editor.select(gate.id)
+    editor.removeSelected()
+    expect(editor.diagram.count).toBeLessThan(before)
+
+    dispose()
+  })
+
   it('un clic en un interruptor lo elige, y sin corriente no lo pulsa', () => {
     const { editor, canvas, dispose } = mount()
     editor.loadExample()
@@ -419,6 +480,62 @@ describe('los dos modos los gobierna la corriente (fidelidad del original)', () 
     clickAt(canvas, 3, 3)
     clickAt(canvas, 3, 5)
 
+    context.calls.length = 0
+    flushFrames()
+    expect(context.named('fill').some((call) => call.fillStyle === '#ff4a1f')).toBe(true)
+
+    dispose()
+  })
+
+  it('bloquear una capa no impide probar el circuito: los interruptores siguen pulsándose', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample()
+    // Bloquear protege el **documento**, no la simulación. Antes, este candado también
+    // cortaba el clic en los interruptores y parecía que el circuito no respondía.
+    editor.diagram.setLayerLocked(DEFAULT_LAYER_ID, true)
+    editor.setPowered(true)
+
+    clickAt(canvas, 3, 3)
+    clickAt(canvas, 3, 5)
+
+    context.calls.length = 0
+    flushFrames()
+    expect(context.named('fill').some((call) => call.fillStyle === '#ff4a1f')).toBe(true)
+
+    dispose()
+  })
+
+  it('si el navegador rechaza capturar el puntero, los gestos siguen funcionando', () => {
+    const wiring: boolean[] = []
+    const { editor, canvas, dispose } = mount({ onWiringChange: (value) => wiring.push(value) })
+    editor.loadExample()
+
+    // `setPointerCapture` lanza `NotFoundError` si el puntero ya no está activo. Antes, esa
+    // excepción abortaba `pointerdown` entero y dejaban de responder mover, cablear y pulsar
+    // interruptores —los tres gestos que empiezan justo después—, mientras colocar seguía.
+    canvas.setPointerCapture = () => {
+      throw new DOMException('sin puntero activo', 'NotFoundError')
+    }
+    canvas.releasePointerCapture = () => {
+      throw new DOMException('sin puntero activo', 'NotFoundError')
+    }
+    canvas.hasPointerCapture = () => false
+
+    // Mover la AND sigue funcionando.
+    dragFromTo(canvas, screenOf(9, 3), screenOf(6, 4))
+    const gate = editor.diagram.devices.find(
+      (device) => device.kind === 'gate' && device.gateType === 'and',
+    )
+    expect(gate?.kind === 'gate' ? gate.position : null).toEqual({ x: 5, y: 3 })
+
+    // Empezar un cable desde el pin de salida del primer interruptor (4,3).
+    clickAt(canvas, 4, 3)
+    expect(wiring.at(-1)).toBe(true)
+
+    // Y con corriente, el interruptor se pulsa (el LED se enciende).
+    editor.setPowered(true)
+    clickAt(canvas, 3, 3)
+    clickAt(canvas, 3, 5)
     context.calls.length = 0
     flushFrames()
     expect(context.named('fill').some((call) => call.fillStyle === '#ff4a1f')).toBe(true)

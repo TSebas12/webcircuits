@@ -67,7 +67,7 @@ import { connectionCounts, pointKey } from '../core/simulate/nets'
 import { Simulation } from './simulation'
 import type { SimulationState } from '../core/simulate/engine'
 import type { Button, Gate, GridPoint, Id, PlacedElement, StoredElement, Wire } from '../core/model/types'
-import { Camera } from '../render/camera'
+import { Camera, MAX_ZOOM } from '../render/camera'
 import { Canvas2DRenderer } from '../render/canvas2d'
 import { GRID_SIZE } from '../render/geometry'
 import { hitTest } from '../render/hit-test'
@@ -158,6 +158,14 @@ export interface EditorCallbacks {
   /** El circuito activo cambió (navegación entre niveles). */
   readonly onCircuitChange?: (path: readonly Id[]) => void
   /**
+   * El documento ha cambiado (colocar, mover, borrar, cablear…).
+   *
+   * No basta con `onHistoryChange`: ese solo avisa cuando aparece o desaparece la posibilidad
+   * de deshacer, así que después de guardar y volver a editar no se enteraría nadie. Este es el
+   * aviso que mantiene al día el punto de «sin guardar» y el autoguardado.
+   */
+  readonly onDocumentChange?: () => void
+  /**
    * El circuito que corre tiene un problema: no se puede aplanar (un lazo imposible, una
    * pieza que todavía no se simula) o no se asienta. El original enseña un diálogo; aquí se
    * avisa para que la barra lo ponga en algún sitio, porque simular mal y callarse es peor
@@ -174,9 +182,38 @@ interface DragState {
   moved: boolean
 }
 
+/**
+ * Huecos del lienzo que tapa la interfaz (la paleta a la izquierda, sobre todo).
+ *
+ * La cámara los respeta al arrancar y al encuadrar: si no, el circuito se dibuja debajo de
+ * la paleta y parece que el lienzo está vacío. Son píxeles CSS, no unidades de rejilla.
+ */
+export interface ViewInsets {
+  readonly left: number
+  readonly top: number
+  readonly right: number
+  readonly bottom: number
+}
+
+const NO_INSETS: ViewInsets = { left: 0, top: 0, right: 0, bottom: 0 }
+
 /** Tendiendo un cable. */
 interface WireState {
   readonly from: GridPoint
+}
+
+/**
+ * El puntero en el momento de empezar un cable.
+ *
+ * `moved` distingue los dos gestos que empiezan igual: arrastrar (soltar tiende el cable) y
+ * hacer clic (el cable se queda armado para terminarlo con otro clic). Sin esta diferencia,
+ * un clic seco en un pin empezaba y acababa un cable de longitud cero, y parecía que el
+ * programa no dejaba cablear.
+ */
+interface WirePress {
+  readonly x: number
+  readonly y: number
+  moved: boolean
 }
 
 /** Un interruptor que se acaba de pulsar. */
@@ -217,6 +254,8 @@ export class Editor {
   })
   private readonly camera = new Camera()
   private readonly renderer = new Canvas2DRenderer()
+  /** Píxeles del lienzo que tapa la interfaz (la paleta). Se respetan al encuadrar. */
+  private insets: ViewInsets = NO_INSETS
 
   private readonly selected = new Set<Id>()
   private readonly callbacks: EditorCallbacks
@@ -246,6 +285,7 @@ export class Editor {
   /** Portapapeles en memoria (M2-24). */
   private clipboard: { readonly elements: readonly (Gate | Button)[]; readonly wires: readonly Wire[] } | null = null
   private wire: WireState | null = null
+  private wirePress: WirePress | null = null
   private buttonPress: ButtonPress | null = null
   /** Última posición del cursor en el mundo, para la previsualización del cable. */
   private cursor: GridPoint | null = null
@@ -360,6 +400,7 @@ export class Editor {
     this.unsubscribe = this.diagram.subscribe(() => {
       this.evaluate()
       this.refresh()
+      this.callbacks.onDocumentChange?.()
     })
   }
 
@@ -389,13 +430,41 @@ export class Editor {
     const padding = 2
     const worldW = (maxX - minX + padding * 2)
     const worldH = (maxY - minY + padding * 2)
-    const zoomX = (canvas.clientWidth - 40) / (worldW * 18)
-    const zoomY = (canvas.clientHeight - 40) / (worldH * 18)
-    const zoom = Math.min(Math.max(Math.min(zoomX, zoomY), 0.2), 4)
-    this.camera.zoom = zoom
+    // Se encuadra en el hueco **útil**: el que queda a la derecha de la paleta. Si se usara
+    // el ancho entero, el circuito quedaría centrado debajo de ella y no se vería.
+    const availableW = Math.max(120, canvas.clientWidth - this.insets.left - this.insets.right)
+    const availableH = Math.max(120, canvas.clientHeight - this.insets.top - this.insets.bottom)
+    const zoomX = (availableW - 40) / (worldW * 18)
+    const zoomY = (availableH - 40) / (worldH * 18)
+    // Nunca más de 100 % al encuadrar: un circuito de cuatro piezas a 300 % ocupa la pantalla
+    // entera y da la impresión de que se ha perdido el resto. Acercarse sigue siendo cosa de
+    // la rueda.
+    this.camera.zoom = Math.min(Math.max(Math.min(zoomX, zoomY), 0.2), Math.min(1, MAX_ZOOM))
     const centerX = (minX + maxX) / 2
     const centerY = (minY + maxY) / 2
-    this.camera.setOffset(canvas.clientWidth / 2 - centerX * 18 * zoom, canvas.clientHeight / 2 - centerY * 18 * zoom)
+    const centerScreenX = this.insets.left + availableW / 2
+    const centerScreenY = this.insets.top + availableH / 2
+    this.camera.setOffset(
+      centerScreenX - centerX * 18 * this.camera.zoom,
+      centerScreenY - centerY * 18 * this.camera.zoom,
+    )
+    this.refresh()
+    this.callbacks.onZoom?.(Math.round(this.camera.zoom * 100))
+  }
+
+  /** Fija los huecos que tapa la interfaz. No mueve la cámara: solo afecta a los encuadres. */
+  setViewportInsets(insets: Partial<ViewInsets>): void {
+    this.insets = {
+      left: Math.max(0, insets.left ?? this.insets.left),
+      top: Math.max(0, insets.top ?? this.insets.top),
+      right: Math.max(0, insets.right ?? this.insets.right),
+      bottom: Math.max(0, insets.bottom ?? this.insets.bottom),
+    }
+  }
+
+  /** Vuelve a la vista inicial, dejando el origen a la derecha de la paleta. */
+  resetView(): void {
+    this.camera.reset(INITIAL_PADDING_X + this.insets.left, INITIAL_PADDING_Y + this.insets.top)
     this.refresh()
     this.callbacks.onZoom?.(Math.round(this.camera.zoom * 100))
   }
@@ -410,9 +479,10 @@ export class Editor {
 
   // ── Ciclo de vida ─────────────────────────────────────────────────────
 
-  mount(canvas: HTMLCanvasElement): void {
+  mount(canvas: HTMLCanvasElement, options: { readonly insets?: Partial<ViewInsets> } = {}): void {
     this.unmount()
     this.canvas = canvas
+    this.setViewportInsets(options.insets ?? {})
 
     this.renderer.init(canvas, {
       onStats: (stats) => this.callbacks.onStats?.(stats),
@@ -435,7 +505,7 @@ export class Editor {
     // Cualquier cambio del documento se recalcula y se repinta en un solo sitio.
     this.followDiagram()
 
-    this.camera.reset(INITIAL_PADDING_X, INITIAL_PADDING_Y)
+    this.resetView()
     this.evaluate()
     this.refresh()
   }
@@ -469,6 +539,12 @@ export class Editor {
   setTool(tool: Tool): void {
     if (this.tool === tool) {
       return
+    }
+    // Cambiar de herramienta cancela un cable armado: el siguiente clic debe hacer lo que
+    // anuncia la herramienta nueva, no cerrar el cable de antes.
+    if (this.wire !== null) {
+      this.endWire()
+      this.refresh()
     }
     this.tool = tool
     this.callbacks.onToolChange?.(tool)
@@ -552,6 +628,25 @@ export class Editor {
     this.select(null)
   }
 
+  /** Mueve lo seleccionado a otra capa, en una sola acción de deshacer. */
+  moveSelectionToLayer(layerId: Id): void {
+    if (this.selected.size === 0) {
+      return
+    }
+    this.diagram.beginChange()
+    try {
+      for (const id of this.selected) {
+        const element = this.diagram.get(id)
+        if (element !== undefined && !this.diagram.isLayerLocked(element.layerId)) {
+          this.diagram.moveElementToLayer(id, layerId)
+        }
+      }
+    } finally {
+      this.diagram.endChange()
+    }
+    this.refresh()
+  }
+
   /** Rota la selección 90° en sentido horario (M2-25). */
   rotateSelection(clockwise = true): void {
     if (this.selected.size === 0) return
@@ -559,6 +654,7 @@ export class Editor {
     for (const id of [...this.selected]) {
       const device = this.diagram.get(id)
       if (device === undefined || device.kind === 'wire') continue
+      if (this.diagram.isLayerLocked(device.layerId)) continue
       const oldPins = placedPins(device)
       const oldPoints = oldPins.map((p) => p.point)
       // ⚠️ Los cables hay que buscarlos **antes** de girar: en cuanto el símbolo gira, sus
@@ -597,7 +693,12 @@ export class Editor {
   setSelectedWireColor(color: string | null): void {
     const wires = [...this.selected]
       .map((id) => this.diagram.get(id))
-      .filter((element): element is Wire => element !== undefined && element.kind === 'wire')
+      .filter(
+        (element): element is Wire =>
+          element !== undefined &&
+          element.kind === 'wire' &&
+          !this.diagram.isLayerLocked(element.layerId),
+      )
     if (wires.length === 0) {
       return
     }
@@ -707,8 +808,16 @@ export class Editor {
     if (element === undefined) {
       return
     }
+    // Una capa bloqueada no se edita, y borrar es la edición más destructiva.
+    if (this.diagram.isLayerLocked(element.layerId)) {
+      return
+    }
 
-    const attached = element.kind === 'wire' ? [] : attachedWires(this.diagram.elements, element)
+    const attached = element.kind === 'wire'
+      ? []
+      : attachedWires(this.diagram.elements, element).filter(
+          (wire) => !this.diagram.isLayerLocked(wire.layerId),
+        )
 
     // La pieza y sus cables van en la **misma** acción: deshacer tiene que devolver las dos
     // cosas de una vez, y si no, el primer `Ctrl+Z` dejaría cables colgando de un símbolo que
@@ -839,6 +948,23 @@ export class Editor {
 
   // ── El ratón ──────────────────────────────────────────────────────────
 
+  /**
+   * Captura el puntero para seguir recibiendo el gesto fuera del lienzo.
+   *
+   * Es una mejora, no un requisito: si el navegador la rechaza (por ejemplo, porque el
+   * puntero ya no está activo), el arrastre tiene que seguir funcionando igual. Antes, una
+   * excepción aquí abortaba `pointerdown` y dejaba sin respuesta mover, cablear y pulsar
+   * interruptores —los tres gestos que empiezan en este punto—, mientras colocar seguía
+   * funcionando.
+   */
+  private capturePointer(canvas: HTMLCanvasElement, pointerId: number): void {
+    try {
+      canvas.setPointerCapture(pointerId)
+    } catch {
+      // Sin captura el gesto continúa; solo se pierde el seguimiento fuera del lienzo.
+    }
+  }
+
   private readonly onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0) {
       return
@@ -852,22 +978,18 @@ export class Editor {
     const grid = this.gridAt(event)
     const hit = hitTest(this.diagram.visibleElements, world)
 
-    // Capa bloqueada: no se edita.
-    if (hit !== null && hit.kind !== 'wire' && this.diagram.isLayerLocked(hit.element.layerId ?? DEFAULT_LAYER_ID)) {
-      return
-    }
-    if (hit !== null && hit.kind === 'wire' && this.diagram.isLayerLocked(hit.element.layerId)) {
-      return
-    }
-
     // Modo ejecución: la corriente está puesta, así que el circuito se está probando y no
     // se edita. Es lo que hace el original (`Editor.InEditMode => !Power`: cada manejador del
     // ratón comprueba que se está en modo edición). Aquí el clic solo pulsa interruptores; el
     // resto del lienzo se sigue pudiendo desplazar, que eso no toca nada.
+    //
+    // Va **antes** de la comprobación de capa bloqueada: bloquear una capa protege el
+    // documento, no impide probarlo. Antes, una capa bloqueada dejaba también sin respuesta a
+    // los interruptores y parecía que el circuito no funcionaba.
     if (this.simulation.powered) {
       // Un pin cuenta como su símbolo: si se acierta el pin de un interruptor, se pulsa.
       const element = hit === null || hit.kind === 'wire' ? null : hit.element
-      canvas.setPointerCapture(event.pointerId)
+      this.capturePointer(canvas, event.pointerId)
 
       if (element !== null && element.kind === 'button') {
         this.pressButton(element)
@@ -875,6 +997,14 @@ export class Editor {
       } else {
         this.pan = { lastX: event.clientX, lastY: event.clientY }
       }
+      return
+    }
+
+    // Capa bloqueada: no se edita.
+    if (hit !== null && hit.kind !== 'wire' && this.diagram.isLayerLocked(hit.element.layerId ?? DEFAULT_LAYER_ID)) {
+      return
+    }
+    if (hit !== null && hit.kind === 'wire' && this.diagram.isLayerLocked(hit.element.layerId)) {
       return
     }
 
@@ -887,10 +1017,19 @@ export class Editor {
         this.refresh()
         return
       }
-      canvas.setPointerCapture(event.pointerId)
+      this.capturePointer(canvas, event.pointerId)
       this.select(null)
       this.pan = { lastX: event.clientX, lastY: event.clientY }
       this.refresh()
+      return
+    }
+
+    // Un cable ya armado (primer clic en un pin) se cierra con el siguiente clic, caiga donde
+    // caiga. Se hace **antes** de colocar: mientras se cablea, la herramienta de colocación
+    // no debe poner una pieza nueva encima.
+    if (this.wire !== null) {
+      const end = this.endAt(event)
+      this.finishWire(end)
       return
     }
 
@@ -902,10 +1041,11 @@ export class Editor {
       return
     }
 
-    canvas.setPointerCapture(event.pointerId)
+    this.capturePointer(canvas, event.pointerId)
 
     if (hit !== null && hit.kind === 'pin') {
       this.startWire(hit.point, world)
+      this.wirePress = { x: event.clientX, y: event.clientY, moved: false }
       this.refresh()
       return
     }
@@ -920,7 +1060,7 @@ export class Editor {
       const groupPositions = new Map<Id, GridPoint>()
       for (const id of groupIds) {
         const el = this.diagram.get(id)
-        if (el !== undefined && el.kind !== 'wire') {
+        if (el !== undefined && el.kind !== 'wire' && !this.diagram.isLayerLocked(el.layerId)) {
           groupPositions.set(id, { x: el.position.x, y: el.position.y })
         }
       }
@@ -955,7 +1095,7 @@ export class Editor {
 
     // Selección por área (M2-19): Shift + arrastrar.
     if (event.shiftKey) {
-      canvas.setPointerCapture(event.pointerId)
+      this.capturePointer(canvas, event.pointerId)
       this.areaSelection = { start: grid, current: grid }
       this.refresh()
       return
@@ -983,6 +1123,10 @@ export class Editor {
     }
 
     if (this.wire !== null) {
+      const press = this.wirePress
+      if (press !== null && !press.moved && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 3) {
+        press.moved = true
+      }
       this.cursor = this.worldAt(event)
       this.refresh()
       return
@@ -1001,12 +1145,23 @@ export class Editor {
         this.refresh()
       }
       if (this.canvas !== null) {
-        if (this.tool !== 'select') {
-        // Con una herramienta puesta, el cursor es la cruz incluso sobre un pin.
-        this.canvas.style.cursor = ''
-      } else {
-        this.canvas.style.cursor = hit?.kind === 'pin' ? 'default' : ''
-      }
+        if (this.simulation.powered) {
+          // Con corriente solo se pulsa: la mano sobre un interruptor lo anuncia.
+          const pressable = hit !== null && hit.kind !== 'wire' && hit.element.kind === 'button'
+          this.canvas.style.cursor = pressable ? 'pointer' : ''
+        } else if (this.tool !== 'select') {
+          // Con una herramienta puesta, el cursor es la cruz incluso sobre un pin.
+          this.canvas.style.cursor = ''
+        } else if (hit?.kind === 'pin') {
+          // Sobre un pin se cablea: la cruz lo dice antes de apretar.
+          this.canvas.style.cursor = 'crosshair'
+        } else if (hit?.kind === 'device') {
+          // Sobre una pieza se arrastra: la flecha de mover lo dice, en vez de la mano de
+          // desplazar la vista. Antes las dos eran `grab` y no se sabía qué iba a pasar.
+          this.canvas.style.cursor = 'move'
+        } else {
+          this.canvas.style.cursor = ''
+        }
       }
       // Sonda: solo sobre cables, para no costar nada cuando no aplica.
       if (hit?.kind === 'wire') {
@@ -1095,20 +1250,26 @@ export class Editor {
 
   private readonly onPointerUp = (event: PointerEvent): void => {
     const canvas = this.canvas
-    if (canvas !== null && canvas.hasPointerCapture(event.pointerId)) {
-      canvas.releasePointerCapture(event.pointerId)
+    try {
+      if (canvas !== null && canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId)
+      }
+    } catch {
+      // La captura pudo fallar al empezar: no hay nada que soltar.
     }
 
     this.finishButtonPress()
     this.pan = null
 
     if (this.wire !== null) {
-      const end = this.snappedEnd()
-      const from = this.wire.from
-      this.endWire()
-      if (end !== null && (end.x !== from.x || end.y !== from.y)) {
-        this.diagram.addWire(from, end)
+      if (this.wirePress?.moved === true) {
+        // Fue un arrastre: soltar tiende el cable, como siempre.
+        this.finishWire(this.endAt(event))
       } else {
+        // Fue un clic seco: el cable se queda armado y se cierra con el siguiente clic. Así
+        // se puede cablear tanto arrastrando como haciendo clic en un pin y luego en el otro.
+        this.wirePress = null
+        this.cursor = this.worldAt(event)
         this.refresh()
       }
       return
@@ -1124,8 +1285,9 @@ export class Editor {
       const y0 = Math.min(rect.start.y, rect.current.y)
       const y1 = Math.max(rect.start.y, rect.current.y)
       this.select(null)
-      for (const element of this.diagram.elements) {
+      for (const element of this.diagram.visibleElements) {
         if (element.kind === 'wire') continue
+        if (this.diagram.isLayerLocked(element.layerId)) continue
         const p = element.position
         if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) {
           this.selected.add(element.id)
@@ -1334,8 +1496,20 @@ export class Editor {
   /** Termina de tender un cable, se suelte donde se suelte. */
   private endWire(): void {
     this.wire = null
+    this.wirePress = null
     this.cursor = null
     this.emitWiring(false)
+  }
+
+  /** Cierra el cable que estaba armado o en curso en el punto dado. */
+  private finishWire(end: GridPoint | null): void {
+    const from = this.wire?.from
+    this.endWire()
+    if (from === undefined || end === null || (end.x === from.x && end.y === from.y)) {
+      this.refresh()
+      return
+    }
+    this.diagram.addWire(from, end)
   }
 
   /**
@@ -1351,6 +1525,29 @@ export class Editor {
     }
     this.wiring = wiring
     this.callbacks.onWiringChange?.(wiring)
+  }
+
+  /**
+   * Deja seleccionados varios elementos de golpe (selección por capa).
+   *
+   * El aviso de selección lleva el primero: los paneles solo necesitan saber si hay algo
+   * seleccionado y enseñar una propiedad representativa, como hacían ya con la selección por
+   * área.
+   */
+  selectMany(ids: readonly Id[]): void {
+    this.selected.clear()
+    for (const id of ids) {
+      if (this.diagram.get(id) !== undefined) {
+        this.selected.add(id)
+      }
+    }
+    this.callbacks.onSelectionChange?.(this.selectedId)
+    this.refresh()
+  }
+
+  /** Selecciona todo lo que hay en una capa (M5). */
+  selectAllInLayer(layerId: Id): void {
+    this.selectMany(this.diagram.selectAllInLayer(layerId))
   }
 
   select(id: Id | null): void {
@@ -1373,18 +1570,31 @@ export class Editor {
   /** Dónde acabaría el cable si se soltara ahora: en un pin si se está encima, si no en la rejilla. */
   private snappedEnd(): GridPoint | null {
     const cursor = this.cursor
-    const wire = this.wire
-    if (cursor === null || wire === null) {
+    if (cursor === null || this.wire === null) {
       return null
     }
+    return this.endAtWorld(cursor)
+  }
 
-    const hit = hitTest(this.diagram.visibleElements, cursor)
+  /** El punto de destino de un clic, sin depender de por dónde haya pasado el ratón. */
+  private endAt(event: PointerEvent): GridPoint {
+    return this.endAtWorld(this.worldAt(event))
+  }
+
+  /**
+   * El punto donde cae un extremo de cable.
+   *
+   * Sobre un pin se usa **el punto exacto del pin**, que es lo que hace la conexión; fuera de
+   * él se redondea a la rejilla (o se deja tal cual si el imán está apagado). Los cables no
+   * se tocan por su interior en este modelo, así que acertar un cable no basta para unirse a
+   * él: hay que caer en uno de sus extremos.
+   */
+  private endAtWorld(point: GridPoint): GridPoint {
+    const hit = hitTest(this.diagram.visibleElements, point)
     if (hit !== null && hit.kind === 'pin') {
       return hit.point
     }
-    return this.snapToGrid
-      ? { x: Math.round(cursor.x), y: Math.round(cursor.y) }
-      : { x: cursor.x, y: cursor.y }
+    return this.snapToGrid ? { x: Math.round(point.x), y: Math.round(point.y) } : { x: point.x, y: point.y }
   }
 
   private worldAt(event: PointerEvent): GridPoint {
