@@ -24,7 +24,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<div class="backdrop" role="presentation" onclick={onCancel}>
+<div class="backdrop" role="presentation" onclick={onCancel} onkeydown={(e) => e.key === 'Escape' && onCancel()}>
   <div
     class="panel"
     role="dialog"
@@ -32,6 +32,7 @@
     aria-label={title}
     tabindex="-1"
     onclick={(e) => e.stopPropagation()}
+    onkeydown={(e) => e.stopPropagation()}
   >
     <h2>{title}</h2>
     <p>{message}</p>

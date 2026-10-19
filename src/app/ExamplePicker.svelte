@@ -14,7 +14,7 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={onClose} onkeydown={(e) => e.key === 'Escape' && onClose()}>
-  <div class="panel" role="dialog" aria-modal="true" aria-label="Elegir ejemplo" onclick={(e) => e.stopPropagation()}>
+  <div class="panel" role="dialog" aria-modal="true" aria-label="Elegir ejemplo" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
     <h2>Ejemplos de circuito</h2>
     <div class="grid">
       {#each examples as ex (ex.id)}
