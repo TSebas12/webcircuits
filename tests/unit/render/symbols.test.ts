@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { gateLayout } from '../../../src/core/model/layout'
 import {
   cachedSymbolCount,
   clearSymbolCache,
@@ -87,11 +88,40 @@ describe('qué silueta le toca a cada compuerta', () => {
     expect(shapeForGate('probe')).toBeNull()
   })
 
-  it('una compuerta negada devuelve `null`: sin su bolita, dibujarla sería mentir', () => {
-    // Una NAND es una AND negada. Pintarla como una AND normal diría justo lo contrario de lo
-    // que hace, así que no se pinta hasta que exista la bolita.
-    expect(shapeForGate('and', true)).toBeNull()
-    expect(shapeForGate('or', true)).toBeNull()
+  it('una compuerta negada lleva bolita, que es lo que la distingue', () => {
+    // Una NAND es una AND negada: mismo cuerpo, con la salida marcada.
+    expect(shapeForGate('and', true)).toBe('andNeg')
+    expect(shapeForGate('or', true)).toBe('orNeg')
+    expect(shapeForGate('xor', true)).toBe('xorNeg')
+
+    const before = path2d.built()
+    const drawing = symbolDrawing('andNeg', 3, 4)
+    expect(drawing.bubble).toBeDefined()
+    expect(drawing.body).toBeDefined()
+    // Y sigue siendo una silueta cacheada como las demás: pedirla otra vez no construye nada.
+    const afterFirst = path2d.built()
+    expect(afterFirst).toBeGreaterThan(before)
+    symbolDrawing('andNeg', 3, 4)
+    expect(path2d.built()).toBe(afterFirst)
+  })
+
+  it('las compuertas que el motor no niega no se dibujan negadas', () => {
+    // El motor solo niega and/or/xor/not (`circuit-map.ts`); una bolita en el LED o el reloj
+    // diría algo que el circuito no hace.
+    expect(shapeForGate('led', true)).toBeNull()
+    expect(shapeForGate('clock', true)).toBeNull()
+    expect(shapeForGate('triState1', true)).toBeNull()
+  })
+
+  it('el pin de salida de una compuerta negada queda marcado, y con él la bolita', () => {
+    const plain = gateLayout('and', 2)
+    const negated = gateLayout('and', 2, true)
+
+    expect(plain.pins.at(-1)?.inverted).toBe(false)
+    expect(negated.pins.at(-1)?.inverted).toBe(true)
+    // Lo que **no** cambia: dónde está el pin. La bolita no mueve nada.
+    expect(negated.width).toBe(plain.width)
+    expect(negated.height).toBe(plain.height)
   })
 
   it('el tri-estado lleva su raya aparte, que solo se perfila', () => {

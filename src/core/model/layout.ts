@@ -193,10 +193,10 @@ function outputPin(inverted = false): PinSpec {
  * primero la entrada de datos, luego la de habilitación y por último la salida, y
  * `DefineTriState` lee `jam[0]`, `jam[1]` y `jam[2]` en ese orden.
  */
-function gatePinSpecs(gateType: GateType, inputCount: number): PinSpec[] {
+function gatePinSpecs(gateType: GateType, inputCount: number, invertedOutput: boolean): PinSpec[] {
   switch (gateType) {
     case 'not':
-      return [inputPin(), outputPin()]
+      return [inputPin(), outputPin(invertedOutput)]
 
     case 'and':
     case 'or':
@@ -206,7 +206,7 @@ function gatePinSpecs(gateType: GateType, inputCount: number): PinSpec[] {
       for (let index = 0; index < count; index += 1) {
         specs.push(inputPin())
       }
-      specs.push(outputPin())
+      specs.push(outputPin(invertedOutput))
       return specs
     }
 
@@ -272,8 +272,12 @@ function gateSize(
  * `max(4, entradas + 1)` de alto. La excepción son el reloj y el LED de una entrada, que
  * miden 2 × 2 porque no tienen entradas (el reloj) o no tienen salida (el LED).
  */
-export function gateLayout(gateType: GateType, inputCount: number): SymbolLayout {
-  const specs = gatePinSpecs(gateType, inputCount)
+export function gateLayout(
+  gateType: GateType,
+  inputCount: number,
+  invertedOutput = false,
+): SymbolLayout {
+  const specs = gatePinSpecs(gateType, inputCount, invertedOutput)
   return symbolLayout(specs, gateSize(gateType, specs))
 }
 
@@ -386,7 +390,7 @@ export function circuitSymbolLayout(pins: readonly PinSpec[]): SymbolLayout {
  */
 export function deviceLayout(device: Gate | Button): SymbolLayout {
   return device.kind === 'gate'
-    ? gateLayout(device.gateType, device.inputCount)
+    ? gateLayout(device.gateType, device.inputCount, device.invertedOutput)
     : buttonLayout(device.inverted)
 }
 

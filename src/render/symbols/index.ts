@@ -13,6 +13,7 @@
 
 import type { GateType } from '../../core/model/types'
 import { andShape } from './and'
+import { withNegation } from './bubble'
 import { buttonShape } from './button'
 import { clockShape } from './clock'
 import { ledShape } from './led'
@@ -28,6 +29,10 @@ export type SymbolShape =
   | 'clock'
   | 'triState1'
   | 'triState2'
+  | 'andNeg'
+  | 'notNeg'
+  | 'orNeg'
+  | 'xorNeg'
   | 'button'
   | 'led'
 
@@ -47,12 +52,16 @@ export type SymbolShape =
  * onda del reloj, la raya suelta de la XOR, la habilitación del tri-estado—. Van aparte
  * porque rellenarlas pintaría de más: al rellenar una curva abierta, el lienzo la cierra por
  * su cuenta y quedaría una telaraña del color del símbolo sobre el fondo.
+ *
+ * La **bolita** es opcional y va la última: es la negación de la salida (una NAND es una AND
+ * con bolita). Se pinta tapando la punta del cuerpo, que es lo que hace el original.
  */
 export interface SymbolDrawing {
   readonly body: Path2D
   readonly bodyFill: 'symbol' | 'state'
   readonly indicator?: Path2D
   readonly stroke?: Path2D
+  readonly bubble?: Path2D
 }
 
 /** Construye la silueta de una forma con un tamaño dado. */
@@ -66,6 +75,10 @@ const BUILDERS: Readonly<Record<SymbolShape, ShapeBuilder>> = {
   clock: clockShape,
   triState1: triState1Shape,
   triState2: triState2Shape,
+  andNeg: (width, height) => withNegation(andShape(width, height), width, height),
+  notNeg: (width, height) => withNegation(notShape(width, height), width, height),
+  orNeg: (width, height) => withNegation(orShape(width, height), width, height),
+  xorNeg: (width, height) => withNegation(xorShape(width, height), width, height),
   button: buttonShape,
   led: ledShape,
 }
@@ -93,17 +106,28 @@ export function symbolDrawing(shape: SymbolShape, width: number, height: number)
 /**
  * Qué silueta le corresponde a una compuerta. `null` = todavía no sabemos dibujarla.
  *
- * ⚠️ **Lo que no se dibuja, no se pinta a medias.** Una compuerta negada (`invertedOutput`:
- * una NAND es una AND negada) devuelve `null`, porque dibujarla como una AND normal sería
- * mentir: el dibujo diría lo que el circuito no hace. La bolita de negación es el paso
- * siguiente; hasta que esté, la paleta no ofrece compuertas negadas.
+ * Una compuerta **negada** (`invertedOutput`: una NAND es una AND negada) se dibuja con la
+ * misma silueta y su bolita. Solo la niegan las cuatro que el motor sabe negar
+ * (`circuit-map.ts` → `FunctionAndNot`, `FunctionOrNot`, `FunctionXorNot` y la propia NOT);
+ * para las demás, `null`: dibujar una bolita que el motor ignora sería mentir.
  *
  * `nop`, `odd`, `even` y `probe` no entran: no son compuertas que se puedan colocar
  * (`layout.ts` las rechaza).
  */
 export function shapeForGate(gateType: GateType, invertedOutput = false): SymbolShape | null {
   if (invertedOutput) {
-    return null
+    switch (gateType) {
+      case 'and':
+        return 'andNeg'
+      case 'not':
+        return 'notNeg'
+      case 'or':
+        return 'orNeg'
+      case 'xor':
+        return 'xorNeg'
+      default:
+        return null
+    }
   }
 
   switch (gateType) {

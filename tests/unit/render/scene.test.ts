@@ -148,8 +148,9 @@ describe('de modelo a piezas de dibujo', () => {
 
   it('una compuerta que todavía no sabemos dibujar se ignora en vez de reventar', () => {
     const diagram = new Diagram()
-    // Una OR negada: el motor ya la simula, pero sin la bolita de negación no se dibuja.
-    diagram.addGate('or', { x: 2, y: 2 }, 2, true)
+    // Un LED negado: el motor ignora la negación en el LED (`circuit-map.ts`), así que dibujarle
+    // una bolita diría algo que el circuito no hace. No se dibuja.
+    diagram.addGate('led', { x: 2, y: 2 }, 1, true)
 
     const items = sceneOf(diagram).items
 

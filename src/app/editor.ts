@@ -942,6 +942,11 @@ export class Editor {
 
       for (const device of this.diagram.devices) {
         for (const placed of placedPins(device)) {
+          // Un pin negado **ya se ve**: es la bolita que dibuja la silueta (una NAND es una
+          // AND con la salida negada). Pintarle encima el puntito dejaría una mota dentro.
+          if (placed.pin.inverted) {
+            continue
+          }
           const connected = (counts.get(pointKey(placed.point)) ?? 0) > 1
           if (!connected && !wiring && !showFreePins) {
             continue

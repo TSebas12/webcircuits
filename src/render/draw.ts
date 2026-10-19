@@ -121,6 +121,14 @@ export function drawDevice(
     ctx.stroke(drawing.stroke)
   }
 
+  // La bolita de negación, la última y tapando la punta: es como la pinta el original, que la
+  // dibuja encima de la salida del símbolo.
+  if (drawing.bubble !== undefined) {
+    ctx.fillStyle = theme.symbolFill
+    ctx.fill(drawing.bubble)
+    ctx.stroke(drawing.bubble)
+  }
+
   ctx.restore()
 }
 
