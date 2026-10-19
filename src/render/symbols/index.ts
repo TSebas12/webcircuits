@@ -19,6 +19,7 @@ import { clockShape } from './clock'
 import { ledShape } from './led'
 import { notShape, triState1Shape, triState2Shape } from './not'
 import { orShape, xorShape } from './or'
+import { splitterShape } from './splitter'
 
 /** Las formas que sabemos dibujar. Irá creciendo con los símbolos nuevos. */
 export type SymbolShape =
@@ -35,6 +36,7 @@ export type SymbolShape =
   | 'xorNeg'
   | 'button'
   | 'led'
+  | 'splitter'
 
 /**
  * Las partes de un símbolo.
@@ -81,6 +83,7 @@ const BUILDERS: Readonly<Record<SymbolShape, ShapeBuilder>> = {
   xorNeg: (width, height) => withNegation(xorShape(width, height), width, height),
   button: buttonShape,
   led: ledShape,
+  splitter: splitterShape,
 }
 
 /** `forma:ancho x alto` → silueta ya construida. */
