@@ -26,6 +26,7 @@
   /** Los dos modos los gobierna la corriente. Arranca apagada, como el original. */
   let powered = $state(false)
   let hasSelection = $state(false)
+  let isEmpty = $state(true)
   let canUndo = $state(false)
   let canRedo = $state(false)
   /** Se está tendiendo un cable: el cursor deja de ser la mano y pasa a ser la flecha. */
@@ -80,6 +81,7 @@
       onHistoryChange: (history) => {
         canUndo = history.canUndo
         canRedo = history.canRedo
+        if (editor !== null) isEmpty = editor.elementCount === 0
       },
       onWiringChange: (value) => {
         wiring = value
@@ -103,6 +105,7 @@
     canUndo = instance.canUndo
     canRedo = instance.canRedo
     placeInputs = instance.placeInputs
+    isEmpty = instance.elementCount === 0
     circuitPath = instance.circuitPath
 
     return () => {
@@ -305,7 +308,14 @@
     {/if}
   </div>
 
-  <div class="mode-badge" class:live={powered}>
+  {#if isEmpty && !powered}
+    <div class="empty-state" aria-live="polite">
+      <p>Lienzo vacío</p>
+      <p class="hint">Elige una pieza de la paleta y haz clic, o pulsa <kbd>Ejemplo</kbd>.</p>
+    </div>
+  {/if}
+
+  <div class="mode-badge" class:live={powered} aria-live="polite">
     {powered
       ? 'Modo ejecución · solo se pulsan interruptores · ⚡ para editar'
       : 'Modo edición · ⚡ para probar el circuito'}
@@ -650,6 +660,38 @@
   .breadcrumb .crumb-btn:disabled {
     opacity: 0.4;
     cursor: default;
+  }
+
+  /* ── Estado vacío ───────────────────────────────────────────────────── */
+  .empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    pointer-events: none;
+    color: var(--fg-muted);
+    text-align: center;
+  }
+
+  .empty-state p {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+
+  .empty-state .hint {
+    font-size: 0.78rem;
+  }
+
+  .empty-state kbd {
+    padding: 0.1rem 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    background: var(--panel-bg);
+    font: inherit;
+    font-size: 0.78rem;
   }
 
   /* ── Medidas ────────────────────────────────────────────────────────── */

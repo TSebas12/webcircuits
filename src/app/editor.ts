@@ -249,6 +249,10 @@ export class Editor {
     return this.selected.values().next().value ?? null
   }
 
+  get elementCount(): number {
+    return this.diagram.elements.length
+  }
+
   get canUndo(): boolean {
     return this.diagram.canUndo
   }
