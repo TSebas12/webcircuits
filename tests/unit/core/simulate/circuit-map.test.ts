@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { CircuitMap } from '../../../../src/core/simulate/circuit-map'
 import { projectIndex } from '../../../../src/core/model/symbol'
 import { CircuitError } from '../../../../src/core/circuit-error'
+import { FunctionButton, FunctionLed } from '../../../../src/core/function/devices'
+import { State } from '../../../../src/core/function/state'
 import type {
   Circuit,
   CircuitInstance,
@@ -141,6 +143,43 @@ function selfLoop(): Circuit {
   ])
 }
 
+/**
+ * Un interruptor, una compuerta y un LED, encadenados: el interruptor alimenta la compuerta
+ * y la compuerta enciende el LED.
+ *
+ * Es el circuito mínimo que **hace algo**: tiene fuente, tiene lógica y tiene un sitio donde
+ * mirarlo. La compuerta tiene solo una entrada conectada (la otra queda suelta), que es lo
+ * que el original permite: una AND con una sola entrada conectada evalúa esa entrada.
+ */
+function buttonGateLed(): Circuit {
+  return circuit('main', 'Main', [
+    {
+      kind: 'button',
+      id: 'b1',
+      circuitId: 'main',
+      layerId: 'principal',
+      position: { x: 0, y: 0 },
+      rotation: 'up',
+      isToggle: true,
+      inverted: false,
+    },
+    gate('g2', 'main', { x: 8, y: 0 }),
+    {
+      kind: 'gate',
+      id: 'led1',
+      circuitId: 'main',
+      layerId: 'principal',
+      position: { x: 14, y: 2 },
+      rotation: 'up',
+      gateType: 'led',
+      inputCount: 1,
+      invertedOutput: false,
+    },
+    wire('w1', 'main', 2, 1, 8, 1),
+    wire('w2', 'main', 11, 2, 14, 3),
+  ])
+}
+
 describe('mapa de simulación (portado de CircuitMap.cs)', () => {
   it('un circuito que se contiene a sí mismo se rechaza al bajar por el árbol', () => {
     // Ni siquiera hace falta que el lazo sea directo: basta con que un circuito esté en su
@@ -274,25 +313,90 @@ describe('mapa de simulación (portado de CircuitMap.cs)', () => {
     expect(state.functions).toHaveLength(1)
   })
 
-  it('lo que todavía no sabe simularse avisa en vez de simular mal', () => {
-    // El interruptor existe en el modelo pero su función llega con M2-04/M2-12; hasta
-    // entonces el mapa no lo puede convertir en función.
-    const withButton = circuit('main', 'Main', [
+  it('un interruptor, una compuerta y un LED se encienden de verdad', () => {
+    // El circuito entero: el interruptor escribe, la compuerta lee de él, el LED lee de la
+    // compuerta. El LED **no** escribe, así que en la lista de funciones tiene que aparecer
+    // igualmente (si no, no habría nada que dibujar) aunque su resultado no exista.
+    const index = projectIndex(project(buttonGateLed()))
+    const state = CircuitMap.create(index, index.circuit('main')!).apply(0)
+
+    expect(state.functions.map((f) => f.reportName).sort()).toEqual(['AND(1)', 'Button', 'Led'])
+
+    // Estado de reposo: interruptor en 0, compuerta en 0, LED mirando un 0.
+    state.evaluate(false)
+    const button = state.functions.find((f) => f instanceof FunctionButton) as FunctionButton
+    const led = state.functions.find((f) => f instanceof FunctionLed) as FunctionLed
+    expect(button.State).toBe(State.On0)
+    expect(led.get(0)).toBe(State.On0)
+
+    // Se pulsa el interruptor y la luz se enciende sola: el pulso llega hasta el final.
+    button.stateChanged(true)
+    state.evaluate(false)
+    expect(button.State).toBe(State.On1)
+    expect(led.get(0)).toBe(State.On1)
+  })
+
+  it('un reloj voltea su pulso al evaluar con vuelta de reloj', () => {
+    // El reloj no tiene entradas, así que no lo apaga nadie: solo necesita un consumidor
+    // para sobrevivir al recorte. Con un LED al otro lado, cada vuelta cambia la luz.
+    const clockAndLed = circuit('main', 'Main', [
       {
-        kind: 'button',
-        id: 'b1',
+        kind: 'gate',
+        id: 'clk',
         circuitId: 'main',
         layerId: 'principal',
         position: { x: 0, y: 0 },
         rotation: 'up',
-        isToggle: true,
-        inverted: false,
+        gateType: 'clock',
+        inputCount: 0,
+        invertedOutput: false,
       },
-      gate('g2', 'main', { x: 8, y: 0 }),
-      wire('w1', 'main', 2, 1, 8, 1),
-      wire('w2', 'main', 11, 2, 8, 3),
+      {
+        kind: 'gate',
+        id: 'led1',
+        circuitId: 'main',
+        layerId: 'principal',
+        position: { x: 6, y: 0 },
+        rotation: 'up',
+        gateType: 'led',
+        inputCount: 1,
+        invertedOutput: false,
+      },
+      wire('w1', 'main', 2, 1, 6, 1),
     ])
-    const index = projectIndex(project(withButton))
+    const index = projectIndex(project(clockAndLed))
+    const state = CircuitMap.create(index, index.circuit('main')!).apply(0)
+
+    expect(state.functions.map((f) => f.reportName).sort()).toEqual(['Clock', 'Led'])
+
+    state.evaluate(false)
+    const led = state.functions.find((f) => f instanceof FunctionLed) as FunctionLed
+    expect(led.get(0)).toBe(State.On0)
+
+    // `true` = «es una vuelta de reloj, voltéalo».
+    state.evaluate(true)
+    expect(led.get(0)).toBe(State.On1)
+    state.evaluate(true)
+    expect(led.get(0)).toBe(State.On0)
+  })
+
+  it('lo que todavía no sabe simularse avisa en vez de simular mal', () => {
+    // La memoria existe en el modelo pero sus funciones llegan con M2-05: hasta entonces el
+    // mapa no la puede convertir en función y avisa en vez de simularla a medias.
+    const withMemory = circuit('main', 'Main', [
+      {
+        kind: 'memory',
+        id: 'm1',
+        circuitId: 'main',
+        layerId: 'principal',
+        position: { x: 0, y: 0 },
+        rotation: 'up',
+        addressBitWidth: 2,
+        dataBitWidth: 2,
+        isRom: false,
+      },
+    ])
+    const index = projectIndex(project(withMemory))
 
     expect(() => CircuitMap.create(index, index.circuit('main')!).apply(0)).toThrow(
       /todavía no está portada/,

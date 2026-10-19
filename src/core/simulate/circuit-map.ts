@@ -45,6 +45,8 @@ import {
   FunctionXorNot,
 } from '../function/gates'
 import type { CircuitFunction } from '../function/circuit-function'
+import { FunctionButton, FunctionClock, FunctionConstant, FunctionLed } from '../function/devices'
+import type { IFunctionVisual } from '../function/interfaces'
 import { SymbolMap, SymbolMapKey, SymbolMapList, jamBitKey, type Result } from './symbol-map'
 import { ConnectionSet } from './connection'
 import { CircuitState } from './circuit-state'
@@ -91,6 +93,17 @@ export class CircuitMap {
 
   /** Solo existe en la raíz: las puntas de cada circuito, por punto. */
   private jamMaps: Map<Id, Map<string, Jam[]>> | null = null
+
+  /**
+   * Los indicadores que se dibujan en esta hoja (LED, interruptor, constante…).
+   *
+   * Se llena al aplanar, cuando cada dispositivo se convierte en función, y lo consume el
+   * dibujado: `turnOn`, `turnOff` y `redraw` recorren esta lista.
+   */
+  private displays: Set<IFunctionVisual> | null = null
+
+  /** Las constantes de esta hoja, por pieza, para poder leerles el valor (original: `constants`). */
+  private constants: Map<CircuitSymbol, FunctionConstant> | null = null
 
   private turnedOn = false
 
@@ -514,6 +527,33 @@ export class CircuitMap {
   }
 
   /**
+   * Los índices de estado que le tocan a un símbolo de esta hoja.
+   *
+   * Es el general de `stateIndexes(wire)`, que en el original solo mira cables. Aquí hace
+   * falta además para los indicadores, que no cuelgan de ningún cable: si el símbolo tiene
+   * alguna salida se devuelven los índices donde **escribe** (un interruptor, un LED de
+   * matriz), y si solo tiene entradas los índices de donde **lee** (un LED). Lo consume el
+   * dibujado para saber qué mirar; el orden es el de los pines.
+   */
+  symbolStateIndexes(symbol: CircuitSymbol): number[] {
+    const symbolMap = this.root.rootResults?.get(new SymbolMapKey(this, symbol).key)
+    if (symbolMap === undefined) {
+      return []
+    }
+    const jams = jamsByPinOrder(symbol)
+    if (jams.some((jam) => jam.effectivePinType === 'output')) {
+      return symbolMap.results.map((result) => result.stateIndex)
+    }
+    const indexes = new Set<number>()
+    for (const jam of jams) {
+      for (const parameter of symbolMap.allParameters(jam)) {
+        indexes.add(parameter.result.stateIndex)
+      }
+    }
+    return [...indexes]
+  }
+
+  /**
    * Recorre los resultados y anota de dónde lee cada entrada (original:
    * `CircuitMap.Connect`, el estático).
    *
@@ -595,26 +635,122 @@ export class CircuitMap {
   /**
    * Enciende lo que tenga estado propio.
    *
-   * Las constantes emiten su valor y los indicadores (probetas, interruptores, sensores…)
-   * se enganchan a la simulación. Todavía **no hay ninguno**: las funciones visuales llegan
-   * en M2-04/M2-12, así que las colecciones están vacías y esto se recorre entero sin hacer
-   * nada. Se deja portado para no tener que volver a la estructura.
+   * Los indicadores (LED, interruptor) se enganchan a la simulación y las constantes emiten
+   * su valor. Es lo contrario de `apagar`: aquí no se baja a los hijos a propósito, porque
+   * el original enciende solo la hoja que se está mirando y deja que las demás se enciendan
+   * cuando se cambia a ellas.
    */
   turnOn(): void {
     if (!this.turnedOn) {
-      // TODO(M2-04/M2-12): encender indicadores y constantes
+      for (const visual of this.displays ?? []) {
+        visual.turnOn()
+      }
+      for (const constant of this.constants?.values() ?? []) {
+        constant.turnOn()
+      }
       this.turnedOn = true
+    } else {
+      // Volver a un mapa que ya estaba encendido no reinicia nada, pero los interruptores
+      // tienen que reengancharse al valor que ya tienen (original: el comentario de
+      // `CircuitMap.TurnOn`).
+      for (const visual of this.displays ?? []) {
+        if (visual instanceof FunctionButton) {
+          visual.turnOn()
+        }
+      }
     }
   }
 
+  /**
+   * Apaga lo que tenga estado propio y **baja por todo el árbol**.
+   *
+   * A diferencia de `turnOn` (que solo mira esta hoja), `turnOff` recorre también los
+   * subcircuitos, porque apagar la corriente apaga todo lo que hay debajo.
+   */
   turnOff(): void {
     if (this.turnedOn) {
-      // TODO(M2-04/M2-12): apagar indicadores, constantes y memorias
+      for (const visual of this.displays ?? []) {
+        visual.turnOff()
+      }
+      for (const constant of this.constants?.values() ?? []) {
+        constant.turnOff()
+      }
+      // TODO(M2-05): las memorias (`memories`) se apagan aquí, para que una RAM no se lleve
+      // su contenido de una sesión a la siguiente.
       this.turnedOn = false
     }
     for (const child of this.childMaps?.values() ?? []) {
       child.turnOff()
     }
+  }
+
+  /**
+   * Repinta lo que lo necesite (original: `CircuitMap.Redraw`).
+   *
+   * No baja a los hijos: cada hoja repinta lo suyo, y el editor llama a la que se ve. La
+   * marca `invalid` la pone la propia función cuando cambia, así que sin `force` solo se
+   * repinta lo que de verdad ha cambiado.
+   */
+  redraw(force: boolean): void {
+    for (const visual of this.displays ?? []) {
+      if (force || visual.invalid) {
+        visual.invalid = false
+        visual.redraw(force)
+      }
+    }
+  }
+
+  /** ¿Ese indicador se dibuja en esta hoja? (original: `CircuitMap.IsVisible`). */
+  isVisible(visual: IFunctionVisual): boolean {
+    return this.displays !== null && this.displays.has(visual)
+  }
+
+  /** La constante de una pieza, para poder leerle el valor (original: `FunctionConstant`). */
+  functionConstant(symbol: CircuitSymbol): FunctionConstant | null {
+    return this.constants?.get(symbol) ?? null
+  }
+
+  /**
+   * Anota la constante de una pieza (original: el `constants.Add` de `DefineConstant`).
+   *
+   * Va aparte y no en un campo público porque solo lo usa el aplanado; el resto del mundo
+   * la busca por `functionConstant(symbol)`.
+   */
+  registerConstant(symbol: CircuitSymbol, constant: FunctionConstant): void {
+    this.constants ??= new Map()
+    this.constants.set(symbol, constant)
+  }
+
+  // ── Indicadores ──────────────────────────────────────────────────────────────────────
+
+  /**
+   * Los símbolos que representan un indicador y dónde hay que engancharlo (original:
+   * `CircuitMap.DisplayChain`).
+   *
+   * Aún no existen los «circuitos de display» (una hoja que se dibuja dentro de otra), así
+   * que la cadena es siempre el símbolo y su propia hoja. Cuando lleguen (M6) hay que
+   * subir por los mapas mientras `circuit.isDisplay`, y esto es el único sitio que cambia.
+   */
+  private displayChain(symbolMap: SymbolMap): CircuitSymbol[] {
+    return [symbolMap.circuitSymbol]
+  }
+
+  /**
+   * Engancha un indicador a la hoja donde vive (original: `CircuitMap.UpdateDisplays`).
+   *
+   * El original recorre la cadena y lo añade a cada hoja por la que pasa; como la cadena es
+   * de un solo símbolo, eso es la hoja del propio símbolo. Es público porque lo llaman las
+   * funciones que construyen dispositivos (`defineLed`, `defineButton`), igual que en el
+   * original lo llaman los `Define*`.
+   */
+  updateDisplays(symbolMap: SymbolMap, visual: IFunctionVisual): void {
+    // La cadena se recorre «al revés» en el original (mira si el mapa es de display) y
+    // acaba añadiendo el indicador en la primera hoja que no lo es. Con `displayChain` de un
+    // elemento, esa hoja es la del símbolo.
+    void this.displayChain(symbolMap)
+    const map = symbolMap.circuitMap
+    map.displays ??= new Set()
+    map.displays.add(visual)
   }
 }
 
@@ -715,22 +851,105 @@ function applySymbol(
         defineTriState(circuitState, symbolMap)
         return
       case 'clock':
+        defineClock(circuitState, symbolMap)
+        return
       case 'led':
-        throw new CircuitError(
-          `La simulación de «${depicted.element.gateType}» todavía no está portada (M2-04).`,
-        )
+        defineLed(circuitState, symbolMap)
+        return
       default:
         throw new CircuitError(`La compuerta «${depicted.element.gateType}» no se puede simular.`)
     }
   }
 
-  const what =
-    depicted.kind === 'button'
-      ? 'el interruptor'
-      : depicted.kind === 'device'
-        ? `«${depicted.element.kind}»`
-        : `«${depicted.kind}»`
-  throw new CircuitError(`La simulación de ${what} todavía no está portada (M2-04/M2-05/M2-12).`)
+  if (depicted.kind === 'button') {
+    defineButton(depicted.element.isToggle, depicted.element.inverted, circuitState, symbolMap)
+    return
+  }
+
+  if (depicted.kind === 'device' && depicted.element.kind === 'constant') {
+    defineConstant(depicted.element.value, circuitState, symbolMap)
+    return
+  }
+
+  const what = depicted.kind === 'device' ? `«${depicted.element.kind}»` : `«${depicted.kind}»`
+  throw new CircuitError(`La simulación de ${what} todavía no está portada (M2-05/M2-12).`)
+}
+
+/**
+ * El reloj (original: `CircuitMap.DefineClock`).
+ *
+ * No tiene entradas: el reloj solo escribe. Su índice es donde escribe su pulso.
+ */
+function defineClock(circuitState: CircuitState, symbolMap: SymbolMap): CircuitFunction {
+  const result = singleResult(symbolMap.results)
+  // Tracer.Assert(0 < result)
+  return new FunctionClock(circuitState, result)
+}
+
+/**
+ * Un LED (original: `CircuitMap.DefineLed`).
+ *
+ * Un LED **no calcula nada**: mira el cable que le llega. Por eso, si no hay nada
+ * conectado, no se crea función ninguna (el original solo deja un aviso de depuración). Y
+ * el índice que guarda es el del **origen** del cable, no uno propio: es la única forma de
+ * que el dibujado lea el mismo bit que lee todo lo demás.
+ */
+function defineLed(circuitState: CircuitState, symbolMap: SymbolMap): CircuitFunction | null {
+  // Las puntas de un LED tienen un orden especial, así que se va por ellas.
+  const jam = jamsByPinOrder(symbolMap.circuitSymbol)
+  // Tracer.Assert(las puntas son 1 (LED) u 8 (7 segmentos) y todas de entrada)
+  if (jam.length !== 1) {
+    throw new CircuitError(
+      'El LED de 7 segmentos todavía no está portado (M2-12): solo se simula el de un bit.',
+    )
+  }
+
+  let function_: FunctionLed | null = null
+  const parameter = symbolMap.parameter(jam[0]!, 0)
+  if (parameter !== null) {
+    function_ = new FunctionLed(circuitState, parameter.result.stateIndex)
+    symbolMap.circuitMap.updateDisplays(symbolMap, function_)
+  }
+  return function_
+}
+
+/**
+ * Un interruptor (original: `CircuitMap.DefineButton`).
+ *
+ * Es una fuente de un bit, así que tiene un solo resultado: el valor que el usuario pone.
+ * Queda anotado como indicador porque hay que repintarlo cuando cambia.
+ */
+function defineButton(
+  isToggle: boolean,
+  inverted: boolean,
+  circuitState: CircuitState,
+  symbolMap: SymbolMap,
+): FunctionButton {
+  const index = singleResult(symbolMap.results)
+  // Tracer.Assert(0 < index)
+  const button = new FunctionButton(circuitState, isToggle, inverted, index)
+  symbolMap.circuitMap.updateDisplays(symbolMap, button)
+  return button
+}
+
+/**
+ * Una constante (original: `CircuitMap.DefineConstant`).
+ *
+ * Tiene una salida de varios bits: hay un resultado por bit, y hay que ordenarlos por
+ * número de bit antes de pasarlos, porque el orden de la lista es el de las puntas y no el
+ * de los bits.
+ */
+function defineConstant(
+  value: number,
+  circuitState: CircuitState,
+  symbolMap: SymbolMap,
+): FunctionConstant {
+  const results = [...symbolMap.results].sort((a, b) => a.bitNumber - b.bitNumber)
+  const map = results.map((result) => result.stateIndex)
+  // Tracer.Assert(map.length === c.BitWidth)
+  const constant = new FunctionConstant(circuitState, value, map)
+  symbolMap.circuitMap.registerConstant(symbolMap.circuitSymbol, constant)
+  return constant
 }
 
 /** La función de una compuerta (original: `CircuitMap.DefineGate`). */
