@@ -5,6 +5,7 @@
   import { importCircuitProject } from '../core/persist/circuitproject'
   import { IdbProvider } from './files/idb-provider'
   import { addRecent } from './files/recents'
+  import { saveVersion } from './files/versions'
   import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS, PIECE_GROUPS, PIECES } from './palette'
   import PiecePreview from './PiecePreview.svelte'
 
@@ -130,6 +131,20 @@
 
     const idb = new IdbProvider()
 
+    // Compartir por link (M4-22): si la URL tiene un proyecto en el hash, cargarlo.
+    if (window.location.hash.startsWith('#p=')) {
+      try {
+        const encoded = window.location.hash.slice(3)
+        const json = decodeURIComponent(atob(encoded))
+        const project = deserializeProject(json)
+        instance.loadProject(project)
+        instance.markSaved()
+        dirty = instance.dirty
+      } catch {
+        // ignore
+      }
+    }
+
     // Recuperación de sesión (M4-19): si hay autosave y el lienzo está vacío, cargarlo.
     if (instance.elementCount === 0) {
       idb.open().then((saved) => {
@@ -251,6 +266,34 @@
   const goUp = (): void => {
     editor?.exitSubcircuit()
   }
+
+  const saveVersionNow = (): void => {
+    if (editor === null) return
+    try {
+      saveVersion(`v${new Date().toLocaleString()}`, serializeProject(editor.project))
+      openError = 'Versión guardada'
+      setTimeout(() => (openError = null), 2000)
+    } catch {
+      openError = 'No se pudo guardar la versión'
+      setTimeout(() => (openError = null), 2000)
+    }
+  }
+
+  const shareLink = (): void => {
+    if (editor === null) return
+    try {
+      const json = serializeProject(editor.project)
+      const encoded = btoa(encodeURIComponent(json))
+      const url = `${window.location.origin}${window.location.pathname}#p=${encoded}`
+      navigator.clipboard?.writeText(url)
+      // feedback simple
+      openError = 'Enlace copiado al portapapeles'
+      setTimeout(() => (openError = null), 2500)
+    } catch {
+      openError = 'No se pudo generar el enlace'
+      setTimeout(() => (openError = null), 2500)
+    }
+  }
 </script>
 
 <div
@@ -301,6 +344,24 @@
       aria-label="Encuadrar"
     >
       ⊞
+    </button>
+    <button
+      type="button"
+      class="tool"
+      onclick={shareLink}
+      title="Copiar enlace para compartir el circuito"
+      aria-label="Compartir"
+    >
+      🔗
+    </button>
+    <button
+      type="button"
+      class="tool"
+      onclick={saveVersionNow}
+      title="Guardar una versión local"
+      aria-label="Guardar versión"
+    >
+      📌
     </button>
 
     <button
