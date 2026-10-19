@@ -8,6 +8,9 @@
   import SettingsPanel from './SettingsPanel.svelte'
   import ThemeEditor from './ThemeEditor.svelte'
   import CommandPalette from './CommandPalette.svelte'
+import Modal from './Modal.svelte'
+import ExamplePicker from './ExamplePicker.svelte'
+import Icon from './Icon.svelte'
   import { deserializeProject, serializeProject } from '../core/persist/json'
   import { exportCircuitProject, importCircuitProject } from '../core/persist/circuitproject'
   import { loadSettings, SETTINGS_EVENT } from './settings'
@@ -27,6 +30,7 @@
   const TOOLS: readonly { readonly id: Tool; readonly glyph: string; readonly title: string }[] = [
     { id: 'select', glyph: '⌖', title: 'Seleccionar, mover y cablear (S)' },
     { id: 'erase', glyph: '⌫', title: 'Borrar con un clic lo que se toque (E)' },
+    { id: 'wire', glyph: '∿', title: 'Modo cableado: solo cablear y colorear (W)' },
   ]
 
   /** Las piezas agrupadas como las enseña la paleta: el orden lo manda `palette.ts`. */
@@ -56,6 +60,10 @@
   let showSettings = $state(false)
   let showThemeEditor = $state(false)
   let showCommandPalette = $state(false)
+  let showConfirmClear = $state(false)
+  let showConfirmExample = $state(false)
+  let showExamplePicker = $state(false)
+  let pendingExampleId = $state<string | null>(null)
   let showLayers = $state(false)
   let canUndo = $state(false)
   let canRedo = $state(false)
@@ -446,20 +454,46 @@
   }
 
   const clearAll = (): void => {
-    if (editor && editor.elementCount > 0 && !confirm('¿Vaciar el lienzo?')) return
+    if (editor && editor.elementCount > 0) {
+      showConfirmClear = true
+      return
+    }
     editor?.clear()
-    // Un lienzo vacío vuelve a la vista inicial: si se había encuadrado a 300 %, dejarlo así
-    // hacía que la primera pieza nueva saliera gigante.
+    editor?.resetView()
+  }
+
+  const confirmClearAll = (): void => {
+    showConfirmClear = false
+    editor?.clear()
     editor?.resetView()
   }
 
   const loadExample = (): void => {
     if (editor === null) return
-    editor.loadExample()
-    // Encuadrar después de cargarlo: si el usuario había movido la vista, el ejemplo podía
-    // aparecer fuera de pantalla y parecer que no se había cargado nada.
-    editor.fitToContent()
+    showExamplePicker = true
   }
+
+  const pickExample = (id: string): void => {
+    showExamplePicker = false
+    if (editor !== null && editor.elementCount > 0) {
+      pendingExampleId = id
+      showConfirmExample = true
+      return
+    }
+    editor?.loadExample(id)
+    editor?.fitToContent()
+  }
+
+  const confirmLoadExample = (): void => {
+    showConfirmExample = false
+    if (pendingExampleId !== null) {
+      editor?.loadExample(pendingExampleId)
+      editor?.fitToContent()
+      pendingExampleId = null
+    }
+  }
+
+
 
   const removeSelected = (): void => {
     editor?.removeSelected()
@@ -532,7 +566,7 @@
       } else {
         items.push({ label: 'Pegar', shortcut: 'Ctrl+V', action: () => editor?.paste() })
         items.push({ label: 'Encuadrar', action: () => editor?.fitToContent() })
-        items.push({ label: 'Vaciar lienzo', danger: true, action: () => { if (confirm('¿Vaciar el lienzo?')) editor?.clear() } })
+        items.push({ label: 'Vaciar lienzo', danger: true, action: () => clearAll() })
       }
       contextMenu = { x: e.clientX, y: e.clientY, items }
     }}
@@ -546,9 +580,9 @@
   {/if}
 
   <div class="toolbar" role="toolbar" aria-label="Herramientas del circuito">
-    <button type="button" class="tool" onclick={openFile} title="Abrir un circuito (Ctrl+O)" aria-label="Abrir">📂</button>
-    <button type="button" class="tool" onclick={saveFile} title="Guardar el circuito (Ctrl+S)" aria-label="Guardar" disabled={!dirty}>💾</button>
-    <button type="button" class="tool" onclick={exportXml} title="Exportar al formato del original (.CircuitProject)" aria-label="Exportar XML">⬇</button>
+    <button type="button" class="tool" onclick={openFile} title="Abrir un circuito (Ctrl+O)" aria-label="Abrir"><Icon name="open" /></button>
+    <button type="button" class="tool" onclick={saveFile} title="Guardar el circuito (Ctrl+S)" aria-label="Guardar" disabled={!dirty}><Icon name="save" /></button>
+    <button type="button" class="tool" onclick={exportXml} title="Exportar al formato del original (.CircuitProject)" aria-label="Exportar XML"><Icon name="export" /></button>
 
     <span class="divider"></span>
 
@@ -575,7 +609,7 @@
       title="Encuadrar todo el circuito"
       aria-label="Encuadrar"
     >
-      ⊞
+      <Icon name="fit" />
     </button>
     <button
       type="button"
@@ -584,7 +618,7 @@
       title="Copiar enlace para compartir el circuito"
       aria-label="Compartir"
     >
-      🔗
+      <Icon name="share" />
     </button>
     <button
       type="button"
@@ -593,7 +627,7 @@
       title="Guardar una versión local"
       aria-label="Guardar versión"
     >
-      📌
+      <Icon name="version" />
     </button>
     <button
       type="button"
@@ -602,7 +636,7 @@
       title="Preferencias"
       aria-label="Preferencias"
     >
-      ⚙
+      <Icon name="settings" />
     </button>
     <button
       type="button"
@@ -611,7 +645,7 @@
       title="Capas"
       aria-label="Capas"
     >
-      📚
+      <Icon name="layers" />
     </button>
 
     <button
@@ -667,9 +701,18 @@
       title="Apagado se edita; encendido solo se prueba · P (en el original, Circuito → Encender)"
       aria-pressed={powered}
     >
-      {powered ? '⚡ Encendido' : '⏻ Apagado'}
+      {powered ? 'Encendido' : 'Apagado'}
     </button>
   </div>
+
+  {#if tool === 'wire' && !powered}
+    <div class="wire-colors" role="toolbar" aria-label="Colores de cable">
+      {#each loadSettings().savedWireColors as color (color)}
+        <button type="button" class="swatch" style="background:{color}" title="Aplicar color {color}" aria-label="Aplicar color {color}" onclick={() => editor?.colorSelection(color)}></button>
+      {/each}
+      <button type="button" class="clear-color" title="Quitar color forzado" onclick={() => editor?.colorSelection('')}>x</button>
+    </div>
+  {/if}
 
   <!-- La paleta y el breadcrumb viven en la misma columna: así no pueden solaparse. Antes eran
        dos cajas absolutas con el mismo `left` y el breadcrumb se pintaba encima de la paleta. -->
@@ -749,8 +792,8 @@
   <div class="status-stack">
     <div class="mode-badge" class:live={powered} aria-live="polite">
       {powered
-        ? 'Modo ejecución · solo se pulsan interruptores · ⚡ para editar'
-        : 'Modo edición · ⚡ para probar el circuito'}
+        ? 'Modo ejecución · solo se pulsan interruptores · para editar'
+        : 'Modo edición · para probar el circuito'}
     </div>
 
     <!-- Diagnóstico de capas. Antes, ocultar la capa principal dejaba el lienzo en blanco
@@ -838,6 +881,31 @@
         { label: 'Exportar a .CircuitProject (XML)', action: () => void exportXml() },
       ]}
     />
+  {/if}
+
+  {#if showConfirmClear}
+    <Modal
+      title="Vaciar lienzo"
+      message="Se borrarán todos los elementos del circuito. Esta acción se puede deshacer con Ctrl+Z."
+      confirmLabel="Vaciar"
+      danger={true}
+      onConfirm={confirmClearAll}
+      onCancel={() => (showConfirmClear = false)}
+    />
+  {/if}
+
+  {#if showConfirmExample}
+    <Modal
+      title="Cargar ejemplo"
+      message="Se reemplazará el circuito actual. Esta acción se puede deshacer con Ctrl+Z."
+      confirmLabel="Cargar"
+      onConfirm={confirmLoadExample}
+      onCancel={() => (showConfirmExample = false)}
+    />
+  {/if}
+
+  {#if showExamplePicker}
+    <ExamplePicker onClose={() => (showExamplePicker = false)} onPick={pickExample} />
   {/if}
 
   <div class="hud" aria-hidden="true">
@@ -1255,10 +1323,43 @@
     .toolbar { flex-wrap: wrap; gap: 0.2rem }
   }
 
+  .wire-colors {
+    position: absolute;
+    top: 3.4rem;
+    left: 14rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 0.55rem;
+    background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+    backdrop-filter: blur(6px);
+    z-index: 2;
+  }
+  .wire-colors .swatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    cursor: pointer;
+    padding: 0;
+  }
+  .wire-colors .clear-color {
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    background: transparent;
+    color: var(--fg);
+    cursor: pointer;
+    font-size: 0.75rem;
+  }
   .hud {
     position: absolute;
-    left: 0.6rem;
-    bottom: 0.6rem;
+    right: 0.6rem;
+    bottom: 8.4rem;
     display: flex;
     gap: 0.35rem;
     padding: 0.25rem 0.5rem;

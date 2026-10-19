@@ -45,6 +45,22 @@
     <label><input type="checkbox" bind:checked={s.gridVisible} /> Mostrar rejilla</label>
     <label><input type="checkbox" bind:checked={s.snapToGrid} /> Snap a rejilla</label>
     <label><input type="checkbox" bind:checked={s.autosaveEnabled} /> Autoguardado</label>
+    <label>Pintar cables al encender
+      <select bind:value={s.paintWiresOnPower}>
+        <option value="defaults">Solo por defecto</option>
+        <option value="always">Siempre</option>
+        <option value="never">Nunca</option>
+      </select>
+    </label>
+    <fieldset class="colors">
+      <legend>Colores guardados para cables (5)</legend>
+      {#each s.savedWireColors as _color, i (i)}
+        <label>
+          <span>Color {i + 1}</span>
+          <input type="color" bind:value={s.savedWireColors[i]} />
+        </label>
+      {/each}
+    </fieldset>
     <div class="actions">
       <button type="button" onclick={onClose}>Cancelar</button>
       <button type="button" onclick={apply}>Guardar</button>

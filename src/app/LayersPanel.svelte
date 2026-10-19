@@ -133,7 +133,7 @@
           aria-label={layer.visible ? 'Ocultar capa' : 'Mostrar capa'}
           aria-pressed={!layer.visible}
           onclick={() => toggleVisibility(layer)}
-        >{layer.visible ? '👁' : '🚫'}</button>
+        >{layer.visible ? '●' : '○'}</button>
         <button
           type="button"
           class="lock"
@@ -141,7 +141,7 @@
           aria-label={layer.locked ? 'Desbloquear capa' : 'Bloquear capa'}
           aria-pressed={layer.locked}
           onclick={() => toggleLock(layer)}
-        >{layer.locked ? '🔒' : '🔓'}</button>
+        >{layer.locked ? '■' : '□'}</button>
         <input
           value={layer.name}
           aria-label="Nombre de la capa"

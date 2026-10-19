@@ -25,6 +25,7 @@ const ALLOWED = new Set([
   '/src/app.css',
   '/src/render/theme-bridge.ts',
   '/src/core/model/diagram.ts',
+  '/src/app/settings.ts',
 ])
 
 /** Quita comentarios para no confundir un `#ff0000` explicativo con un color de verdad. */

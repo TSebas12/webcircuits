@@ -9,11 +9,16 @@
 
 import { readThemeSelection, storeThemeSelection, type ThemeSelection } from './theme'
 
+export type WirePaintOnPower = 'always' | 'never' | 'defaults'
+
 export interface Settings {
   theme: ThemeSelection
   gridVisible: boolean
   snapToGrid: boolean
   autosaveEnabled: boolean
+  paintWiresOnPower: WirePaintOnPower
+  /** Cinco colores guardados por el usuario para el modo cableado. */
+  savedWireColors: string[]
 }
 
 /** Se dispara al guardar las preferencias, para que la aplicación se reajuste sin recargar. */
@@ -25,13 +30,19 @@ const DEFAULTS: Settings = {
   gridVisible: true,
   snapToGrid: true,
   autosaveEnabled: true,
+  paintWiresOnPower: 'defaults',
+  savedWireColors: ['#ff4a1f', '#4a90e2', '#50c878', '#f5a623', '#9b59b6'],
 }
 
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY)
     const stored = raw ? (JSON.parse(raw) as Partial<Settings>) : {}
-    return { ...DEFAULTS, ...stored, theme: readThemeSelection() }
+    const merged = { ...DEFAULTS, ...stored, theme: readThemeSelection() }
+    if (!Array.isArray(merged.savedWireColors) || merged.savedWireColors.length !== 5) {
+      merged.savedWireColors = [...DEFAULTS.savedWireColors]
+    }
+    return merged
   } catch {
     return { ...DEFAULTS, theme: readThemeSelection() }
   }

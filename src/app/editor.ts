@@ -75,6 +75,7 @@ import type { DrawPinDot, DrawWire, RendererStats, WireSignal } from '../render/
 import { buildScene } from '../render/scene'
 import { readTheme, watchTheme } from '../render/theme-bridge'
 import { parseHex } from '../core/theme/contrast'
+import { loadSettings } from './settings'
 import {
   MAX_GATE_INPUTS,
   MIN_PIECE_INPUTS,
@@ -96,7 +97,7 @@ import {
  * interruptores. El borrador se queda puesto hasta que se elija otra cosa, igual que las de
  * colocación, porque es un **modo** y no una acción suelta.
  */
-export type Tool = 'select' | 'erase' | PlaceTool
+export type Tool = 'select' | 'erase' | 'wire' | PlaceTool
 
 /** A partir de cuántas unidades de rejilla un clic se convierte en un arrastre. */
 const DRAG_THRESHOLD = 0.45
@@ -778,6 +779,20 @@ export class Editor {
    * uno por uno, cada `Ctrl+Z` devolvería una pieza y haría falta deshacer tantas veces como
    * piezas había. (Antes solo borraba la primera de la selección múltiple.)
    */
+  colorSelection(color: string): void {
+    if (this.selected.size === 0) return
+    this.diagram.beginChange()
+    for (const id of this.selected) {
+      const el = this.diagram.get(id)
+      if (el !== undefined && el.kind === 'wire') {
+        this.diagram.setWireColor(id, color === '' ? undefined : color)
+      }
+    }
+    this.diagram.endChange()
+    this.refresh()
+    this.callbacks.onDocumentChange?.()
+  }
+
   removeSelected(): void {
     if (this.selected.size === 0) {
       return
@@ -865,20 +880,47 @@ export class Editor {
    * Todo el ejemplo es **una sola acción** para deshacer: si fueran siete, habría que darle
    * siete veces a `Ctrl+Z` para quitar lo que se puso de una vez.
    */
-  loadExample(): void {
+  loadExample(id: string = 'and'): void {
     this.diagram.beginChange()
     try {
       this.diagram.clear()
       this.simulation.reset()
 
-      this.diagram.addButton({ x: 2, y: 2 }, { isToggle: true }) // salida en (4, 3)
-      this.diagram.addButton({ x: 2, y: 4 }, { isToggle: true }) // salida en (4, 5)
-      this.diagram.addGate('and', { x: 8, y: 2 }, 2) // entradas en (8, 3) y (8, 5); salida en (11, 4)
-      this.diagram.addGate('led', { x: 14, y: 3 }, 1) // entrada en (14, 4)
-
-      this.diagram.addWire({ x: 4, y: 3 }, { x: 8, y: 3 })
-      this.diagram.addWire({ x: 4, y: 5 }, { x: 8, y: 5 })
-      this.diagram.addWire({ x: 11, y: 4 }, { x: 14, y: 4 })
+      if (id === 'or') {
+        this.diagram.addButton({ x: 2, y: 2 }, { isToggle: true })
+        this.diagram.addButton({ x: 2, y: 4 }, { isToggle: true })
+        this.diagram.addGate('or', { x: 8, y: 2 }, 2)
+        this.diagram.addGate('led', { x: 14, y: 3 }, 1)
+        this.diagram.addWire({ x: 4, y: 3 }, { x: 8, y: 3 })
+        this.diagram.addWire({ x: 4, y: 5 }, { x: 8, y: 5 })
+        this.diagram.addWire({ x: 11, y: 4 }, { x: 14, y: 4 })
+      } else if (id === 'not') {
+        this.diagram.addButton({ x: 2, y: 3 }, { isToggle: true })
+        this.diagram.addGate('not', { x: 8, y: 2 }, 1)
+        this.diagram.addGate('led', { x: 14, y: 3 }, 1)
+        this.diagram.addWire({ x: 4, y: 4 }, { x: 8, y: 3 })
+        this.diagram.addWire({ x: 10, y: 3 }, { x: 14, y: 4 })
+      } else if (id === 'xor') {
+        this.diagram.addButton({ x: 2, y: 2 }, { isToggle: true })
+        this.diagram.addButton({ x: 2, y: 4 }, { isToggle: true })
+        this.diagram.addGate('xor', { x: 8, y: 2 }, 2)
+        this.diagram.addGate('led', { x: 14, y: 3 }, 1)
+        this.diagram.addWire({ x: 4, y: 3 }, { x: 8, y: 3 })
+        this.diagram.addWire({ x: 4, y: 5 }, { x: 8, y: 5 })
+        this.diagram.addWire({ x: 11, y: 4 }, { x: 14, y: 4 })
+      } else if (id === 'clock') {
+        this.diagram.addGate('clock', { x: 2, y: 3 }, 0)
+        this.diagram.addGate('led', { x: 10, y: 3 }, 1)
+        this.diagram.addWire({ x: 4, y: 4 }, { x: 10, y: 4 })
+      } else {
+        this.diagram.addButton({ x: 2, y: 2 }, { isToggle: true })
+        this.diagram.addButton({ x: 2, y: 4 }, { isToggle: true })
+        this.diagram.addGate('and', { x: 8, y: 2 }, 2)
+        this.diagram.addGate('led', { x: 14, y: 3 }, 1)
+        this.diagram.addWire({ x: 4, y: 3 }, { x: 8, y: 3 })
+        this.diagram.addWire({ x: 4, y: 5 }, { x: 8, y: 5 })
+        this.diagram.addWire({ x: 11, y: 4 }, { x: 14, y: 4 })
+      }
     } finally {
       this.diagram.endChange()
     }
@@ -1036,8 +1078,15 @@ export class Editor {
     // Con una herramienta de colocación, el clic coloca… salvo que caiga sobre un símbolo,
     // y entonces se interactúa con él. Si no, la herramienta se queda pegada y pulsar un
     // interruptor recién puesto no haría nada, que es justo lo que pasaba.
-    if (this.tool !== 'select' && (hit === null || (hit.kind !== 'device' && hit.kind !== 'pin'))) {
-      this.place(this.tool, grid)
+    if (this.tool !== 'select' && this.tool !== 'wire' && (hit === null || (hit.kind !== 'device' && hit.kind !== 'pin'))) {
+      this.place(this.tool as PlaceTool, grid)
+      return
+    }
+
+    // Modo cableado: no se mueven piezas. Solo se cablea y se seleccionan cables para colorear.
+    if (this.tool === 'wire' && hit !== null && hit.kind === 'device') {
+      this.select(hit.element.id)
+      this.refresh()
       return
     }
 
@@ -1403,6 +1452,9 @@ export class Editor {
    * calcularan por separado, cualquier día no coincidirían y se apilarían símbolos.
    */
   private place(tool: PlaceTool, grid: GridPoint): void {
+    if (this.diagram.isLayerLocked(this.diagram.activeLayerId)) {
+      return
+    }
     const piece = findPiece(tool)
     const size = pieceLayout(piece, this.placeInputs)
     const position: GridPoint = {
@@ -1701,8 +1753,9 @@ export class Editor {
     // El color de cada cable depende de su señal (M6-03). Solo tiene sentido con la corriente
     // puesta: apagado, un cable no lleva nada y va en reposo. Los buses no se sondean bit a
     // bit: se pintan con su propio color por el grosor (M6-15).
+    const paintMode = loadSettings().paintWiresOnPower
     const wireStates = new Map<Id, WireSignal>()
-    if (this.simulation.powered) {
+    if (this.simulation.powered && paintMode !== 'never') {
       for (const element of this.diagram.visibleElements) {
         if (element.kind === 'wire' && element.bitWidth === 1) {
           const value = this.simulation.probeValue(element)
@@ -1721,6 +1774,7 @@ export class Editor {
         camera: this.camera.state,
         theme: this.theme,
         showGrid: this.showGrid,
+        paintWiresOnPower: paintMode,
         pinDots,
         sketch,
       }),
@@ -1790,6 +1844,7 @@ export class Editor {
 const SHORTCUT_TOOLS: Readonly<Record<string, Tool | undefined>> = {
   s: 'select',
   e: 'erase',
+  w: 'wire',
   b: 'button',
   a: 'and',
   l: 'led',

@@ -30,6 +30,8 @@ export interface SceneOptions {
   readonly states: ReadonlyMap<Id, DeviceState>
   /** Estado eléctrico de cada cable (M6-03). Lo que no esté, se pinta en reposo. */
   readonly wireStates?: ReadonlyMap<Id, WireSignal>
+  /** Cómo se pintan los cables al encender (preferencia del usuario). */
+  readonly paintWiresOnPower?: 'always' | 'never' | 'defaults'
   readonly selected: ReadonlySet<Id>
   /** Elemento bajo el cursor, para resaltarlo (M6-06). */
   readonly hovered?: Id | null
@@ -55,6 +57,10 @@ export function buildScene(options: SceneOptions): RenderScene {
   // que un símbolo siempre tapa el cable que le entra por debajo.
   for (const element of options.elements) {
     if (element.kind === 'wire') {
+      const paint = options.paintWiresOnPower ?? 'defaults'
+      // «Siempre» borra el color forzado a mano para que el estado mande; «defaults» lo
+      // respeta; «nunca» se resuelve no pasando `wireStates` (se pinta en reposo).
+      const color = paint === 'always' ? undefined : element.color
       items.push({
         kind: 'wire',
         p1: element.p1,
@@ -63,7 +69,7 @@ export function buildScene(options: SceneOptions): RenderScene {
         hovered: options.hovered === element.id,
         signal: options.wireStates?.get(element.id) ?? 'idle',
         bus: element.bitWidth > 1,
-        color: element.color,
+        color,
       })
     }
   }
