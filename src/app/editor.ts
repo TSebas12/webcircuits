@@ -59,7 +59,8 @@
  *   `InEditMode` del original, que desactiva la edición entera mientras el circuito corre.
  */
 
-import { Diagram } from '../core/model/diagram'
+import { Diagram, MAIN_CIRCUIT_ID } from '../core/model/diagram'
+import { CircuitProject } from '../core/model/circuit'
 import { placedPins } from '../core/model/layout'
 import { connectionCounts, pointKey } from '../core/simulate/nets'
 import { Simulation } from './simulation'
@@ -134,6 +135,8 @@ export interface EditorCallbacks {
   /** Se está tendiendo un cable: el cursor tiene que dejar de ser la mano. */
   readonly onWiringChange?: (wiring: boolean) => void
   readonly onHistoryChange?: (history: HistoryState) => void
+  /** El circuito activo cambió (navegación entre niveles). */
+  readonly onCircuitChange?: (path: readonly Id[]) => void
   /**
    * El circuito que corre tiene un problema: no se puede aplanar (un lazo imposible, una
    * pieza que todavía no se simula) o no se asienta. El original enseña un diálogo; aquí se
@@ -169,7 +172,16 @@ interface PanState {
 }
 
 export class Editor {
-  readonly diagram = new Diagram()
+  /** El proyecto de circuitos (jerarquía). El circuito actual se edita en `diagram`. */
+  readonly project = new CircuitProject()
+
+  /** El diagrama del circuito que se está editando ahora mismo. */
+  get diagram(): Diagram {
+    return this.project.current.diagram
+  }
+
+  /** Pila de circuitos desde la raíz hasta el actual (para el breadcrumb). */
+  private circuitPathIds: Id[] = [MAIN_CIRCUIT_ID]
 
   /**
    * El circuito que corre. Enciende y apaga el motor de verdad y traduce su estado a la foto
@@ -475,6 +487,64 @@ export class Editor {
     }
 
     this.select(null)
+  }
+
+  // ── Jerarquía (M3-02) ─────────────────────────────────────────────────
+  /** Identificador del circuito que se está editando. */
+  get currentCircuitId(): Id {
+    return this.project.currentCircuitId
+  }
+
+  /** La ruta de circuitos desde la raíz hasta el actual. */
+  get circuitPath(): readonly Id[] {
+    return this.circuitPathIds
+  }
+
+  /** Nombres de los circuitos de la ruta, para el breadcrumb. */
+  get circuitBreadcrumb(): readonly { readonly id: Id; readonly name: string }[] {
+    return this.circuitPathIds.map((id) => {
+      const circuit = this.project.circuit(id)
+      return { id, name: circuit?.name ?? id }
+    })
+  }
+
+  /** ¿Se puede subir un nivel? */
+  get canExitCircuit(): boolean {
+    return this.circuitPathIds.length > 1
+  }
+
+  /** Crea un subcircuito nuevo y devuelve su id. No navega a él. */
+  createSubcircuit(name?: string): Id {
+    const circuit = this.project.createCircuit({ name })
+    return circuit.id
+  }
+
+  /** Entra a editar un subcircuito. Devuelve false si no existe. */
+  enterSubcircuit(id: Id): boolean {
+    if (!this.project.openCircuit(id)) return false
+    if (!this.circuitPathIds.includes(id)) {
+      this.circuitPathIds = [...this.circuitPathIds, id]
+    }
+    this.selected.clear()
+    this.forgetSelectionIfGone()
+    this.callbacks.onCircuitChange?.(this.circuitPathIds)
+    this.evaluate()
+    this.refresh()
+    return true
+  }
+
+  /** Sube un nivel. Devuelve false si ya estamos en la raíz. */
+  exitSubcircuit(): boolean {
+    if (this.circuitPathIds.length <= 1) return false
+    const parent = this.circuitPathIds[this.circuitPathIds.length - 2] as Id
+    this.circuitPathIds = this.circuitPathIds.slice(0, -1)
+    this.project.openCircuit(parent)
+    this.selected.clear()
+    this.forgetSelectionIfGone()
+    this.callbacks.onCircuitChange?.(this.circuitPathIds)
+    this.evaluate()
+    this.refresh()
+    return true
   }
 
   // ── El ratón ──────────────────────────────────────────────────────────

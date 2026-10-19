@@ -32,6 +32,8 @@
   let wiring = $state(false)
   /** El circuito no se pudo simular. Se enseña y se quita al volver a dar corriente. */
   let error = $state<string | null>(null)
+  /** Ruta de circuitos (jerarquía). El primero es siempre el principal. */
+  let circuitPath = $state<readonly string[]>(['main'])
   /** Cuántas entradas tendrá la próxima compuerta que se coloque desde la paleta. */
   let placeInputs = $state(2)
 
@@ -87,6 +89,9 @@
       onError: (message) => {
         error = message
       },
+      onCircuitChange: (path) => {
+        circuitPath = path
+      },
     })
     editor = instance
     instance.mount(canvas)
@@ -98,6 +103,7 @@
     canUndo = instance.canUndo
     canRedo = instance.canRedo
     placeInputs = instance.placeInputs
+    circuitPath = instance.circuitPath
 
     return () => {
       instance.unmount()
@@ -151,6 +157,16 @@
 
   const removeSelected = (): void => {
     editor?.removeSelected()
+  }
+
+  const newSubcircuit = (): void => {
+    if (editor === null) return
+    const id = editor.createSubcircuit()
+    editor.enterSubcircuit(id)
+  }
+
+  const goUp = (): void => {
+    editor?.exitSubcircuit()
   }
 </script>
 
@@ -277,6 +293,17 @@
       </div>
     {/each}
   </aside>
+
+  <div class="breadcrumb" aria-label="Ruta de circuitos">
+    {#each circuitPath as id, i (id)}
+      <span class="crumb">{id === 'main' ? 'Principal' : id}</span>
+      {#if i < circuitPath.length - 1}<span class="sep">›</span>{/if}
+    {/each}
+    <button type="button" class="crumb-btn" onclick={newSubcircuit} disabled={powered} title="Crear y entrar en un subcircuito">+ Subcircuito</button>
+    {#if circuitPath.length > 1}
+      <button type="button" class="crumb-btn" onclick={goUp} disabled={powered} title="Subir un nivel">↑ Subir</button>
+    {/if}
+  </div>
 
   <div class="mode-badge" class:live={powered}>
     {powered
@@ -579,6 +606,50 @@
     color: var(--fg);
     user-select: none;
     pointer-events: none;
+  }
+
+  /* ── Breadcrumb de jerarquía (M3-02) ───────────────────────────────── */
+  .breadcrumb {
+    position: absolute;
+    top: 0.6rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 0.55rem;
+    background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+    backdrop-filter: blur(6px);
+    font-size: 0.75rem;
+    color: var(--fg);
+    user-select: none;
+    z-index: 2;
+  }
+
+  .breadcrumb .crumb {
+    color: var(--fg-muted);
+  }
+
+  .breadcrumb .sep {
+    opacity: 0.5;
+  }
+
+  .breadcrumb .crumb-btn {
+    padding: 0.15rem 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.72rem;
+    cursor: pointer;
+  }
+
+  .breadcrumb .crumb-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
 
   /* ── Medidas ────────────────────────────────────────────────────────── */
