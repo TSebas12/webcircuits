@@ -44,7 +44,7 @@
   .inspector {
     position: absolute;
     right: 0.6rem;
-    top: 3.5rem;
+    top: 6rem;
     width: 14rem;
     padding: 0.6rem;
     border: 1px solid var(--border);

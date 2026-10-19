@@ -162,6 +162,7 @@
             instance.loadProject(project)
             instance.markSaved()
             dirty = instance.dirty
+            isEmpty = instance.elementCount === 0
             recovered = true
           } catch {
             // ignore
@@ -219,6 +220,7 @@
       editor.loadProject(project)
       editor.markSaved()
       dirty = editor.dirty
+      isEmpty = editor.elementCount === 0
       addRecent(file.name)
     } catch (err) {
       openError = err instanceof Error ? err.message : 'Fichero no válido'
@@ -834,7 +836,7 @@
      color de aviso —el mismo del «encendido»— porque eso es: un aviso. */
   .tool-badge {
     position: absolute;
-    top: 5.7rem;
+    top: 3.7rem;
     right: 0.6rem;
     padding: 0.3rem 0.6rem;
     border: 1px solid color-mix(in srgb, var(--wc-state-one) 45%, transparent);
@@ -852,7 +854,7 @@
      circuito que no se simula solo puede ser con la corriente puesta. */
   .error-badge {
     position: absolute;
-    top: 5.7rem;
+    top: 3.7rem;
     right: 0.6rem;
     max-width: min(30rem, calc(100% - 1.2rem));
     padding: 0.35rem 0.6rem;
@@ -868,9 +870,9 @@
   /* ── Breadcrumb de jerarquía (M3-02) ───────────────────────────────── */
   .breadcrumb {
     position: absolute;
-    top: 0.6rem;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 3.7rem;
+    left: 0.6rem;
+    transform: none;
     display: flex;
     align-items: center;
     gap: 0.3rem;
