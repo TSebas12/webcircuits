@@ -400,6 +400,40 @@ export class Editor {
     this.select(null)
   }
 
+  /** Rota la selección 90° en sentido horario (M2-25). */
+  rotateSelection(clockwise = true): void {
+    if (this.selected.size === 0) return
+    this.diagram.beginChange()
+    for (const id of [...this.selected]) {
+      const device = this.diagram.get(id)
+      if (device === undefined || device.kind === 'wire') continue
+      const oldPins = placedPins(device as Gate | Button)
+      const oldPoints = oldPins.map((p) => p.point)
+      this.diagram.rotate(id, clockwise)
+      const newDevice = this.diagram.get(id)
+      if (newDevice === undefined || newDevice.kind === 'wire') continue
+      const newPins = placedPins(newDevice as Gate | Button)
+      // Mover los cables adjuntos: cada extremo que estaba en un pin viejo va al pin nuevo.
+      const attached = attachedWires(this.diagram.elements, newDevice as Gate | Button)
+      const pinMap = new Map<string, GridPoint>()
+      for (let i = 0; i < oldPoints.length && i < newPins.length; i++) {
+        pinMap.set(pointKey(oldPoints[i]!), newPins[i]!.point)
+      }
+      for (const wire of attached) {
+        const np1 = pinMap.get(pointKey(wire.p1))
+        const np2 = pinMap.get(pointKey(wire.p2))
+        if (np1 !== undefined) {
+          this.diagram.moveWireEnd(wire.id, 1, np1)
+        }
+        if (np2 !== undefined) {
+          this.diagram.moveWireEnd(wire.id, 2, np2)
+        }
+      }
+    }
+    this.diagram.endChange()
+    this.refresh()
+  }
+
   /** Borra lo seleccionado, con los cables que colgaban de ello (M2-21). */
   removeSelected(): void {
     const id = this.selection
@@ -895,6 +929,12 @@ export class Editor {
         event.preventDefault()
         this.removeSelected()
       }
+      return
+    }
+
+    if (event.key.toLowerCase() === 'r' && this.selected.size > 0) {
+      event.preventDefault()
+      this.rotateSelection()
       return
     }
 

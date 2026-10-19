@@ -21,7 +21,7 @@
  */
 
 import { deviceBounds, deviceLayout, pinPosition } from './layout'
-import type { Button, Element, Gate, GateType, GridPoint, GridRect, Id, Wire } from './types'
+import type { Button, Element, Gate, GateType, GridPoint, GridRect, Id, Rotation, Wire } from './types'
 import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
@@ -288,6 +288,32 @@ export class Diagram {
     }
     this.change(() => {
       this.items.set(id, { ...element, position })
+      this.changed()
+    })
+  }
+
+  rotate(id: Id, clockwise = true): void {
+    const element = this.items.get(id)
+    if (element === undefined || element.kind === 'wire') {
+      return
+    }
+    this.change(() => {
+      const rotations: Rotation[] = ['up', 'right', 'down', 'left']
+      const idx = rotations.indexOf(element.rotation)
+      const nextIdx = clockwise
+        ? (idx + 1) % rotations.length
+        : (idx + rotations.length - 1) % rotations.length
+      const newRotation = rotations[nextIdx] as Rotation
+      const layout = deviceLayout(element as Gate | Button)
+      const w = layout.width
+      const h = layout.height
+      const dx = Math.round((w - h) / 2)
+      const dy = Math.round((h - w) / 2)
+      this.items.set(id, {
+        ...element,
+        rotation: newRotation,
+        position: { x: element.position.x + dx, y: element.position.y + dy },
+      })
       this.changed()
     })
   }
