@@ -27,7 +27,9 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | Módulo C# | Qué contiene | Destino en WebCircuits | Hito | Estado |
 |---|---|---|---|---|
 | `CircuitProject/` | Modelo del circuito y elementos lógicos | `src/core/model/` | M2 | 🟡 |
+| ↳ `CircuitGlyph.cs` · `Jam.cs` · `Pin.cs` · `Splitter.cs` | Símbolos colocados y sus **puntas** (`Jams()`, `AbsolutePoint`, `InnerJam`, `Splitter.Pass`) | `src/core/model/symbol.ts` | M2 | 🟡 (falta la forma de las constantes, memorias y sensores: M2-05/M2-12) |
 | `Runner/` | Motor de simulación | `src/core/simulate/` | M2 | 🟡 |
+| ↳ `CircuitMap.cs` · `CircuitMap.SymbolMap.cs` · `CircuitMap.Connection.cs` | Traducir el dibujo a circuito simulable: árbol de subcircuitos, resolución de cables, aplanado a funciones e índices de estado | `src/core/simulate/circuit-map.ts`, `connection.ts`, `symbol-map.ts` | M2 | 🟡 (compuertas y tri-estado; reloj/LED/interruptor/constante/memoria/probeta/sensor/sonido/matriz llegan con M2-04/05/12) |
 | `SymbolShapes/` | Geometría de los símbolos | `src/render/symbols/` | M2 | 🟡 |
 | `Icon/` | Iconos | `src/render/icons/` | M2 | ⬜ |
 | `Editor/` | Editor, herramientas, undo/redo | `src/app/editor.ts` | M2 | 🟡 |
@@ -58,7 +60,7 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | `SplitterConverterTest` | Conversión de *splitters* | `tests/unit/persist/splitter.test.ts` | ⬜ |
 | `ProbeConverterTest` | Conversión de probetas | `tests/unit/persist/probe.test.ts` | ⬜ |
 | `CircuitTest` | Circuito y sus elementos | `tests/unit/model/circuit.test.ts` | ⬜ |
-| `CircuitMapTest` | Mapa de pines / *sockets* | `tests/unit/model/circuit-map.test.ts` | ⬜ |
+| `CircuitMapTest` | Mapa de pines / *sockets* | `tests/unit/core/simulate/circuit-map.test.ts` | 🟡 (13 tests propios; los 3 del original —`CleanUpTest` espera 0/0/3/8 funciones— necesitan cargar `.CircuitProject`: M4) |
 | `CircuitTestSocketTest` | *Sockets* de test | `tests/unit/model/socket.test.ts` | ⬜ |
 | `MemoryTest` | Memoria (RAM/ROM) | `tests/unit/model/memory.test.ts` | ⬜ |
 | `SensorTest` | Sensores | `tests/unit/model/sensor.test.ts` | ⬜ |
