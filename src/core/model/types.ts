@@ -200,6 +200,8 @@ export interface Gate extends Device {
   readonly gateType: GateType
   /** Cuántas entradas tiene. Para las compuertas, entre 1 y `MAX_GATE_INPUTS`. */
   readonly inputCount: number
+  /** Ancho en bits de cada pin (entrada y salida). 1 = cable simple. Por defecto 1. */
+  readonly bitWidth?: number
   /** Salida negada: así se hace una NAND (`gateType: 'and'` + `invertedOutput`). */
   readonly invertedOutput: boolean
 }
@@ -304,6 +306,8 @@ export interface Jam {
  */
 export interface Button extends Device {
   readonly kind: 'button'
+  /** Ancho en bits de su salida. 1 = cable simple. Por defecto 1. */
+  readonly bitWidth?: number
   /**
    * `false` —que es el valor por defecto del original— lo hace **momentáneo**: está a 1
    * mientras se pulsa y vuelve a 0 al soltar. Con `true` se queda como se lo deje.

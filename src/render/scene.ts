@@ -55,6 +55,7 @@ export function buildScene(options: SceneOptions): RenderScene {
         p1: element.p1,
         p2: element.p2,
         selected: options.selected.has(element.id),
+        bitWidth: element.bitWidth,
       })
     }
   }

@@ -22,7 +22,7 @@
 
 import { deviceBounds, deviceLayout, pinPosition } from './layout'
 import type { Button, Element, Gate, GateType, GridPoint, GridRect, Id, Wire } from './types'
-import { DEFAULT_LAYER_ID } from './types'
+import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
 export const MAIN_CIRCUIT_ID = 'main'
@@ -205,7 +205,13 @@ export class Diagram {
     }
   }
 
-  addGate(gateType: GateType, position: GridPoint, inputCount = 2, invertedOutput = false): Gate {
+  addGate(
+    gateType: GateType,
+    position: GridPoint,
+    inputCount = 2,
+    invertedOutput = false,
+    bitWidth = 1,
+  ): Gate {
     return this.change(() => {
       const gate: Gate = {
         kind: 'gate',
@@ -216,6 +222,7 @@ export class Diagram {
         rotation: 'up',
         gateType,
         inputCount,
+        bitWidth: Math.max(1, Math.min(bitWidth, MAX_BIT_WIDTH)),
         invertedOutput,
       }
       this.items.set(gate.id, gate)
@@ -233,7 +240,7 @@ export class Diagram {
    */
   addButton(
     position: GridPoint,
-    options: { readonly isToggle?: boolean; readonly inverted?: boolean } = {},
+    options: { readonly isToggle?: boolean; readonly inverted?: boolean; readonly bitWidth?: number } = {},
   ): Button {
     return this.change(() => {
       const button: Button = {
@@ -243,6 +250,7 @@ export class Diagram {
         layerId: DEFAULT_LAYER_ID,
         position,
         rotation: 'up',
+        bitWidth: Math.max(1, Math.min(options.bitWidth ?? 1, MAX_BIT_WIDTH)),
         isToggle: options.isToggle ?? false,
         inverted: options.inverted ?? false,
       }

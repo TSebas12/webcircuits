@@ -53,6 +53,8 @@ export interface DrawWire {
   readonly p1: GridPoint
   readonly p2: GridPoint
   readonly selected: boolean
+  /** Ancho en bits del cable (1 = cable simple). Sirve para el grosor del bus. */
+  readonly bitWidth?: number
   /**
    * Es un cable **provisional** (el que se está tendiendo), no del circuito.
    *

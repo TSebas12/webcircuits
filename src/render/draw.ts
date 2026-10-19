@@ -62,7 +62,8 @@ function stateColor(theme: RenderTheme, state: DeviceState): string {
 /** Dibuja un cable. En el original un cable es una `Line`: dos puntos y ya. */
 export function drawWire(ctx: CanvasRenderingContext2D, wire: DrawWire, theme: RenderTheme): void {
   ctx.strokeStyle = wire.selected ? theme.selection : theme.wire
-  ctx.lineWidth = STROKE
+  const widthFactor = wire.bitWidth !== undefined && wire.bitWidth > 1 ? 2.5 : 1
+  ctx.lineWidth = STROKE * widthFactor
 
   ctx.beginPath()
   ctx.moveTo(wire.p1.x, wire.p1.y)

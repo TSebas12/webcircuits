@@ -68,6 +68,7 @@ function mixItem(hash: number, item: DrawItem): number {
       result = mix(result, item.p2.y)
       result = mix(result, item.selected ? 1 : 0)
       result = mix(result, item.overlay === true ? 1 : 0)
+      result = mix(result, item.bitWidth ?? 1)
       return result
     case 'junction':
       result = mix(result, item.point.x)
