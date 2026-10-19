@@ -255,6 +255,11 @@ export class Editor {
     return this.diagram.elements.length
   }
 
+  /** Estado de la cámara (para minimap). */
+  get cameraState(): { zoom: number; offsetX: number; offsetY: number } {
+    return this.camera.state
+  }
+
   /** Id del elemento seleccionado (o null). */
   get selectedId(): string | null {
     const first = this.selected.values().next().value

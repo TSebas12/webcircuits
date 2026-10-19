@@ -3,6 +3,7 @@
   import { Editor, type Tool } from './editor'
   import ContextMenu, { type MenuItem } from './ContextMenu.svelte'
   import Inspector from './Inspector.svelte'
+  import Minimap from './Minimap.svelte'
   import SettingsPanel from './SettingsPanel.svelte'
   import CommandPalette from './CommandPalette.svelte'
   import { deserializeProject, serializeProject } from '../core/persist/json'
@@ -558,6 +559,10 @@
 
   {#if hasSelection && editor}
     <Inspector {editor} />
+  {/if}
+
+  {#if editor}
+    <Minimap {editor} />
   {/if}
 
   {#if showSettings}
