@@ -498,7 +498,7 @@
               disabled={powered}
               onclick={() => chooseTool(piece.id)}
             >
-              <PiecePreview piece={piece} inputs={placeInputs} />
+              <PiecePreview piece={piece} />
               <span>{piece.label}</span>
             </button>
           {/each}

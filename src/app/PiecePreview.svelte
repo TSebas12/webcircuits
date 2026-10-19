@@ -5,7 +5,7 @@
   import { shapeForGate } from '../render/symbols'
   import { symbolDrawing } from '../render/symbols'
 
-  let { piece, inputs = 2 }: { piece: Piece; inputs?: number } = $props()
+  let { piece }: { piece: Piece } = $props()
 
   let canvasEl = $state<HTMLCanvasElement | null>(null)
 
@@ -24,10 +24,12 @@
     ctx.scale(dpr, dpr)
 
     // Layout + shape
+    // La preview no refleja el número de entradas elegido: siempre muestra 2,
+    // para que la paleta no "baile" al cambiar el selector de entradas.
     const count =
       piece.kind === 'gate'
         ? piece.inputCount === 'variable'
-          ? inputs
+          ? 2
           : piece.inputCount
         : 2
     const layout = pieceLayout(piece, count)
@@ -72,8 +74,7 @@
   })
 
   $effect(() => {
-    // Redibuja al cambiar inputs o el tema.
-    void inputs
+    // Redibuja al cambiar la pieza o el tema.
     void piece
     draw()
   })
