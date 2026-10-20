@@ -1012,55 +1012,88 @@ function defineConstant(
   return constant
 }
 
+/** El único índice de estado de un símbolo (original: `CircuitMap.SingleResult`). */
+function singleResult(results: readonly Result[]): number {
+  let index = 0
+  for (const result of results) {
+    if (index === 0) {
+      index = result.stateIndex
+    } else {
+      throw new CircuitError('Un símbolo con resultados de varios bits necesita su propia función.')
+    }
+  }
+  return index
+}
+
 /** La función de una compuerta (original: `CircuitMap.DefineGate`). */
 function defineGate(
   gate: Gate,
   circuitState: CircuitState,
   symbolMap: SymbolMap,
 ): CircuitFunction | null {
-  const result = singleResult(symbolMap.results)
-  const mapList: number[] = []
-  for (const parameter of symbolMap.parameters) {
-    const index = parameter.result.stateIndex
-    if (0 < index) {
-      mapList.push(index)
-    }
-  }
-  if (mapList.length === 0) {
-    // Una compuerta sin ninguna entrada conectada no tiene nada que evaluar: el original
-    // devuelve null y no crea función.
-    return null
-  }
-  mapList.sort((a, b) => a - b)
-  const parameter = mapList
+  const results = symbolMap.results
+  // Un símbolo multi-bit tiene un resultado por bit de salida: se crea una función
+  // independiente por bit, todas del mismo tipo, como si fueran N compuertas en paralelo.
+  const inputJams = jamsByPinOrder(symbolMap.circuitSymbol).filter((jam) => jam.pin.type === 'input')
+  let created: CircuitFunction | null = null
 
-  if (gate.invertedOutput) {
-    switch (gate.gateType) {
-      case 'not':
-        return new FunctionNot(circuitState, parameter[0]!, result)
-      case 'or':
-        return FunctionOrNot.create(circuitState, parameter, result)
-      case 'and':
-        return FunctionAndNot.create(circuitState, parameter, result)
-      case 'xor':
-        return FunctionXorNot.create(circuitState, parameter, result)
+  const bitCount = results.length
+  for (let bit = 0; bit < bitCount; bit += 1) {
+    const result = results[bit]
+    if (result === undefined) {
+      continue
     }
-  } else {
-    // ⚠️ Aquí **no hay `case 'not'`**, y no es un olvido: el inversor del original siempre nace
-    // con la salida negada (`CircuitDescriptorList.cs` → `Gate(GateType.Not, 1, true)`), así
-    // que la NOT sin negar no existe y el original se planta si la encuentra (`Tracer.Fail`,
-    // que aquí es este comentario). Quien quiera un inversor, lo pide negado.
-    switch (gate.gateType) {
-      case 'or':
-        return FunctionOr.create(circuitState, parameter, result)
-      case 'and':
-        return FunctionAnd.create(circuitState, parameter, result)
-      case 'xor':
-        return FunctionXor.create(circuitState, parameter, result)
+
+    const mapList: number[] = []
+    for (const jam of inputJams) {
+      const parameter = symbolMap.allParameters(jam)[bit]
+      if (parameter !== undefined && 0 < parameter.result.stateIndex) {
+        mapList.push(parameter.result.stateIndex)
+      }
+    }
+    if (mapList.length === 0) {
+      // Un bit sin ninguna entrada conectada no tiene nada que evaluar.
+      continue
+    }
+    mapList.sort((a, b) => a - b)
+    const parameter = mapList
+    const resultIndex = result.stateIndex
+
+    if (gate.invertedOutput) {
+      switch (gate.gateType) {
+        case 'not':
+          created = new FunctionNot(circuitState, parameter[0]!, resultIndex)
+          break
+        case 'or':
+          created = FunctionOrNot.create(circuitState, parameter, resultIndex)
+          break
+        case 'and':
+          created = FunctionAndNot.create(circuitState, parameter, resultIndex)
+          break
+        case 'xor':
+          created = FunctionXorNot.create(circuitState, parameter, resultIndex)
+          break
+        default:
+          break
+      }
+    } else {
+      switch (gate.gateType) {
+        case 'or':
+          created = FunctionOr.create(circuitState, parameter, resultIndex)
+          break
+        case 'and':
+          created = FunctionAnd.create(circuitState, parameter, resultIndex)
+          break
+        case 'xor':
+          created = FunctionXor.create(circuitState, parameter, resultIndex)
+          break
+        default:
+          break
+      }
     }
   }
-  // Tracer.Fail()
-  return null
+
+  return created
 }
 
 /**
@@ -1119,18 +1152,6 @@ function defineTriStateGroup(
   return new FunctionTriStateGroup(circuitState, group, stateIndex)
 }
 
-/** El único índice de estado de un símbolo (original: `CircuitMap.SingleResult`). */
-function singleResult(results: readonly Result[]): number {
-  let index = 0
-  for (const result of results) {
-    if (index === 0) {
-      index = result.stateIndex
-    } else {
-      throw new CircuitError('Un símbolo con resultados de varios bits necesita su propia función.')
-    }
-  }
-  return index
-}
 
 // ── Repartidores ───────────────────────────────────────────────────────────────────────
 

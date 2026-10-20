@@ -178,12 +178,12 @@ export function clampGateInputs(inputCount: number): number {
   return Math.min(MAX_GATE_INPUTS, Math.max(1, Math.trunc(inputCount)))
 }
 
-function inputPin(side: PinSide = 'left'): PinSpec {
-  return { side, type: 'input', bitWidth: 1, inverted: false }
+function inputPin(side: PinSide = 'left', bitWidth = 1): PinSpec {
+  return { side, type: 'input', bitWidth: Math.max(1, Math.trunc(bitWidth)), inverted: false }
 }
 
-function outputPin(inverted = false): PinSpec {
-  return { side: 'right', type: 'output', bitWidth: 1, inverted }
+function outputPin(inverted = false, bitWidth = 1): PinSpec {
+  return { side: 'right', type: 'output', bitWidth: Math.max(1, Math.trunc(bitWidth)), inverted }
 }
 
 /**
@@ -194,10 +194,11 @@ function outputPin(inverted = false): PinSpec {
  * primero la entrada de datos, luego la de habilitación y por último la salida, y
  * `DefineTriState` lee `jam[0]`, `jam[1]` y `jam[2]` en ese orden.
  */
-function gatePinSpecs(gateType: GateType, inputCount: number, invertedOutput: boolean): PinSpec[] {
+function gatePinSpecs(gateType: GateType, inputCount: number, invertedOutput: boolean, bitWidth = 1): PinSpec[] {
+  const width = Math.max(1, Math.trunc(bitWidth))
   switch (gateType) {
     case 'not':
-      return [inputPin(), outputPin(invertedOutput)]
+      return [inputPin('left', width), outputPin(invertedOutput, width)]
 
     case 'and':
     case 'or':
@@ -205,9 +206,9 @@ function gatePinSpecs(gateType: GateType, inputCount: number, invertedOutput: bo
       const count = clampGateInputs(inputCount)
       const specs: PinSpec[] = []
       for (let index = 0; index < count; index += 1) {
-        specs.push(inputPin())
+        specs.push(inputPin('left', width))
       }
-      specs.push(outputPin(invertedOutput))
+      specs.push(outputPin(invertedOutput, width))
       return specs
     }
 
@@ -276,8 +277,9 @@ export function gateLayout(
   gateType: GateType,
   inputCount: number,
   invertedOutput = false,
+  bitWidth = 1,
 ): SymbolLayout {
-  const specs = gatePinSpecs(gateType, inputCount, invertedOutput)
+  const specs = gatePinSpecs(gateType, inputCount, invertedOutput, bitWidth)
   return symbolLayout(specs, gateSize(gateType, specs))
 }
 
@@ -447,7 +449,7 @@ export function deviceLayout(
 ): SymbolLayout {
   switch (device.kind) {
     case 'gate':
-      return gateLayout(device.gateType, device.inputCount, device.invertedOutput)
+      return gateLayout(device.gateType, device.inputCount, device.invertedOutput, device.bitWidth ?? 1)
     case 'probe':
       return probeLayout(device.pinSide)
     case 'button':
