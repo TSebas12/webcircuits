@@ -948,20 +948,32 @@ function defineClock(circuitState: CircuitState, symbolMap: SymbolMap): CircuitF
  */
 function defineLed(circuitState: CircuitState, symbolMap: SymbolMap): CircuitFunction | null {
   // Las puntas de un LED tienen un orden especial, así que se va por ellas.
-  const jam = jamsByPinOrder(symbolMap.circuitSymbol)
+  const jams = jamsByPinOrder(symbolMap.circuitSymbol)
   // Tracer.Assert(las puntas son 1 (LED) u 8 (7 segmentos) y todas de entrada)
-  if (jam.length !== 1) {
-    throw new CircuitError(
-      'El LED de 7 segmentos todavía no está portado (M2-12): solo se simula el de un bit.',
-    )
+
+  if (jams.length === 1) {
+    let function_: FunctionLed | null = null
+    const parameter = symbolMap.parameter(jams[0]!, 0)
+    if (parameter !== null) {
+      function_ = new FunctionLed(circuitState, parameter.result.stateIndex)
+      symbolMap.circuitMap.updateDisplays(symbolMap, function_)
+    }
+    return function_
   }
 
-  let function_: FunctionLed | null = null
-  const parameter = symbolMap.parameter(jam[0]!, 0)
-  if (parameter !== null) {
-    function_ = new FunctionLed(circuitState, parameter.result.stateIndex)
-    symbolMap.circuitMap.updateDisplays(symbolMap, function_)
+  // LED de 7 segmentos: 8 entradas, se trata como una sonda multi-bit.
+  const parameters: number[] = []
+  for (const jam of jams) {
+    const parameter = symbolMap.parameter(jam, 0)
+    if (parameter !== null) {
+      parameters.push(parameter.result.stateIndex)
+    }
   }
+  if (parameters.length === 0) {
+    return null
+  }
+  const function_ = new FunctionLed(circuitState, parameters)
+  symbolMap.circuitMap.updateDisplays(symbolMap, function_)
   return function_
 }
 

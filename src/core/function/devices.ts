@@ -121,8 +121,8 @@ export class FunctionButton extends OneBitConst implements IFunctionVisual {
 export class FunctionLed extends Probe implements IFunctionVisual {
   invalid = false
 
-  constructor(circuitState: CircuitState, parameter: number) {
-    super(circuitState, [parameter])
+  constructor(circuitState: CircuitState, parameter: number | number[]) {
+    super(circuitState, Array.isArray(parameter) ? parameter : [parameter])
   }
 
   override get reportName(): string {

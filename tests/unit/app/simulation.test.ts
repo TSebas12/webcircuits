@@ -188,9 +188,8 @@ describe('tener el circuito en marcha', () => {
   })
 
   it('un circuito que no se puede simular avisa y se queda apagado', () => {
-    const errors: string[] = []
-    const simulation = new Simulation({ onError: (message) => errors.push(message) })
-    // Un LED de siete segmentos: el modelo ya lo entiende, el motor todavía no (M2-12).
+    const simulation = new Simulation()
+    // Un LED de siete segmentos ya se simula como sonda multi-bit.
     const elements: Element[] = [
       gate('led7', { x: 0, y: 0 }, 'led', 8),
       button('b1', { x: 0, y: 8 }),
@@ -200,8 +199,7 @@ describe('tener el circuito en marcha', () => {
     simulation.setPowered(true)
     const state = simulation.evaluate(elements)
 
-    expect(errors).toHaveLength(1)
-    expect(simulation.error).toBe(errors[0])
+    expect(simulation.error).toBeNull()
     expect([...state.devices.values()]).toEqual(['off', 'off'])
   })
 
