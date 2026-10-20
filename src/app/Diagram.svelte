@@ -91,6 +91,14 @@ import Icon from './Icon.svelte'
 
   let fps = $state(0)
   let paintMs = $state(0)
+  let viewVersion = $state(0)
+
+  interface Annotation { id: string; world: { x: number; y: number }; text: string }
+  interface Marker { id: string; world: { x: number; y: number }; label: string }
+  let annotations = $state<Annotation[]>([])
+  let markers = $state<Marker[]>([])
+  let annotateMode = $state(false)
+  let markerMode = $state(false)
   let zoomPct = $state(100)
 
   /**
@@ -189,6 +197,7 @@ import Icon from './Icon.svelte'
       },
     })
     editor = instance
+    const unsubView = instance.subscribeView(() => { viewVersion++ })
 
     /**
      * Lo que la paleta tapa por la izquierda.
@@ -352,6 +361,7 @@ import Icon from './Icon.svelte'
       window.removeEventListener('pagehide', onPageHide)
       document.removeEventListener('visibilitychange', onVisibility)
       insetsObserver.disconnect()
+      unsubView()
       instance.unmount()
       editor = null
     }
@@ -645,6 +655,42 @@ import Icon from './Icon.svelte'
     }}
   ></canvas>
 
+  {#if annotateMode || markerMode}
+    <div
+      class="overlay-capture"
+      role="button"
+      tabindex="-1"
+      aria-hidden="true"
+      onpointerdown={(e) => {
+        if (editor === null) return
+        e.preventDefault()
+        const world = editor.worldAtClient(e.clientX, e.clientY)
+        if (annotateMode) {
+          const text = prompt('Texto de la nota:') ?? ''
+          if (text.trim() !== '') {
+            annotations = [...annotations, { id: `note-${annotations.length + 1}`, world, text: text.trim() }]
+          }
+          annotateMode = false
+        } else {
+          const label = prompt('Texto del marcador:') ?? ''
+          markers = [...markers, { id: `mark-${markers.length + 1}`, world, label: label.trim() }]
+          markerMode = false
+        }
+      }}
+    ></div>
+  {/if}
+
+  {#key viewVersion}
+    {#each annotations as note (note.id)}
+      {@const pos = editor?.toScreen(note.world) ?? { x: 0, y: 0 }}
+      <div class="annotation" style="left:{pos.x}px; top:{pos.y}px;">{note.text}</div>
+    {/each}
+
+    {#each markers as mark (mark.id)}
+      {@const pos = editor?.toScreen(mark.world) ?? { x: 0, y: 0 }}
+      <div class="marker" style="left:{pos.x}px; top:{pos.y}px;" title={mark.label}>●</div>
+    {/each}
+  {/key}
   {#if hoverInfo}
     <div class="probe" style="left:{hoverInfo.x + 12}px; top:{hoverInfo.y + 12}px;">
       {hoverInfo.bitWidth > 1 ? `0x${hoverInfo.value.toString(16).toUpperCase()}` : hoverInfo.value}
@@ -1026,6 +1072,12 @@ import Icon from './Icon.svelte'
     </button>
     <button type="button" title="Avanzar un tick" onclick={() => { editor?.stepSimulation() }}>
       Paso
+    </button>
+    <button type="button" title="Añadir una nota de texto" onclick={() => { annotateMode = true; markerMode = false }}>
+      Nota
+    </button>
+    <button type="button" title="Añadir un marcador" onclick={() => { markerMode = true; annotateMode = false }}>
+      Marcador
     </button>
     <input
       type="range"
@@ -1555,6 +1607,34 @@ import Icon from './Icon.svelte'
   .sim-freq {
     min-width: 3.2rem;
     text-align: right;
+  }
+  .overlay-capture {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    cursor: crosshair;
+  }
+  .annotation {
+    position: absolute;
+    z-index: 7;
+    padding: 0.2rem 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    background: color-mix(in srgb, var(--panel-bg) 90%, transparent);
+    color: var(--fg);
+    font-size: 0.75rem;
+    max-width: 12rem;
+    white-space: pre-wrap;
+    pointer-events: none;
+  }
+  .marker {
+    position: absolute;
+    z-index: 7;
+    color: var(--accent);
+    font-size: 1.1rem;
+    line-height: 1;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
   }
   .hud {
     position: absolute;

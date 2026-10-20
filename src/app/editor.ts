@@ -1828,6 +1828,20 @@ export class Editor {
     return this.camera.toWorld(event.clientX - rect.left, event.clientY - rect.top)
   }
 
+  worldAtClient(clientX: number, clientY: number): GridPoint {
+    const canvas = this.canvas
+    if (canvas === null) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    return this.camera.toWorld(clientX - rect.left, clientY - rect.top)
+  }
+
+  toScreen(world: GridPoint): { x: number; y: number } {
+    const canvas = this.canvas
+    const rect = canvas?.getBoundingClientRect()
+    const point = this.camera.toScreen(world)
+    return { x: point.x + (rect?.left ?? 0), y: point.y + (rect?.top ?? 0) }
+  }
+
   private gridAt(event: PointerEvent): GridPoint {
     const canvas = this.canvas
     if (canvas === null) {
