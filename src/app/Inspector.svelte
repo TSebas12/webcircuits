@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import type { Editor } from './editor'
-  import type { Element } from '../core/model/types'
+  import type { Element, StoredElement } from '../core/model/types'
   import { LIGHT_THEME } from '../core/theme/presets'
   let { editor }: { editor: Editor | null } = $props()
   let selected = $state<Element | null>(null)
@@ -10,6 +10,11 @@
     if (editor === null) { selected = null; return }
     const id = editor.selectedId
     selected = (id ? (editor.diagram.get(id) ?? null) : null) as Element | null
+  }
+
+  const update = (patch: Partial<StoredElement>): void => {
+    editor?.updateSelected(patch)
+    refresh()
   }
 
   /** Entra en el subcircuito seleccionado, si lo hay. */
@@ -48,23 +53,53 @@
     <h3>Propiedades</h3>
     <div class="row"><span>Tipo</span><span>{selected.kind}</span></div>
     {#if selected.kind === 'gate'}
-      <div class="row"><span>Bit-width</span><span>{selected.bitWidth ?? 1}</span></div>
+      <div class="row">
+        <span>Bits</span>
+        <input type="number" min="1" max="32" value={selected.bitWidth ?? 1}
+          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
+      </div>
       <div class="row"><span>Entradas</span><span>{selected.inputCount}</span></div>
-      <div class="row"><span>Invertido</span><span>{selected.invertedOutput ? 'sí' : 'no'}</span></div>
+      <label class="row"><span>Invertido</span><input type="checkbox" checked={selected.invertedOutput} onchange={(e) => update({ invertedOutput: (e.currentTarget as HTMLInputElement).checked })} /></label>
     {:else if selected.kind === 'button'}
-      <div class="row"><span>Bit-width</span><span>{selected.bitWidth ?? 1}</span></div>
-      <div class="row"><span>Fijo</span><span>{selected.isToggle ? 'sí' : 'no'}</span></div>
+      <div class="row">
+        <span>Bits</span>
+        <input type="number" min="1" max="32" value={selected.bitWidth ?? 1}
+          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
+      </div>
+      <label class="row"><span>Fijo</span><input type="checkbox" checked={selected.isToggle} onchange={(e) => update({ isToggle: (e.currentTarget as HTMLInputElement).checked })} /></label>
+      <label class="row"><span>Invertido</span><input type="checkbox" checked={selected.inverted} onchange={(e) => update({ inverted: (e.currentTarget as HTMLInputElement).checked })} /></label>
     {:else if selected.kind === 'pin'}
       <div class="row"><span>Dirección</span><span>{selected.pinType === 'input' ? 'entrada' : 'salida'}</span></div>
       <div class="row"><span>Lado</span><span>{selected.side}</span></div>
-      <div class="row"><span>Bit-width</span><span>{selected.bitWidth}</span></div>
+      <div class="row">
+        <span>Bits</span>
+        <input type="number" min="1" max="32" value={selected.bitWidth}
+          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
+      </div>
       {#if selected.name !== ''}<div class="row"><span>Nombre</span><span>{selected.name}</span></div>{/if}
     {:else if selected.kind === 'constant'}
-      <div class="row"><span>Valor</span><span>{selected.value}</span></div>
-      <div class="row"><span>Bit-width</span><span>{selected.bitWidth}</span></div>
+      <div class="row">
+        <span>Valor</span>
+        <input type="number" value={selected.value}
+          oninput={(e) => update({ value: Number((e.currentTarget as HTMLInputElement).value) })} />
+      </div>
+      <div class="row">
+        <span>Bits</span>
+        <input type="number" min="1" max="32" value={selected.bitWidth}
+          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
+      </div>
     {:else if selected.kind === 'splitter'}
-      <div class="row"><span>Bits</span><span>{selected.bitWidth}</span></div>
-      <div class="row"><span>Salidas</span><span>{selected.pinCount}</span></div>
+      <div class="row">
+        <span>Bits</span>
+        <input type="number" min="1" max="32" value={selected.bitWidth}
+          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
+      </div>
+      <div class="row">
+        <span>Salidas</span>
+        <input type="number" min="1" max="32" value={selected.pinCount}
+          oninput={(e) => update({ pinCount: Number((e.currentTarget as HTMLInputElement).value) })} />
+      </div>
+      <label class="row"><span>Sentido horario</span><input type="checkbox" checked={selected.clockwise} onchange={(e) => update({ clockwise: (e.currentTarget as HTMLInputElement).checked })} /></label>
     {:else if selected.kind === 'circuit'}
       <div class="row"><span>Circuito</span><span>{editor?.project.circuit(selected.targetCircuitId)?.name ?? '?'}</span></div>
     {/if}
@@ -100,7 +135,16 @@
       {/if}
     {/if}
     {#if 'position' in selected}
-      <div class="row"><span>Posición</span><span>{(selected as { position: { x: number; y: number } }).position.x}, {(selected as { position: { x: number; y: number } }).position.y}</span></div>
+      <div class="row">
+        <span>X</span>
+        <input type="number" value={(selected as { position: { x: number; y: number } }).position.x}
+          oninput={(e) => update({ position: { x: Number((e.currentTarget as HTMLInputElement).value), y: (selected as { position: { x: number; y: number } }).position.y } })} />
+      </div>
+      <div class="row">
+        <span>Y</span>
+        <input type="number" value={(selected as { position: { x: number; y: number } }).position.y}
+          oninput={(e) => update({ position: { x: (selected as { position: { x: number; y: number } }).position.x, y: Number((e.currentTarget as HTMLInputElement).value) } })} />
+      </div>
     {/if}
   </aside>
 {/if}

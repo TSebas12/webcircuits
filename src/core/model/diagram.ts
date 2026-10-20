@@ -802,6 +802,16 @@ export class Diagram {
     })
   }
 
+  /** Sustituye un elemento por una versión con los campos indicados. */
+  updateElement(id: Id, patch: Partial<StoredElement>): void {
+    const element = this.items.get(id)
+    if (element === undefined) return
+    this.change(() => {
+      this.items.set(id, { ...element, ...patch } as StoredElement)
+      this.changed()
+    })
+  }
+
   /**
    * Mueve **una punta** de un cable.
    *

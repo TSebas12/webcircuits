@@ -768,11 +768,14 @@ export class Editor {
     this.refresh()
   }
 
-  /**
-   * Cambia el color de los cables seleccionados (M6-14). `null` los devuelve al tema.
-   *
-   * Solo afecta a cables: el color de un símbolo lo manda el tema, no el usuario.
-   */
+  updateSelected(patch: Partial<StoredElement>): void {
+    if (this.selected.size !== 1) return
+    const id = [...this.selected][0]!
+    const element = this.diagram.get(id)
+    if (element === undefined || this.diagram.isLayerLocked(element.layerId)) return
+    this.diagram.updateElement(id, patch)
+    this.refresh()
+  }
   setSelectedWireColor(color: string | null): void {
     const wires = [...this.selected]
       .map((id) => this.diagram.get(id))
