@@ -23,7 +23,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   import { createFileProvider } from './files/provider-factory'
   import { addRecent } from './files/recents'
   import { saveVersion } from './files/versions'
-  import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS, PIECE_GROUPS, PIECES } from './palette'
+  import { PIECE_GROUPS, PIECES } from './palette'
   import PiecePreview from './PiecePreview.svelte'
 
   /**
@@ -105,9 +105,6 @@ let wireColor = $state<string | null>(null)
 
   /** Los subcircuitos que se pueden colocar ahora mismo. */
   let otherCircuits = $derived(circuits.filter((circuit) => circuit.id !== currentCircuitId))
-  /** Cuántas entradas tendrá la próxima compuerta que se coloque desde la paleta. */
-  let placeInputs = $state(2)
-
   let fps = $state(0)
   let paintMs = $state(0)
   let viewVersion = $state(0)
@@ -258,7 +255,6 @@ let wireColor = $state<string | null>(null)
     tool = instance.currentTool
     canUndo = instance.canUndo
     canRedo = instance.canRedo
-    placeInputs = instance.placeInputs
     simFrequency = instance.simulationFrequency
     simPaused = instance.simulationPaused
     isEmpty = instance.elementCount === 0
@@ -526,15 +522,6 @@ let wireColor = $state<string | null>(null)
    * El editor recorta al tope del modelo y **devuelve** lo que ha aceptado: si se escribe un
    * 99, se coloca una compuerta de 18 y el campo tiene que enseñar ese 18, no el 99.
    */
-  const changeInputs = (event: Event): void => {
-    const field = event.currentTarget as HTMLInputElement | null
-    if (field === null || editor === null) {
-      return
-    }
-    placeInputs = editor.setPlaceInputs(field.valueAsNumber)
-    field.value = String(placeInputs)
-  }
-
   const togglePower = (): void => {
     // El estado lo devuelve el editor por `onPoweredChange`, igual que la herramienta: una
     // sola fuente de verdad. Y esto no es solo encender: es el **interruptor de modo**
@@ -975,17 +962,6 @@ let wireColor = $state<string | null>(null)
     <aside class="palette" class:disabled={powered} aria-label="Piezas para colocar">
     <div class="palette-head">
       <span class="palette-title">Piezas</span>
-      <label class="inputs" title="Cuántas entradas tendrá la próxima compuerta que coloques">
-        <span>entradas</span>
-        <input
-          type="number"
-          min={MIN_PIECE_INPUTS}
-          max={MAX_GATE_INPUTS}
-          value={placeInputs}
-          disabled={powered}
-          onchange={changeInputs}
-        />
-      </label>
     </div>
 
     {#each PIECE_SECTIONS as section (section.id)}
@@ -1008,7 +984,7 @@ let wireColor = $state<string | null>(null)
               <span>{piece.label}</span>
               {#if piece.kind === 'splitter'}
                 <small class="piece-sub">{piece.bitWidth}→{piece.pinCount} bits</small>
-              {:else if piece.kind === 'gate' && piece.gateType !== 'led'}
+              {:else if piece.kind === 'gate' && piece.gateType !== 'led' && typeof piece.inputCount === 'number'}
                 <small class="piece-sub">{piece.inputCount} entradas</small>
               {/if}
             </button>
@@ -1477,25 +1453,6 @@ let wireColor = $state<string | null>(null)
     text-transform: uppercase;
   }
 
-  .inputs {
-    display: flex;
-    gap: 0.25rem;
-    align-items: center;
-    color: var(--fg-muted);
-    font-size: 0.68rem;
-  }
-
-  .inputs input {
-    width: 2.8rem;
-    padding: 0.1rem 0.2rem;
-    border: 1px solid var(--border);
-    border-radius: 0.3rem;
-    background: var(--panel-bg);
-    color: var(--fg);
-    font: inherit;
-    font-size: 0.72rem;
-  }
-
   .palette-group + .palette-group {
     margin-top: 0.4rem;
   }
@@ -1544,8 +1501,7 @@ let wireColor = $state<string | null>(null)
 
   /* Con la corriente puesta no se edita, así que la paleta se apaga entera: dejar pulsar una
      pieza que no va a colocar nada sería mentir. */
-  .palette.disabled .piece,
-  .palette.disabled .inputs {
+  .palette.disabled .piece {
     opacity: 0.45;
   }
 
@@ -1872,7 +1828,7 @@ let wireColor = $state<string | null>(null)
     /* A la derecha de la columna de piezas: el panel se desplaza hasta abajo y estos
        controles no deben taparlo. */
     left: 13.5rem;
-    bottom: 2.6rem;
+    bottom: 0.6rem;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -1999,7 +1955,7 @@ let wireColor = $state<string | null>(null)
   .hud {
     position: absolute;
     left: 13.5rem;
-    bottom: 0.6rem;
+    bottom: 2.6rem;
     display: flex;
     gap: 0.35rem;
     padding: 0.25rem 0.5rem;
