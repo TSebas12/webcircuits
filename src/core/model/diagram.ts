@@ -21,6 +21,7 @@
  */
 
 import { deviceBounds, deviceLayout, pinPosition, type CircuitResolver } from './layout'
+import type { CircuitAnnotation, CircuitMarker } from './overlay'
 import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Pin, PinSide, PinType, PlacedElement, Rotation, Splitter, StoredElement, Wire } from './types'
 import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
@@ -49,12 +50,17 @@ const MAX_HISTORY = 100
 interface Snapshot {
   readonly elements: readonly StoredElement[]
   readonly layers: readonly Layer[]
+  readonly annotations: readonly CircuitAnnotation[]
+  readonly markers: readonly CircuitMarker[]
 }
 
 /** El documento: los elementos colocados, sus capas y nada más. */
 export class Diagram {
   private readonly items = new Map<Id, StoredElement>()
   private layers: Layer[] = [{ id: DEFAULT_LAYER_ID, name: 'Principal', visible: true, locked: false, color: '#888888', opacity: 1 }]
+  /** Notas y marcas visuales: no son piezas, pero viajan y se deshacen con el documento. */
+  private annotationList: CircuitAnnotation[] = []
+  private markerList: CircuitMarker[] = []
   /** Capa donde caen los elementos nuevos. No se guarda: es estado de edición. */
   private activeLayer: Id = DEFAULT_LAYER_ID
   private readonly listeners = new Set<() => void>()
@@ -113,6 +119,69 @@ export class Diagram {
   get visibleElements(): Element[] {
     const visible = new Set(this.layers.filter((l) => l.visible).map((l) => l.id))
     return this.drawables(this.storedElements.filter((e) => visible.has(e.layerId)))
+  }
+
+  /** Las notas de texto del circuito. */
+  get annotations(): CircuitAnnotation[] {
+    return [...this.annotationList]
+  }
+
+  /** Los marcadores visuales del circuito. */
+  get markers(): CircuitMarker[] {
+    return [...this.markerList]
+  }
+
+  addAnnotation(position: GridPoint, text: string): CircuitAnnotation {
+    return this.change(() => {
+      const note: CircuitAnnotation = {
+        id: this.nextId('note'),
+        position: { x: position.x, y: position.y },
+        text,
+      }
+      this.annotationList.push(note)
+      return note
+    })
+  }
+
+  removeAnnotation(id: Id): boolean {
+    const before = this.annotationList.length
+    this.change(() => {
+      this.annotationList = this.annotationList.filter((note) => note.id !== id)
+    })
+    return this.annotationList.length !== before
+  }
+
+  addMarker(position: GridPoint, label: string): CircuitMarker {
+    return this.change(() => {
+      const marker: CircuitMarker = {
+        id: this.nextId('mark'),
+        position: { x: position.x, y: position.y },
+        label,
+      }
+      this.markerList.push(marker)
+      return marker
+    })
+  }
+
+  removeMarker(id: Id): boolean {
+    const before = this.markerList.length
+    this.change(() => {
+      this.markerList = this.markerList.filter((marker) => marker.id !== id)
+    })
+    return this.markerList.length !== before
+  }
+
+  /** Sustituye las notas y marcas (carga de ficheros). */
+  setOverlays(annotations: readonly CircuitAnnotation[], markers: readonly CircuitMarker[]): void {
+    this.annotationList = annotations.map((note) => ({
+      ...note,
+      position: { x: note.position.x, y: note.position.y },
+    }))
+    this.markerList = markers.map((marker) => ({
+      ...marker,
+      position: { x: marker.position.x, y: marker.position.y },
+    }))
+    this.changed()
   }
 
   /**
@@ -229,7 +298,12 @@ export class Diagram {
 
   /** La foto del estado actual. Copia las listas para que nadie las pueda mutar por detrás. */
   private snapshot(): Snapshot {
-    return { elements: this.storedElements, layers: [...this.layers] }
+    return {
+      elements: this.storedElements,
+      layers: [...this.layers],
+      annotations: [...this.annotationList],
+      markers: [...this.markerList],
+    }
   }
 
   /**
@@ -245,6 +319,8 @@ export class Diagram {
       this.items.set(element.id, element)
     }
     this.layers = [...snapshot.layers]
+    this.annotationList = [...snapshot.annotations]
+    this.markerList = [...snapshot.markers]
     this.changed()
   }
 
@@ -914,7 +990,12 @@ function isDrawableDevice(item: StoredElement): item is DrawableDevice {
 
 /** ¿Las dos fotos son la misma? Elementos y capas son inmutables: basta la referencia. */
 function sameSnapshot(a: Snapshot, b: Snapshot): boolean {
-  return sameRefs(a.elements, b.elements) && sameRefs(a.layers, b.layers)
+  return (
+    sameRefs(a.elements, b.elements) &&
+    sameRefs(a.layers, b.layers) &&
+    sameRefs(a.annotations, b.annotations) &&
+    sameRefs(a.markers, b.markers)
+  )
 }
 
 function sameRefs<T>(a: readonly T[], b: readonly T[]): boolean {

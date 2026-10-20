@@ -11,7 +11,10 @@
 import Modal from './Modal.svelte'
 import ExamplePicker from './ExamplePicker.svelte'
 import TruthTablePanel from './components/truthtable/TruthTablePanel.svelte'
+import TestSocketPanel from './components/test-socket/TestSocketPanel.svelte'
+import TextPrompt from './components/TextPrompt.svelte'
 import Icon from './Icon.svelte'
+import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   import { deserializeProject, serializeProject } from '../core/persist/json'
   import { exportCircuitProject, importCircuitProject } from '../core/persist/circuitproject'
   import { loadSettings, SETTINGS_EVENT } from './settings'
@@ -60,6 +63,7 @@ import Icon from './Icon.svelte'
   let contextMenu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null)
   let showSettings = $state(false)
   let showTruthTable = $state(false)
+  let showTestSockets = $state(false)
   let showThemeEditor = $state(false)
   let showCommandPalette = $state(false)
   let showConfirmClear = $state(false)
@@ -95,12 +99,11 @@ import Icon from './Icon.svelte'
   let paintMs = $state(0)
   let viewVersion = $state(0)
 
-  interface Annotation { id: string; world: { x: number; y: number }; text: string }
-  interface Marker { id: string; world: { x: number; y: number }; label: string }
-  let annotations = $state<Annotation[]>([])
-  let markers = $state<Marker[]>([])
+  let annotations = $state<CircuitAnnotation[]>([])
+  let markers = $state<CircuitMarker[]>([])
   let annotateMode = $state(false)
   let markerMode = $state(false)
+  let overlayPrompt = $state<{ kind: 'note' | 'marker'; world: { x: number; y: number } } | null>(null)
   let zoomPct = $state(100)
 
   /**
@@ -125,6 +128,12 @@ import Icon from './Icon.svelte'
       name: circuit.name,
     }))
     unsupported = instance.diagram.storedElements.length - instance.diagram.elements.length
+  }
+
+  /** Vuelca notas y marcadores del circuito actual a los overlays de la interfaz. */
+  const syncOverlays = (instance: Editor): void => {
+    annotations = instance.diagram.annotations
+    markers = instance.diagram.markers
   }
 
   onMount(() => {
@@ -172,6 +181,7 @@ import Icon from './Icon.svelte'
         isEmpty = instance.elementCount === 0
         unsupported = instance.diagram.storedElements.length - instance.diagram.elements.length
         syncLayers()
+        syncOverlays(instance)
         scheduleAutosave()
       },
       onWiringChange: (value) => {
@@ -196,6 +206,7 @@ import Icon from './Icon.svelte'
         dirty = instance.dirty
         syncHierarchy(instance)
         syncLayers()
+        syncOverlays(instance)
       },
     })
     editor = instance
@@ -236,6 +247,7 @@ import Icon from './Icon.svelte'
     dirty = instance.dirty
     syncHierarchy(instance)
     syncLayers()
+    syncOverlays(instance)
 
     // Preferencias del usuario (M4-10): rejilla, imán y autoguardado. Sin esto, el panel de
     // Preferencias guardaba los valores y no pasaba nada.
@@ -667,32 +679,44 @@ import Icon from './Icon.svelte'
         if (editor === null) return
         e.preventDefault()
         const world = editor.worldAtClient(e.clientX, e.clientY)
-        if (annotateMode) {
-          const text = prompt('Texto de la nota:') ?? ''
-          if (text.trim() !== '') {
-            annotations = [...annotations, { id: `note-${annotations.length + 1}`, world, text: text.trim() }]
-          }
-          annotateMode = false
-        } else {
-          const label = prompt('Texto del marcador:') ?? ''
-          markers = [...markers, { id: `mark-${markers.length + 1}`, world, label: label.trim() }]
-          markerMode = false
-        }
+        overlayPrompt = { kind: annotateMode ? 'note' : 'marker', world }
+        annotateMode = false
+        markerMode = false
       }}
     ></div>
   {/if}
 
   {#key viewVersion}
     {#each annotations as note (note.id)}
-      {@const pos = editor?.toScreen(note.world) ?? { x: 0, y: 0 }}
+      {@const pos = editor?.toScreen(note.position) ?? { x: 0, y: 0 }}
       <div class="annotation" style="left:{pos.x}px; top:{pos.y}px;">{note.text}</div>
     {/each}
 
     {#each markers as mark (mark.id)}
-      {@const pos = editor?.toScreen(mark.world) ?? { x: 0, y: 0 }}
+      {@const pos = editor?.toScreen(mark.position) ?? { x: 0, y: 0 }}
       <div class="marker" style="left:{pos.x}px; top:{pos.y}px;" title={mark.label}>●</div>
     {/each}
   {/key}
+
+  {#if overlayPrompt}
+    <TextPrompt
+      title={overlayPrompt.kind === 'note' ? 'Nueva nota' : 'Nuevo marcador'}
+      label={overlayPrompt.kind === 'note' ? 'Texto de la nota' : 'Texto del marcador'}
+      placeholder={overlayPrompt.kind === 'note' ? 'Explica qué hace esta parte' : 'Nombre del punto'}
+      confirmLabel="Añadir"
+      onCancel={() => (overlayPrompt = null)}
+      onConfirm={(text) => {
+        const prompt = overlayPrompt
+        const value = text.trim()
+        if (value !== '' && editor !== null && prompt !== null) {
+          if (prompt.kind === 'note') editor.diagram.addAnnotation(prompt.world, value)
+          else editor.diagram.addMarker(prompt.world, value)
+          syncOverlays(editor)
+        }
+        overlayPrompt = null
+      }}
+    />
+  {/if}
   {#if hoverInfo}
     <div class="probe" style="left:{hoverInfo.x + 12}px; top:{hoverInfo.y + 12}px;">
       {hoverInfo.bitWidth > 1 ? `0x${hoverInfo.value.toString(16).toUpperCase()}` : hoverInfo.value}
@@ -1030,6 +1054,17 @@ import Icon from './Icon.svelte'
     <TruthTablePanel {editor} onClose={() => (showTruthTable = false)} />
   {/if}
 
+  {#if showTestSockets && editor}
+    <TestSocketPanel
+      elements={editor.diagram.storedElements}
+      onClose={() => (showTestSockets = false)}
+      onOpenTruthTable={() => {
+        showTestSockets = false
+        showTruthTable = true
+      }}
+    />
+  {/if}
+
   {#if showSettings}
     <SettingsPanel
       onClose={() => (showSettings = false)}
@@ -1093,6 +1128,9 @@ import Icon from './Icon.svelte'
     </button>
     <button type="button" title="Añadir un marcador" onclick={() => { markerMode = true; annotateMode = false }}>
       Marcador
+    </button>
+    <button type="button" title="Pines de entrada y salida del circuito" onclick={() => (showTestSockets = true)}>
+      Sockets
     </button>
     <input
       type="range"

@@ -27,6 +27,25 @@ function positionOf(diagram: Diagram, id: string): unknown {
 }
 
 describe('el historial del documento', () => {
+  it('deshace y rehace notas y marcadores (M7-07/M7-08)', () => {
+    const diagram = new Diagram()
+    diagram.addAnnotation({ x: 1, y: 2 }, 'nota')
+    diagram.addMarker({ x: 3, y: 4 }, 'marca')
+
+    expect(diagram.annotations).toHaveLength(1)
+    expect(diagram.markers).toHaveLength(1)
+
+    expect(diagram.undo()).toBe(true)
+    expect(diagram.markers).toHaveLength(0)
+    expect(diagram.annotations).toHaveLength(1)
+
+    expect(diagram.undo()).toBe(true)
+    expect(diagram.annotations).toHaveLength(0)
+
+    expect(diagram.redo()).toBe(true)
+    expect(diagram.annotations).toHaveLength(1)
+  })
+
   it('empieza sin nada que deshacer ni rehacer', () => {
     const diagram = new Diagram()
 

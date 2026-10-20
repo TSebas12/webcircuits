@@ -6,6 +6,7 @@ import type { Circuit } from '../model/circuit'
 import { CircuitProject } from '../model/circuit'
 import { MAIN_CIRCUIT_ID } from '../model/diagram'
 import { DEFAULT_LAYER_ID } from '../model/types'
+import type { CircuitAnnotation, CircuitMarker } from '../model/overlay'
 import type { GridPoint, Layer, PinSide, PinType, StoredElement } from '../model/types'
 
 export const FORMAT_NAME = 'webcircuits'
@@ -19,11 +20,25 @@ export interface SerializedProject {
   readonly circuits: readonly SerializedCircuit[]
 }
 
+export interface SerializedAnnotation {
+  readonly id: string
+  readonly position: { readonly x: number; readonly y: number }
+  readonly text: string
+}
+
+export interface SerializedMarker {
+  readonly id: string
+  readonly position: { readonly x: number; readonly y: number }
+  readonly label: string
+}
+
 export interface SerializedCircuit {
   readonly id: string
   readonly name: string
   readonly elements: readonly SerializedElement[]
   readonly layers?: readonly Layer[]
+  readonly annotations?: readonly SerializedAnnotation[]
+  readonly markers?: readonly SerializedMarker[]
 }
 
 export type SerializedElement = Record<string, unknown> & { readonly kind: string }
@@ -73,11 +88,31 @@ function serializeElement(el: StoredElement): SerializedElement {
 }
 
 function serializeCircuit(c: Circuit): SerializedCircuit {
+  const annotations = c.diagram.annotations
+  const markers = c.diagram.markers
   return {
     id: c.id,
     name: c.name,
     elements: c.elements.map(serializeElement),
     layers: [...c.diagram.layersList],
+    ...(annotations.length > 0
+      ? {
+          annotations: annotations.map((note) => ({
+            id: note.id,
+            position: point(note.position),
+            text: note.text,
+          })),
+        }
+      : {}),
+    ...(markers.length > 0
+      ? {
+          markers: markers.map((marker) => ({
+            id: marker.id,
+            position: point(marker.position),
+            label: marker.label,
+          })),
+        }
+      : {}),
   }
 }
 
@@ -240,6 +275,17 @@ export function deserializeProject(json: string): CircuitProject {
     // Se normaliza siempre, aunque el fichero no traiga capas: los elementos sin `layerId`
     // (ficheros anteriores a M5) caen en la principal y no quedan invisibles e inalcanzables.
     circuit.diagram.setLayers((sc.layers ?? []) as Layer[])
+    const annotations: CircuitAnnotation[] = (sc.annotations ?? []).map((note) => ({
+      id: note.id,
+      position: asPoint(note.position),
+      text: note.text,
+    }))
+    const markers: CircuitMarker[] = (sc.markers ?? []).map((marker) => ({
+      id: marker.id,
+      position: asPoint(marker.position),
+      label: marker.label,
+    }))
+    circuit.diagram.setOverlays(annotations, markers)
     for (const el of sc.elements) {
       const mapped = {
         ...deserializeElement(el),

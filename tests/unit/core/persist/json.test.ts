@@ -74,6 +74,20 @@ describe('json persist (M4-05/06)', () => {
     expect(wire?.kind === 'wire' && wire.color).toBeUndefined()
   })
 
+  it('conserva notas y marcadores del circuito (M7-07/M7-08)', () => {
+    const p = new CircuitProject('overlays')
+    p.current.diagram.addAnnotation({ x: 2, y: 3 }, 'hola')
+    p.current.diagram.addMarker({ x: 5, y: 7 }, 'inicio')
+
+    const loaded = deserializeProject(serializeProject(p))
+
+    expect(loaded.current.diagram.annotations).toHaveLength(1)
+    expect(loaded.current.diagram.annotations[0]?.text).toBe('hola')
+    expect(loaded.current.diagram.annotations[0]?.position).toEqual({ x: 2, y: 3 })
+    expect(loaded.current.diagram.markers).toHaveLength(1)
+    expect(loaded.current.diagram.markers[0]?.label).toBe('inicio')
+  })
+
   it('una pieza nueva tras cargar no pisa un id importado', () => {
     const p = new CircuitProject('ids')
     p.current.diagram.addGate('and', { x: 0, y: 0 }, 2)
