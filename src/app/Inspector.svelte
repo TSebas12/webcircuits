@@ -48,7 +48,18 @@
   })
 </script>
 
-{#if selected}
+{#if (editor?.selectedCount ?? 0) > 1}
+  <aside class="inspector" aria-label="Propiedades">
+    <h3>Propiedades ({editor?.selectedCount})</h3>
+    <div class="row"><span>Selección múltiple</span></div>
+    <div class="row">
+      <span>Bits</span>
+      <input type="number" min="1" max="32"
+        oninput={(e) => editor?.updateSelection({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
+    </div>
+    <button type="button" onclick={() => { editor?.updateSelection({}); refresh() }}>Aplicar</button>
+  </aside>
+{:else if selected}
   <aside class="inspector" aria-label="Propiedades">
     <h3>Propiedades</h3>
     <div class="row"><span>Tipo</span><span>{selected.kind}</span></div>

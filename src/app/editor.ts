@@ -378,6 +378,10 @@ export class Editor {
     return first === undefined ? null : first
   }
 
+  get selectedCount(): number {
+    return this.selected.size
+  }
+
   /** Qué hay bajo el cursor (para menú contextual). */
   hitAt(clientX: number, clientY: number): ReturnType<typeof hitTest> {
     const rect = this.canvas?.getBoundingClientRect()
@@ -774,6 +778,18 @@ export class Editor {
     const element = this.diagram.get(id)
     if (element === undefined || this.diagram.isLayerLocked(element.layerId)) return
     this.diagram.updateElement(id, patch)
+    this.refresh()
+  }
+
+  updateSelection(patch: Partial<StoredElement>): void {
+    if (this.selected.size === 0) return
+    this.diagram.beginChange()
+    for (const id of [...this.selected]) {
+      const element = this.diagram.get(id)
+      if (element === undefined || this.diagram.isLayerLocked(element.layerId)) continue
+      this.diagram.updateElement(id, patch)
+    }
+    this.diagram.endChange()
     this.refresh()
   }
   setSelectedWireColor(color: string | null): void {
