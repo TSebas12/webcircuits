@@ -27,6 +27,7 @@ import { roundedRect } from './rounded-rect'
 import { sensorShape } from './sensor'
 import { sevenSegmentShape } from './seven-segment'
 import { memoryShape } from './memory'
+import { soundShape } from './sound'
 import { splitterShape } from './splitter'
 
 /** Las formas que sabemos dibujar. Irá creciendo con los símbolos nuevos. */
@@ -47,6 +48,7 @@ export type SymbolShape =
   | 'probe'
   | 'sensor'
   | 'memory'
+  | 'sound'
   | 'sevenSegment'
   | 'splitter'
   | 'pinInput'
@@ -102,6 +104,7 @@ const BUILDERS: Readonly<Record<SymbolShape, ShapeBuilder>> = {
   probe: probeShape,
   sensor: sensorShape,
   memory: memoryShape,
+  sound: soundShape,
   sevenSegment: sevenSegmentShape,
   splitter: splitterShape,
   pinInput: pinInputShape,

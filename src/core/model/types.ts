@@ -217,6 +217,7 @@ export type DrawableDevice =
   | Sensor
   | Splitter
   | Memory
+  | Sound
 
 /** Un símbolo colocado sobre la rejilla. */
 export interface Device extends ElementBase {
@@ -262,6 +263,14 @@ export interface Probe extends Device {
   readonly name: string
   /** Lado por el que entra la señal (original: `CircuitProbe.PinSide`). */
   readonly pinSide: PinSide
+}
+
+export interface Sound extends Device {
+  readonly kind: 'sound'
+  /** Lado por el que entra la señal (original: `Sound.PinSide`). */
+  readonly pinSide: PinSide
+  /** Notación del altavoz. */
+  readonly notation: string
 }
 
 /**

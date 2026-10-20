@@ -219,6 +219,10 @@ export function importCircuitProject(xml: string): CircuitProject {
     notation: string
     data: string
   }
+  interface SoundInfo {
+    pinSide: PinSide
+    notation: string
+  }
   const sensors = new Map<string, SensorInfo>()
   for (const s of table('Sensor')) {
     const id = attr(s, 'SensorId')
@@ -232,6 +236,15 @@ export function importCircuitProject(xml: string): CircuitProject {
       pinSide: PIN_SIDES[(attr(s, 'PinSide') ?? 'right').toLowerCase()] ?? 'right',
       notation: attr(s, 'Notation') ?? '',
       data: attr(s, 'Data') ?? '',
+    })
+  }
+  const soundMap = new Map<string, SoundInfo>()
+  for (const s of table('Sound')) {
+    const id = attr(s, 'SoundId')
+    if (id === null) continue
+    soundMap.set(id, {
+      pinSide: PIN_SIDES[(attr(s, 'PinSide') ?? 'left').toLowerCase()] ?? 'left',
+      notation: attr(s, 'Notation') ?? '',
     })
   }
 
@@ -273,7 +286,7 @@ export function importCircuitProject(xml: string): CircuitProject {
     const rotation = ROTATIONS[(attr(sym, 'Rotation') ?? 'up').toLowerCase()] ?? 'up'
     const base = { id, circuitId: circuit.id, layerId: DEFAULT_LAYER_ID, position, rotation }
 
-    const element = symbolElement(target, base, pins, constants, splitters, buttons, probes, sensors, memories, idMap)
+    const element = symbolElement(target, base, pins, constants, splitters, buttons, probes, sensors, memories, soundMap, idMap)
     if (element) {
       circuit.diagram.importElement(element)
     }
@@ -318,6 +331,7 @@ function symbolElement(
   probes: Map<string, { name: string; pinSide: PinSide }>,
   sensors: Map<string, { sensorType: string; bitWidth: number; pinSide: PinSide; notation: string; data: string }>,
   memories: Map<string, { addressBitWidth: number; dataBitWidth: number; isRom: boolean; data?: string }>,
+  sounds: Map<string, { pinSide: PinSide; notation: string }>,
   idMap: Map<string, string>,
 ): StoredElement | null {
   const pin = pins.get(target)
@@ -339,6 +353,10 @@ function symbolElement(
   const sensor = sensors.get(target)
   if (sensor) {
     return { kind: 'sensor', ...base, ...sensor }
+  }
+  const sound = sounds.get(target)
+  if (sound) {
+    return { kind: 'sound', ...base, ...sound }
   }
   const memory = memories.get(target)
   if (memory) {
@@ -434,6 +452,10 @@ export function exportCircuitProject(project: CircuitProject): string {
         lines.push(
           `  <lc:Memory MemoryId="${escapeXml(el.id)}" Writable="${writable}" WriteOn1="${el.writeOn1}" DualPort="${el.dualPort}" AddressBitWidth="${el.addressBitWidth}" DataBitWidth="${el.dataBitWidth}"${el.data !== undefined ? ` Data="${escapeXml(el.data)}"` : ''} />`,
         )
+      } else if (el.kind === 'sound') {
+        lines.push(
+          `  <lc:Sound SoundId="${escapeXml(el.id)}" PinSide="${sideName(el.pinSide)}" Notation="${escapeXml(el.notation)}" />`,
+        )
       }
     }
   }
@@ -445,7 +467,7 @@ export function exportCircuitProject(project: CircuitProject): string {
         lines.push(
           `  <lc:Wire WireId="${escapeXml(el.id)}" LogicalCircuitId="${escapeXml(c.id)}" X1="${el.p1.x}" Y1="${el.p1.y}" X2="${el.p2.x}" Y2="${el.p2.y}" />`,
         )
-      } else if (el.kind === 'gate' || el.kind === 'button' || el.kind === 'pin' || el.kind === 'constant' || el.kind === 'probe' || el.kind === 'sensor' || el.kind === 'memory' || el.kind === 'splitter' || el.kind === 'circuit') {
+      } else if (el.kind === 'gate' || el.kind === 'button' || el.kind === 'pin' || el.kind === 'constant' || el.kind === 'probe' || el.kind === 'sensor' || el.kind === 'memory' || el.kind === 'sound' || el.kind === 'splitter' || el.kind === 'circuit') {
         const symbolId = `${el.id}-sym`
         const rotation = el.rotation === 'up' ? '' : ` Rotation="${rotationName(el.rotation)}"`
         const targetSource =

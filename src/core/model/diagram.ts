@@ -23,7 +23,7 @@
 import { deviceBounds, deviceLayout, pinPosition, type CircuitResolver } from './layout'
 import type { CircuitAnnotation, CircuitMarker } from './overlay'
 import { defaultSensorData, isSensorType } from './sensor'
-import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Memory, MemoryOnStart, Pin, PinSide, PinType, PlacedElement, Probe, Rotation, Sensor, Splitter, StoredElement, Wire } from './types'
+import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Memory, MemoryOnStart, Pin, PinSide, PinType, PlacedElement, Probe, Rotation, Sensor, Sound, Splitter, StoredElement, Wire } from './types'
 import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
@@ -568,6 +568,26 @@ export class Diagram {
       this.items.set(memory.id, memory)
       this.changed()
       return memory
+    })
+  }
+
+  /** Coloca un altavoz (sonido). */
+  addSound(position: GridPoint, options: { readonly pinSide?: PinSide; readonly notation?: string } = {}): Sound {
+    return this.change(() => {
+      const id = this.nextId('sound')
+      const sound: Sound = {
+        kind: 'sound',
+        id,
+        circuitId: this.circuitId,
+        layerId: this.activeLayer,
+        position,
+        rotation: 'up',
+        pinSide: options.pinSide ?? 'left',
+        notation: options.notation ?? '',
+      }
+      this.items.set(sound.id, sound)
+      this.changed()
+      return sound
     })
   }
 

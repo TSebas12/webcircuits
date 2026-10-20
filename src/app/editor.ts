@@ -962,6 +962,12 @@ export class Editor {
             data: el.data,
           }).id
           break
+        case 'sound':
+          newId = this.diagram.addSound(position, {
+            pinSide: el.pinSide,
+            notation: el.notation,
+          }).id
+          break
         case 'circuit':
           newId = this.diagram.addCircuitInstance(position, el.targetCircuitId).id
           break

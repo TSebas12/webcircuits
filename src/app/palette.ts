@@ -25,6 +25,7 @@ import {
   probeLayout,
   sensorLayout,
   memoryLayout,
+  soundLayout,
   splitterLayout,
   type SymbolLayout,
 } from '../core/model/layout'
@@ -100,6 +101,11 @@ interface MemoryPiece extends PieceBase {
   readonly kind: 'memory'
 }
 
+/** Un altavoz: suena mientras su entrada está a 1. */
+interface SoundPiece extends PieceBase {
+  readonly kind: 'sound'
+}
+
 export type Piece =
   | GatePiece
   | ButtonPiece
@@ -109,6 +115,7 @@ export type Piece =
   | ProbePiece
   | SensorPiece
   | MemoryPiece
+  | SoundPiece
 
 /**
  * Cuántas entradas se pueden pedir desde el panel.
@@ -308,6 +315,13 @@ export const PIECES = [
     group: 'io',
   },
   {
+    kind: 'sound',
+    id: 'sound',
+    label: 'Sonido',
+    title: 'Altavoz: suena mientras su entrada está a 1',
+    group: 'io',
+  },
+  {
     kind: 'button',
     id: 'button',
     label: 'Interruptor',
@@ -457,6 +471,8 @@ export function pieceLayout(piece: Piece, chosen: number): SymbolLayout {
       return sensorLayout('right')
     case 'memory':
       return memoryLayout(4, 4)
+    case 'sound':
+      return soundLayout('left')
     case 'splitter':
       return splitterLayout(previewSplitter(piece))
   }
@@ -485,6 +501,8 @@ export function pieceShape(piece: Piece): SymbolShape | null {
       return 'sensor'
     case 'memory':
       return 'memory'
+    case 'sound':
+      return 'sound'
     case 'splitter':
       return 'splitter'
     default:
@@ -534,6 +552,8 @@ export function placePiece(
       return diagram.addSensor(position)
     case 'memory':
       return diagram.addMemory(position)
+    case 'sound':
+      return diagram.addSound(position)
     case 'splitter':
       return diagram.addSplitter(position, {
         bitWidth: piece.bitWidth,

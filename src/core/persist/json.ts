@@ -100,6 +100,8 @@ function serializeElement(el: StoredElement): SerializedElement {
         dualPort: el.dualPort,
         data: el.data,
       }
+    case 'sound':
+      return { ...dev, pinSide: el.pinSide, notation: el.notation }
     case 'splitter':
       return { ...dev, bitWidth: el.bitWidth, pinCount: el.pinCount, clockwise: el.clockwise }
     case 'circuit':
@@ -265,6 +267,13 @@ function deserializeElement(raw: SerializedElement): StoredElement {
         onStart: ((raw.onStart as MemoryOnStart) ?? 'random'),
         dualPort: (raw.dualPort as boolean) ?? false,
         data: raw.data as string | undefined,
+      }
+    case 'sound':
+      return {
+        kind: 'sound',
+        ...deviceBase,
+        pinSide: (raw.pinSide as PinSide) ?? 'left',
+        notation: (raw.notation as string) ?? '',
       }
     case 'splitter':
       return {

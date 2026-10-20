@@ -168,6 +168,8 @@ function shapeForDevice(element: DrawableDevice): SymbolShape | null {
       return 'sensor'
     case 'memory':
       return 'memory'
+    case 'sound':
+      return 'sound'
     case 'splitter':
       return 'splitter'
     case 'circuit':

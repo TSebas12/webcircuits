@@ -299,6 +299,12 @@ export function probeLayout(pinSide: PinSide): SymbolLayout {
   })
 }
 
+export function soundLayout(pinSide: PinSide): SymbolLayout {
+  const specs: PinSpec[] = [inputPin(pinSide)]
+  const base = defaultSymbolSize(specs)
+  return symbolLayout(specs, { width: Math.max(3, base.width), height: Math.max(3, base.height) })
+}
+
 /** La forma de una memoria (original: `Memory`, caja con dirección a la izquierda y datos a la derecha). */
 export function memoryLayout(
   addressBitWidth: number,
@@ -497,6 +503,8 @@ export function deviceLayout(
         !device.isRom,
         device.dualPort,
       )
+    case 'sound':
+      return soundLayout(device.pinSide)
     case 'button':
       return buttonLayout(device.inverted)
     case 'pin':
