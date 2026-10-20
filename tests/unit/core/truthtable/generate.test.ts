@@ -1,6 +1,11 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { describe, expect, it } from 'vitest'
 import { CircuitError } from '../../../../src/core/circuit-error'
 import { CircuitProject } from '../../../../src/core/model/circuit'
+import fixtureXml from '../../../fixtures/CircuitTestSocketTest.CircuitProject?raw'
+import { importCircuitProject } from '../../../../src/core/persist/circuitproject'
 import { projectIndex } from '../../../../src/core/model/symbol'
 import { deserializeProject, serializeProject } from '../../../../src/core/persist/json'
 import type {
@@ -11,6 +16,7 @@ import type {
   Wire,
 } from '../../../../src/core/model/types'
 import { generateTruthTable, truthTableToCsv } from '../../../../src/core/truthtable/generate'
+import { ExpressionParser } from '../../../../src/core/expression-parser'
 
 function pin(
   id: string,
@@ -383,6 +389,34 @@ describe('generación de tablas de verdad (M8)', () => {
       [1, 1, 1],
     ])
   })
+
+  it('tabula el sumador de 8 bits del fixture original', () => {
+    const project = importCircuitProject(fixtureXml)
+    project.openCircuit(project.circuitsList.find((circuit) => circuit.name === '8 bit adder')!.id)
+
+    const table = generateTruthTable(project, project.current, { maxRows: 1 << 17 })
+
+    expect(table.totalRows).toBe(1 << 17)
+    expect(table.rows).toHaveLength(1 << 17)
+
+    const parser = new ExpressionParser({
+      inputs: table.inputs.map((pin) => pin.name),
+      outputs: table.outputs.map((pin) => pin.name),
+    })
+    const predicate = parser.parsePredicate(
+      'outC << 8 | s = inC + a + b && v = !(a & 0x80 != b & 0x80 || a & 0x80 == s & 0x80)',
+      true,
+    )
+    expect(predicate).not.toBeNull()
+    expect(table.rows.every((row) => !predicate!(row))).toBe(true)
+
+    const filtered = generateTruthTable(project, project.current, {
+      filter: 'outC << 8 | s = inC + a + b && v = !(a & 0x80 != b & 0x80 || a & 0x80 == s & 0x80)',
+      invertFilter: true,
+      maxRows: 1,
+    })
+    expect(filtered.rows).toHaveLength(0)
+  }, 30000)
 
   it('exporta la tabla a CSV con cabecera', () => {
     const project = andProject()

@@ -163,7 +163,7 @@ export function importCircuitProject(xml: string): CircuitProject {
     splitters.set(id, {
       bitWidth: Math.max(1, numAttr(sp, 'BitWidth', 2)),
       pinCount: Math.max(2, numAttr(sp, 'PinCount', 2)),
-      clockwise: boolAttr(sp, 'Clockwise', true),
+      clockwise: boolAttr(sp, 'Clockwise', false),
     })
   }
 
