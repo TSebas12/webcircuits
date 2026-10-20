@@ -76,7 +76,7 @@ src/core/     dominio puro: modelo, simulación, persistencia. CERO navegador
 src/render/   dibujado en Canvas 2D
 src/app/      interfaz (Svelte)
 src/worker/   simulación en Web Worker
-src/i18n/     traducciones
+src/i18n/     reservado para traducciones (M11)
 tests/unit/   tests
 bench/        mediciones de rendimiento
 ```
