@@ -85,6 +85,39 @@ function andProject(): CircuitProject {
   return project
 }
 
+/** Un sumador completo de 1 bit: tres entradas, suma y acarreo. */
+function fullAdderProject(): CircuitProject {
+  const project = new CircuitProject('sumador')
+  const elements: StoredElement[] = [
+    pin('a', 'input', -4, 0, 'A'),
+    pin('b', 'input', -4, 2, 'B'),
+    pin('c', 'input', -4, 4, 'C'),
+    gate('x1', 'xor', 0, 0),
+    gate('x2', 'xor', 10, 2),
+    gate('a1', 'and', 0, 10),
+    gate('a2', 'and', 10, 10),
+    gate('o1', 'or', 20, 6),
+    pin('s', 'output', 16, 3, 'S'),
+    pin('cout', 'output', 26, 7, 'Cout'),
+    wire('wa1', -2, 1, 0, 1),
+    wire('wb1', -2, 3, 0, 3),
+    wire('wc1', -2, 5, 10, 5),
+    wire('wx1', 3, 2, 10, 3),
+    wire('wa2', -2, 1, 0, 11),
+    wire('wb2', -2, 3, 0, 13),
+    wire('wx2', 3, 2, 10, 11),
+    wire('wc2', -2, 5, 10, 13),
+    wire('wa3', 3, 12, 20, 7),
+    wire('wa4', 13, 12, 20, 9),
+    wire('ws', 13, 4, 16, 4),
+    wire('wco', 23, 8, 26, 8),
+  ]
+  for (const element of elements) {
+    project.current.diagram.importElement(element)
+  }
+  return project
+}
+
 describe('generación de tablas de verdad (M8)', () => {
   it('enumera todas las combinaciones de una AND', () => {
     const project = andProject()
@@ -99,6 +132,24 @@ describe('generación de tablas de verdad (M8)', () => {
       [0, 1, 0],
       [1, 0, 0],
       [1, 1, 1],
+    ])
+  })
+
+  it('tabula un sumador completo', () => {
+    const project = fullAdderProject()
+    const table = generateTruthTable(project, project.current)
+
+    expect(table.inputs.map((input) => input.name)).toEqual(['A', 'B', 'C'])
+    expect(table.outputs.map((output) => output.name)).toEqual(['S', 'Cout'])
+    expect(table.rows.map((row) => [...row.input, ...row.output])).toEqual([
+      [0, 0, 0, 0, 0],
+      [0, 0, 1, 1, 0],
+      [0, 1, 0, 1, 0],
+      [0, 1, 1, 0, 1],
+      [1, 0, 0, 1, 0],
+      [1, 0, 1, 0, 1],
+      [1, 1, 0, 0, 1],
+      [1, 1, 1, 1, 1],
     ])
   })
 
