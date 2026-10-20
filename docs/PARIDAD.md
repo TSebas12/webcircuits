@@ -27,23 +27,23 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | Módulo C# | Qué contiene | Destino en WebCircuits | Hito | Estado |
 |---|---|---|---|---|
 | `CircuitProject/` | Modelo del circuito y elementos lógicos | `src/core/model/` | M2 | 🟡 |
-| ↳ `CircuitGlyph.cs` · `Jam.cs` · `Pin.cs` · `Splitter.cs` | Símbolos colocados y sus **puntas** (`Jams()`, `AbsolutePoint`, `InnerJam`, `Splitter.Pass`) | `src/core/model/symbol.ts` | M2 | 🟡 (falta la forma de las constantes, memorias y sensores: M2-05/M2-12) |
+| ↳ `CircuitGlyph.cs` · `Jam.cs` · `Pin.cs` · `Splitter.cs` | Símbolos colocados y sus **puntas** (`Jams()`, `AbsolutePoint`, `InnerJam`, `Splitter.Pass`) | `src/core/model/symbol.ts` | M2 | 🟡 (ya están constantes, pines, repartidores y probeta; faltan memorias, sensores, matrices y sonido: M2-05/M2-12) |
 | `Runner/` | Motor de simulación | `src/core/simulate/` | M2 | 🟡 |
-| ↳ `CircuitMap.cs` · `CircuitMap.SymbolMap.cs` · `CircuitMap.Connection.cs` | Traducir el dibujo a circuito simulable: árbol de subcircuitos, resolución de cables, aplanado a funciones e índices de estado | `src/core/simulate/circuit-map.ts`, `connection.ts`, `symbol-map.ts` | M2 | 🟡 (compuertas, tri-estado, reloj, interruptor, LED y constante; memoria/probeta/sensor/sonido/matriz llegan con M2-05/12) |
+| ↳ `CircuitMap.cs` · `CircuitMap.SymbolMap.cs` · `CircuitMap.Connection.cs` | Traducir el dibujo a circuito simulable: árbol de subcircuitos, resolución de cables, aplanado a funciones e índices de estado | `src/core/simulate/circuit-map.ts`, `connection.ts`, `symbol-map.ts` | M2 | 🟡 (compuertas, tri-estado, reloj, interruptor, LED, constante y probeta; memoria/sensor/sonido/matriz llegan con M2-05/12) |
 | ↳ `CircuitRunner.cs` | Encender/apagar el circuito: aplanar, voltear el reloj, evaluar y repintar | `src/core/simulate/circuit-runner.ts` | M2 | 🟡 (sin hilos; la temporización precisa es M7B-05) |
-| ↳ `FunctionClock.cs` · `FunctionButton.cs` · `FunctionLed.cs` · `FunctionConstant.cs` (`Function/`) | Reloj, interruptor, LED y constante | `src/core/function/devices.ts` | M2 | 🟡 (la constante aún no se puede colocar: le falta la forma, M2-05) |
+| ↳ `FunctionClock.cs` · `FunctionButton.cs` · `FunctionLed.cs` · `FunctionConstant.cs` (`Function/`) | Reloj, interruptor, LED y constante | `src/core/function/devices.ts` | M2 | ✅ (la constante ya se coloca desde la paleta) |
 | ↳ *(solo WebCircuits)* | Puente entre el motor y el render: la **foto** del circuito (`off`/`zero`/`one` por dispositivo) y quien lo mantiene en marcha (aplanar al encender, el temporizador del reloj y el repintado como mucho una vez por fotograma) | `src/core/simulate/snapshot.ts`, `src/app/simulation.ts` | M2 | ✅ (en el original esto lo hacen `Editor` y los hilos de `CircuitRunner`) |
 | ↳ `MiniEngine` + propagación topológica *(obsoleto)* | El motor mínimo de M1 (`levelize`/`propagate`): la aplicación ya no lo usa —el motor de verdad es `CircuitMap` + `CircuitRunner`— y solo lo mantienen sus tests. Se retira en cuanto no haya nada que lo eche de menos | `src/core/simulate/engine.ts`, `propagate.ts`, `levelize.ts` | M2 | ⬜ (pendiente de retirar) |
-| `SymbolShapes/` | Geometría de los símbolos | `src/render/symbols/` | M2 | 🟡 (faltan las formas de constantes, memorias, sensores y matrices: M2-05/M2-12) |
+| `SymbolShapes/` | Geometría de los símbolos | `src/render/symbols/` | M2 | 🟡 (faltan las formas de memorias, sensores, matrices, sonido y 7 segmentos: M2-05/M2-12) |
 | `SymbolShapes/` → `Symbol.AddJam` (bolita de negación) | La punta negada se dibuja rellena: es la **misma cosa** que el pin, así que el radio es `Symbol.PinRadius` y el puntito gris no se pinta encima | `src/render/symbols/bubble.ts` | M2 | ✅ (solo las cuatro que el motor niega: `and`/`or`/`xor`/`not`) |
 | `Icon/` | Iconos | `src/render/icons/` | M2 | ⬜ |
 | `Editor/` | Editor, herramientas, undo/redo | `src/app/editor.ts` | M2 | 🟡 |
-| `Editor/CircuitDescriptorList.cs` | Qué se puede colocar: la lista de piezas de la paleta, cada una con la compuerta tal y como la crea el original (`Gate(Not, 1, true)`, `Gate(TriState1, 2, false)`…) | `src/app/palette.ts` | M2 | 🟡 (12 piezas: las seis compuertas, el inversor, los dos tri-estados, el reloj, el LED y el interruptor; el 7 segmentos, las memorias, los sensores, las matrices y la probeta llegan con M2-05/M2-12) |
+| `Editor/CircuitDescriptorList.cs` | Qué se puede colocar: la lista de piezas de la paleta, cada una con la compuerta tal y como la crea el original (`Gate(Not, 1, true)`, `Gate(TriState1, 2, false)`…) | `src/app/palette.ts` | M2 | 🟡 (19 piezas: seis compuertas, inversor, dos tri-estados, reloj, LED, probeta, interruptor, dos pines, dos constantes y dos repartidores; el 7 segmentos, las memorias, los sensores, las matrices y el sonido llegan con M2-05/M2-12) |
 | `DataPersistent/SnapStore.cs` | Deshacer/rehacer por **fotos** del documento (versiones *Edit/Undo/Redo*) | `src/core/model/diagram.ts` | M2 | ✅ |
-| `DataPersistent/` | Persistencia `.CircuitProject` (XML versionado) | `src/core/persist/` | M4 | ⬜ |
+| `DataPersistent/` | Persistencia `.CircuitProject` (XML versionado) | `src/core/persist/` | M4 | 🟡 (XML y JSON con ida y vuelta; falta cubrir memorias, sensores y matrices) |
 | `Schema/` | Esquemas XSD + gramáticas `.g4` (los `.g4` son la **especificación** de un parser que se escribe a mano: ver `expression-parser.ts`) | `src/core/schema/` | M4 | ⬜ |
 | `ColorPicker/` | Selector de color | `src/app/color-picker/` | M6 | ⬜ |
-| `Function/` | Funciones lógicas, expresiones, tablas de verdad | `src/core/function/` | M8 | ⬜ |
+| `Function/` | Funciones lógicas, expresiones, tablas de verdad | `src/core/function/`, `src/core/truthtable/` | M8 | 🟡 (funciones, parser, sensores, probetas y tabla de verdad; faltan memorias y sonido) |
 | `HDL/` | Verilog: importación y exportación | `src/core/hdl/` | M9 | ⬜ |
 | `Settings/` | Ajustes de la aplicación | `src/app/settings/` | M11 | ⬜ |
 | `Properties/` | Recursos, textos, sonidos | `src/i18n/` | M11 | ⬜ |
@@ -64,9 +64,9 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | `CircuitProjectTest` | Estructura del proyecto | `tests/unit/persist/circuit-project.test.ts` | ⬜ |
 | `ConversionTest` | Conversión entre versiones | `tests/unit/persist/conversion.test.ts` | ⬜ |
 | `SplitterConverterTest` | Conversión de *splitters* | `tests/unit/persist/splitter.test.ts` | ⬜ |
-| `ProbeConverterTest` | Conversión de probetas | `tests/unit/persist/probe.test.ts` | ⬜ |
+| `ProbeConverterTest` | Conversión de probetas | `tests/unit/core/persist/circuitproject.test.ts` (ida y vuelta XML de `CircuitProbe`) | 🟡 (persistencia cubierta; falta la conversión de versiones antiguas) |
 | `CircuitTest` | Circuito y sus elementos | `tests/unit/model/circuit.test.ts` | ⬜ |
-| `CircuitMapTest` | Mapa de pines / *sockets* | `tests/unit/core/simulate/circuit-map.test.ts` | 🟡 (13 tests propios; los 3 del original —`CleanUpTest` espera 0/0/3/8 funciones— necesitan cargar `.CircuitProject`: M4) |
+| `CircuitMapTest` | Mapa de pines / *sockets* | `tests/unit/core/simulate/circuit-map.test.ts` | 🟡 (15 tests propios; los 3 del original —`CleanUpTest` espera 0/0/3/8 funciones— necesitan cargar `.CircuitProject`: M4) |
 | *(no hay clase propia)* | Tener el circuito en marcha: encender, pulsar un interruptor, el reloj latiendo y la foto que se pinta | `tests/unit/core/simulate/circuit-runner.test.ts`, `tests/unit/core/simulate/snapshot.test.ts`, `tests/unit/app/simulation.test.ts` | ✅ (el original no prueba el encendedor por separado: lo cubren `EditorTest` y las pruebas a mano) |
 | *(no hay clase propia)* | Que **cada** pieza de la paleta se coloque, se dibuje y conduzca de verdad al cablearla (la que destapó que el inversor del original nace negado y que los tri-estado llevan dos entradas) | `tests/unit/app/palette.test.ts` | ✅ |
 | `CircuitTestSocketTest` | *Sockets* de test | `tests/unit/model/socket.test.ts` | ⬜ |

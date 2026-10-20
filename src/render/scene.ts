@@ -143,6 +143,8 @@ function shapeForDevice(element: DrawableDevice): SymbolShape | null {
       return element.pinType === 'output' ? 'pinOutput' : 'pinInput'
     case 'constant':
       return 'constant'
+    case 'probe':
+      return 'probe'
     case 'splitter':
       return 'splitter'
     case 'circuit':
@@ -168,6 +170,10 @@ function labelFor(
     }
     case 'constant':
       return constantLabel(element)
+    case 'probe': {
+      const name = element.name.trim()
+      return name === '' || name === element.id ? undefined : name
+    }
     case 'circuit':
       return resolveCircuit?.(element.targetCircuitId)?.name
     default:

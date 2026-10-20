@@ -215,6 +215,94 @@ describe('generación de tablas de verdad (M8)', () => {
     ])
   })
 
+  it('atraviesa dos niveles de subcircuitos', () => {
+    const project = new CircuitProject('jerarquia-doble')
+    const inverter = project.createCircuit({ name: 'INV' })
+    const invElements: StoredElement[] = [
+      { ...pin('in', 'input', -4, 0, 'IN'), circuitId: inverter.id },
+      { ...gate('g', 'not', 0, 0, 1), invertedOutput: true, circuitId: inverter.id },
+      { ...pin('out', 'output', 5, 0, 'OUT'), circuitId: inverter.id },
+      { ...wire('wi', -2, 1, 0, 2), circuitId: inverter.id },
+      { ...wire('wo', 3, 2, 5, 1), circuitId: inverter.id },
+    ]
+    for (const element of invElements) {
+      inverter.diagram.importElement(element)
+    }
+
+    const middle = project.createCircuit({ name: 'MID' })
+    const inner: CircuitInstance = {
+      kind: 'circuit',
+      id: 'inner',
+      circuitId: middle.id,
+      layerId: 'principal',
+      position: { x: 0, y: 0 },
+      rotation: 'up',
+      targetCircuitId: inverter.id,
+    }
+    for (const element of [
+      { ...pin('min', 'input', -10, 0, 'IN'), circuitId: middle.id },
+      inner,
+      { ...pin('mout', 'output', 10, 0, 'OUT'), circuitId: middle.id },
+    ] satisfies StoredElement[]) {
+      middle.diagram.importElement(element)
+    }
+
+    const outer: CircuitInstance = {
+      kind: 'circuit',
+      id: 'outer',
+      circuitId: 'main',
+      layerId: 'principal',
+      position: { x: 0, y: 0 },
+      rotation: 'up',
+      targetCircuitId: middle.id,
+    }
+    for (const element of [
+      pin('a', 'input', -10, 0, 'A'),
+      outer,
+      pin('q', 'output', 10, 0, 'Q'),
+    ] satisfies StoredElement[]) {
+      project.current.diagram.importElement(element)
+    }
+
+    const index = projectIndex({
+      id: project.name,
+      name: project.name,
+      circuits: project.circuitsList,
+      mainCircuitId: project.currentCircuitId,
+    })
+
+    function connect(
+      instance: CircuitInstance,
+      circuitId: string,
+      inputPinName: string,
+      outputPinName: string,
+      inputPoint: { x: number; y: number },
+      outputPoint: { x: number; y: number },
+      prefix: string,
+    ): void {
+      const symbol = index.symbol(instance)
+      const inputJam = symbol.jams.find((jam) => jam.sheetPin?.name === inputPinName)
+      const outputJam = symbol.jams.find((jam) => jam.sheetPin?.name === outputPinName)
+      expect(inputJam).toBeDefined()
+      expect(outputJam).toBeDefined()
+      const diagram =
+        circuitId === 'main' ? project.current.diagram : project.circuitsList.find((c) => c.id === circuitId)!.diagram
+      diagram.importElement({ ...wire(`${prefix}i`, inputPoint.x, inputPoint.y, inputJam!.point.x, inputJam!.point.y), circuitId })
+      diagram.importElement({ ...wire(`${prefix}o`, outputJam!.point.x, outputJam!.point.y, outputPoint.x, outputPoint.y), circuitId })
+    }
+
+    // La instancia de INV vive en MID; la de MID, en la hoja principal. La punta interior
+    // de un pin de salida cae en el borde izquierdo de su caja, en su misma X.
+    connect(inner, middle.id, 'IN', 'OUT', { x: -8, y: 1 }, { x: 10, y: 1 }, 'm')
+    connect(outer, 'main', 'IN', 'OUT', { x: -8, y: 1 }, { x: 10, y: 1 }, 'w')
+
+    const table = generateTruthTable(project, project.current)
+    expect(table.rows.map((row) => [...row.input, ...row.output])).toEqual([
+      [0, 1],
+      [1, 0],
+    ])
+  })
+
   it('avisa si el circuito oscila en vez de devolver filas falsas', () => {
     const project = new CircuitProject('oscila')
     const elements: StoredElement[] = [

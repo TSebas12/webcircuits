@@ -46,6 +46,7 @@ import {
 } from '../function/gates'
 import type { CircuitFunction } from '../function/circuit-function'
 import { FunctionButton, FunctionClock, FunctionConstant, FunctionLed } from '../function/devices'
+import { FunctionProbe } from '../function/probes'
 import type { IFunctionVisual } from '../function/interfaces'
 import {
   Parameter,
@@ -264,9 +265,8 @@ export class CircuitMap {
    *
    * El cuidado está en `inJam === outJam`: una punta no se conecta consigo misma. Y en el
    * ancho: si una entrada y una salida tienen anchos distintos, es un error del circuito.
-   * El original perdona el caso de que la receptora sea una **probeta**, que se conecta a
-   * cualquier ancho porque solo mira; como las probetas no existen todavía (M2-12), aquí no
-   * se perdona nada, y cuando lleguen hay que añadir esa excepción.
+   * La excepción es la **probeta**, que se conecta a cualquier ancho porque solo mira
+   * (original: `Jam.IsValid`).
    */
   private connect(connectionSet: ConnectionSet): void {
     // Tracer.Assert(!connectionSet.isConnected(this.circuit.id))
@@ -306,7 +306,12 @@ export class CircuitMap {
             if (inJam === outJam) {
               continue
             }
-            if (inJam.bitWidth !== outJam.bitWidth) {
+            // Una probeta es la excepción del original (`Jam.IsValid`): su pin mide 1 bit,
+            // pero puede mirar un cable de cualquier ancho y se queda con todos sus bits.
+            const probeInput =
+              inJam.symbol.depicted.kind === 'device' &&
+              inJam.symbol.depicted.element.kind === 'probe'
+            if (inJam.bitWidth !== outJam.bitWidth && !probeInput) {
               throw new CircuitError(
                 `Dos piezas de «${this.circuit.name}» están conectadas por un cable de ` +
                   `${inJam.bitWidth} bits y otro de ${outJam.bitWidth} bits. Un cable no ` +
@@ -851,18 +856,15 @@ function validate(list: SymbolMapList): void {
 /**
  * Crea la función de un símbolo primitivo (original: `CircuitMap.Apply`).
  *
- * ⚠️ Solo están portadas las que ya tienen función: las compuertas y el tri-estado. Las
- * demás —reloj, LED, interruptor, constante, memoria, probeta, sensor, sonido, matriz—
- * avisan en vez de simular mal. Llegan con M2-04/M2-05/M2-12, que es cuando existen sus
- * clases de función.
+ * Ya están portadas las compuertas, el tri-estado, el reloj, el LED, el interruptor, la
+ * constante y la probeta. Memoria, sensor, sonido y matriz siguen avisando en vez de
+ * simular mal: llegan con M2-05/M2-12.
  */
 function applySymbol(
   circuitState: CircuitState,
   symbolMap: SymbolMap,
   probeCapacity: number,
 ): void {
-  void probeCapacity // TODO(M2-12): las probetas necesitan su capacidad al crearse
-
   const depicted = symbolMap.circuitSymbol.depicted
 
   if (depicted.kind === 'gate') {
@@ -895,6 +897,13 @@ function applySymbol(
 
   if (depicted.kind === 'device' && depicted.element.kind === 'constant') {
     defineConstant(depicted.element.value, circuitState, symbolMap)
+    return
+  }
+
+  if (depicted.kind === 'device' && depicted.element.kind === 'probe') {
+    const probe = depicted.element
+    const label = probe.name === probe.id ? '' : probe.name
+    defineProbe(label, circuitState, symbolMap, probeCapacity)
     return
   }
 
@@ -938,6 +947,30 @@ function defineLed(circuitState: CircuitState, symbolMap: SymbolMap): CircuitFun
     symbolMap.circuitMap.updateDisplays(symbolMap, function_)
   }
   return function_
+}
+
+/**
+ * Una probeta (original: `CircuitMap.DefineProbe`).
+ *
+ * No calcula nada: guarda los índices de estado de lo que le llega para que el
+ * osciloscopio pueda leerlos. Si no hay nada conectado no se crea, porque una probeta sin
+ * señal no tiene nada que mirar.
+ */
+function defineProbe(
+  label: string,
+  circuitState: CircuitState,
+  symbolMap: SymbolMap,
+  capacity: number,
+): FunctionProbe | null {
+  const jam = jamsByPinOrder(symbolMap.circuitSymbol)[0]
+  if (jam === undefined) {
+    return null
+  }
+  const parameters = symbolMap.allParameters(jam).map((parameter) => parameter.result.stateIndex)
+  if (parameters.length === 0) {
+    return null
+  }
+  return new FunctionProbe(symbolMap.circuitSymbol, circuitState, parameters, capacity, label)
 }
 
 /**

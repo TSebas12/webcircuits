@@ -85,7 +85,13 @@ describe('qué silueta le toca a cada compuerta', () => {
 
   it('las que no son compuertas devuelven `null` en vez de inventarse una forma', () => {
     expect(shapeForGate('nop')).toBeNull()
-    expect(shapeForGate('probe')).toBeNull()
+    expect(shapeForGate('odd')).toBeNull()
+  })
+
+  it('la probeta tiene su propia silueta con indicador de estado', () => {
+    const drawing = symbolDrawing('probe', 2, 2)
+    expect(drawing.bodyFill).toBe('symbol')
+    expect(drawing.indicator).toBeDefined()
   })
 
   it('una compuerta negada lleva bolita, que es lo que la distingue', () => {

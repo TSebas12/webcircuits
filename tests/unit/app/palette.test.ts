@@ -13,11 +13,13 @@ import {
   gateLayout,
   pinLayout,
   placedPins,
+  probeLayout,
   splitterLayout,
   type SymbolLayout,
 } from '../../../src/core/model/layout'
 import { projectIndex } from '../../../src/core/model/symbol'
 import { CircuitRunner } from '../../../src/core/simulate/circuit-runner'
+import { FunctionProbe } from '../../../src/core/function/probes'
 import { devicesSnapshot } from '../../../src/core/simulate/snapshot'
 import type { DeviceState } from '../../../src/core/model/types'
 import { symbolDrawing, type SymbolShape } from '../../../src/render/symbols'
@@ -65,6 +67,8 @@ function modelLayout(piece: Piece): SymbolLayout {
         value: piece.value,
         pinSide: 'right',
       })
+    case 'probe':
+      return probeLayout('left')
     case 'splitter':
       return splitterLayout({
         kind: 'splitter',
@@ -285,6 +289,34 @@ describe('el catálogo de piezas (M2-27)', () => {
       // Sin habilitar, no emite: el LED se queda a oscuras de verdad.
       expect(ledState(wireUp(piece, 2, 'botones')), id).toBe('off')
     }
+  })
+
+  it('la sonda mira un cable y se registra para el osciloscopio', () => {
+    const diagram = new Diagram()
+    const button = diagram.addButton({ x: 0, y: 0 }, { isToggle: true })
+    const probe = placePiece(diagram, findPiece('probe'), { x: 6, y: 0 }, 2)
+    if (probe.kind === 'wire') {
+      throw new Error('la paleta no coloca cables')
+    }
+    const output = placedPins(button).find((placed) => placed.pin.type === 'output')
+    const input = placedPins(probe).find((placed) => placed.pin.type === 'input')
+    if (output === undefined || input === undefined) {
+      throw new Error('el circuito de la prueba no tiene los pines esperados')
+    }
+    diagram.addWire(output.point, input.point)
+
+    const elements = diagram.elements
+    const circuit: Circuit = { id: 'main', name: 'Main', elements }
+    const project: Project = { id: 'p', name: 'P', mainCircuitId: 'main', circuits: [circuit] }
+    const index = projectIndex(project)
+    const runner = new CircuitRunner(index, index.circuit('main')!)
+    const state = runner.turnOn()
+    runner.step(false)
+
+    expect(runner.hasProbes).toBe(true)
+    const function_ = state.probes[0]
+    expect(function_).toBeInstanceOf(FunctionProbe)
+    expect((function_ as FunctionProbe).read(0)).toHaveLength(1)
   })
 
   it('la AND y la NAND son la misma compuerta con la salida negada', () => {

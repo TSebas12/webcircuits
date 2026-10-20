@@ -242,7 +242,6 @@ function gatePinSpecs(gateType: GateType, inputCount: number, invertedOutput: bo
     case 'nop':
     case 'odd':
     case 'even':
-    case 'probe':
       throw new Error(`gatePinSpecs(): «${gateType}» no es una compuerta que se pueda colocar`)
   }
 }
@@ -280,6 +279,22 @@ export function gateLayout(
 ): SymbolLayout {
   const specs = gatePinSpecs(gateType, inputCount, invertedOutput)
   return symbolLayout(specs, gateSize(gateType, specs))
+}
+
+/**
+ * La forma de una probeta (original: `CircuitProbe` + `SymbolShape.Probe`).
+ *
+ * Mide 2 × 2 y tiene **una sola entrada**, en el lado que diga el modelo. El original
+ * dibuja una pastilla con el valor dentro; aquí la pastilla lleva un indicador que el
+ * render pinta con el estado del cable, y el historial se ve en el osciloscopio.
+ */
+export function probeLayout(pinSide: PinSide): SymbolLayout {
+  const specs: PinSpec[] = [inputPin(pinSide)]
+  const base = defaultSymbolSize(specs)
+  return symbolLayout(specs, {
+    width: Math.max(MIN_SYMBOL_SIZE, base.width),
+    height: Math.max(MIN_SYMBOL_SIZE, base.height),
+  })
 }
 
 /**
@@ -433,6 +448,8 @@ export function deviceLayout(
   switch (device.kind) {
     case 'gate':
       return gateLayout(device.gateType, device.inputCount, device.invertedOutput)
+    case 'probe':
+      return probeLayout(device.pinSide)
     case 'button':
       return buttonLayout(device.inverted)
     case 'pin':

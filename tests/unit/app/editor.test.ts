@@ -320,6 +320,19 @@ describe('interacción con el ratón (M1-10 y M1-12)', () => {
     dispose()
   })
 
+  it('con la corriente puesta el inspector no cambia la pieza', () => {
+    const { editor, dispose } = mount()
+    const gate = editor.diagram.addGate('and', { x: 0, y: 0 }, 2)
+    editor.select(gate.id)
+    editor.setPowered(true)
+
+    editor.updateSelected({ bitWidth: 4 })
+
+    const current = editor.diagram.get(gate.id)
+    expect(current?.kind === 'gate' ? current.bitWidth : null).toBe(1)
+    dispose()
+  })
+
   it('un clic en un interruptor lo elige, y sin corriente no lo pulsa', () => {
     const { editor, canvas, dispose } = mount()
     editor.loadExample()

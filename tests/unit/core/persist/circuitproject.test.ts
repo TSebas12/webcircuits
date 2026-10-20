@@ -20,6 +20,18 @@ describe('circuitproject (M4-07/08)', () => {
     expect(out).toContain('<lc:CircuitProject')
     expect(out).toContain('</lc:CircuitProject>')
   })
+
+  it('la probeta viaja en su propia tabla, no como compuerta', () => {
+    const project = new CircuitProject('sonda')
+    project.current.diagram.addProbe({ x: 2, y: 2 }, { name: 'A', pinSide: 'top' })
+
+    const xml = exportCircuitProject(project)
+    expect(xml).toContain('<lc:CircuitProbe')
+
+    const loaded = importCircuitProject(xml)
+    const probe = loaded.current.elements.find((element) => element.kind === 'probe')
+    expect(probe).toMatchObject({ kind: 'probe', name: 'A', pinSide: 'top' })
+  })
 })
 
 describe('circuitproject: formato de atributos del original (2.0.0.14+)', () => {

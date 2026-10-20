@@ -78,6 +78,8 @@ function serializeElement(el: StoredElement): SerializedElement {
       return { ...dev, pinType: el.pinType, side: el.side, bitWidth: el.bitWidth, inverted: el.inverted, name: el.name }
     case 'constant':
       return { ...dev, bitWidth: el.bitWidth, value: el.value, pinSide: el.pinSide }
+    case 'probe':
+      return { ...dev, name: el.name, pinSide: el.pinSide }
     case 'splitter':
       return { ...dev, bitWidth: el.bitWidth, pinCount: el.pinCount, clockwise: el.clockwise }
     case 'circuit':
@@ -213,6 +215,13 @@ function deserializeElement(raw: SerializedElement): StoredElement {
         ...deviceBase,
         bitWidth: (raw.bitWidth as number) ?? 1,
         value: (raw.value as number) ?? 0,
+        pinSide: asPinSide(raw.pinSide),
+      }
+    case 'probe':
+      return {
+        kind: 'probe',
+        ...deviceBase,
+        name: (raw.name as string) ?? '',
         pinSide: asPinSide(raw.pinSide),
       }
     case 'splitter':

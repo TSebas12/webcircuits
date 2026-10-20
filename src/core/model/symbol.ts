@@ -35,7 +35,6 @@ import {
   circuitSymbolLayout,
   constantLayout,
   deviceLayout,
-  gateLayout,
   pinLayout,
   pinPosition,
   sheetPinSpecs,
@@ -58,6 +57,7 @@ import type {
   Pin,
   PinType,
   PlacedElement,
+  Probe,
   Project,
   Rotation,
   Sensor,
@@ -73,7 +73,7 @@ import type {
  * Un pin de hoja y un subcircuito **no** lo son: hay que atravesarlos. Y un repartidor
  * tampoco: se salta, no se simula.
  */
-export type PrimitiveDevice = Constant | Memory | LedMatrix | Sensor | Sound | GraphicsArray
+export type PrimitiveDevice = Constant | Probe | Memory | LedMatrix | Sensor | Sound | GraphicsArray
 
 /** Qué representa un símbolo colocado: su `Circuit`, en el vocabulario del original. */
 export type DepictedCircuit =
@@ -190,10 +190,17 @@ export class Jam {
    *
    * El original da por buenos los bits de más cuando el símbolo es una probeta
    * (`Jam.IsValid`), porque una probeta se puede conectar a un cable de cualquier ancho.
-   * Las probetas llegan en M2-12; hasta entonces ningún símbolo perdona bits de más.
    */
   isValid(bit: number): boolean {
-    return 0 <= bit && bit < this.pin.bitWidth
+    if (bit < 0) {
+      return false
+    }
+    if (bit < this.pin.bitWidth) {
+      return true
+    }
+    return (
+      this.symbol.depicted.kind === 'device' && this.symbol.depicted.element.kind === 'probe'
+    )
   }
 }
 
@@ -319,7 +326,7 @@ function describe(
     case 'gate':
       return {
         depicted: { kind: 'gate', element },
-        layout: gateLayout(element.gateType, element.inputCount),
+        layout: deviceLayout(element),
       }
 
     case 'button':
@@ -339,6 +346,10 @@ function describe(
       // faltaba era su símbolo. Tiene una sola punta de salida, del ancho del valor, y
       // `collect` crea un resultado por bit.
       return { depicted: { kind: 'device', element }, layout: constantLayout(element) }
+
+    case 'probe':
+      // Una probeta solo tiene una punta de entrada; su tamaño y su lado salen del modelo.
+      return { depicted: { kind: 'device', element }, layout: deviceLayout(element) }
 
     case 'circuit': {
       const circuit = index.circuit(element.targetCircuitId)
@@ -497,9 +508,9 @@ function buildJams(
     }
 
     case 'device':
-      // Solo la constante llega aquí: las demás primitivas avisan en `describe` antes de
-      // construir puntas. Su símbolo tiene una única salida del ancho del valor; los bits
-      // se reparten luego en `collect`.
+      // La constante y la probeta llegan aquí; las demás primitivas avisan en `describe`
+      // antes de construir puntas. La constante tiene una salida del ancho del valor y la
+      // probeta una entrada de 1 bit que el motor ensancha al cable que mira.
       return symbol.layout.pins.map(
         (pin, position) =>
           new Jam(

@@ -22,6 +22,7 @@ import { ledShape } from './led'
 import { notShape, triState1Shape, triState2Shape } from './not'
 import { orShape, xorShape } from './or'
 import { pinInputShape, pinOutputShape } from './pin'
+import { probeShape } from './probe'
 import { roundedRect } from './rounded-rect'
 import { splitterShape } from './splitter'
 
@@ -40,6 +41,7 @@ export type SymbolShape =
   | 'xorNeg'
   | 'button'
   | 'led'
+  | 'probe'
   | 'splitter'
   | 'pinInput'
   | 'pinOutput'
@@ -91,6 +93,7 @@ const BUILDERS: Readonly<Record<SymbolShape, ShapeBuilder>> = {
   xorNeg: (width, height) => withNegation(xorShape(width, height), width, height),
   button: buttonShape,
   led: ledShape,
+  probe: probeShape,
   splitter: splitterShape,
   pinInput: pinInputShape,
   pinOutput: pinOutputShape,
@@ -143,8 +146,9 @@ export function symbolDrawing(shape: SymbolShape, width: number, height: number)
  * (`circuit-map.ts` → `FunctionAndNot`, `FunctionOrNot`, `FunctionXorNot` y la propia NOT);
  * para las demás, `null`: dibujar una bolita que el motor ignora sería mentir.
  *
- * `nop`, `odd`, `even` y `probe` no entran: no son compuertas que se puedan colocar
- * (`layout.ts` las rechaza).
+ * `nop`, `odd` y `even` no entran: no son compuertas que se puedan colocar (`layout.ts`
+ * las rechaza). La probeta tampoco es una compuerta: tiene su propia forma de dispositivo,
+ * sin bolita, porque no tiene salida que negar.
  */
 export function shapeForGate(gateType: GateType, invertedOutput = false): SymbolShape | null {
   if (invertedOutput) {

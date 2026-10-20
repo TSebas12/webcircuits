@@ -16,6 +16,16 @@ describe('json persist (M4-05/06)', () => {
     expect(p2.current.elements.length).toBe(3)
   })
 
+  it('conserva una probeta con su nombre y su lado de entrada', () => {
+    const p = new CircuitProject('sonda')
+    p.current.diagram.addProbe({ x: 2, y: 2 }, { name: 'A', pinSide: 'top' })
+
+    const p2 = deserializeProject(serializeProject(p))
+    const probe = p2.current.elements.find((element) => element.kind === 'probe')
+
+    expect(probe).toMatchObject({ kind: 'probe', name: 'A', pinSide: 'top' })
+  })
+
   it('rechaza formato desconocido', () => {
     expect(() => deserializeProject(JSON.stringify({ format: 'foo', version: 1, name: 'x', currentCircuitId: 'main', circuits: [] }))).toThrow()
   })

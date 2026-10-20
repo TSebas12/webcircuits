@@ -7,6 +7,7 @@ import {
   pinLayout,
   pinPosition,
   placedPins,
+  probeLayout,
   rotatePoint,
   rotationAngle,
   rotationCenter,
@@ -328,6 +329,19 @@ describe('lo que todavía no está portado', () => {
   it('los tipos que no son compuertas colocables avisan en vez de mentir', () => {
     expect(() => gateLayout('nop', 1)).toThrow(/no es una compuerta que se pueda colocar/)
     expect(() => gateLayout('odd', 1)).toThrow(/no es una compuerta que se pueda colocar/)
-    expect(() => gateLayout('probe', 1)).toThrow(/no es una compuerta que se pueda colocar/)
+  })
+
+  it('la probeta solo mira: una entrada en el lado que se elija y ningún resultado', () => {
+    const left = probeLayout('left')
+    const top = probeLayout('top')
+
+    expect(left.width).toBe(2)
+    expect(left.height).toBe(2)
+    expect(left.pins.map((pin) => `${pin.type}@${pin.point.x},${pin.point.y}`)).toEqual([
+      'input@0,1',
+    ])
+    expect(top.pins.map((pin) => `${pin.type}@${pin.point.x},${pin.point.y}`)).toEqual([
+      'input@1,0',
+    ])
   })
 })

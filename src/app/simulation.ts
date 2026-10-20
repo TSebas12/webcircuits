@@ -24,6 +24,7 @@ import { CircuitRunner, halfPeriod } from '../core/simulate/circuit-runner'
 import { devicesSnapshot } from '../core/simulate/snapshot'
 import { circuitIndex, type SymbolIndex } from '../core/model/symbol'
 import { FunctionButton } from '../core/function/devices'
+import { FunctionProbe } from '../core/function/probes'
 import { State } from '../core/function/state'
 import { CircuitError } from '../core/circuit-error'
 import type { Circuit, DeviceState, Id, Signal, StoredElement, Wire } from '../core/model/types'
@@ -56,6 +57,12 @@ export const CLOCK_FREQUENCY = 100
  * siempre con tal de no perder un pulso de un reloj.
  */
 const MAX_CATCH_UP = 4
+
+/** Una señal del osciloscopio: una probeta y uno de sus bits. */
+export interface ProbeChannel {
+  readonly label: string
+  readonly samples: readonly number[]
+}
 
 export interface SimulationCallbacks {
   /**
@@ -131,6 +138,47 @@ export class Simulation {
       return null
     }
     return state.get(indexes[0]!) === State.On1 ? 1 : 0
+  }
+
+  /**
+   * Las señales que ven las probetas, listas para el osciloscopio.
+   *
+   * Cada bit de una probeta es un canal. Se leen del historial circular, que ya está en
+   * orden cronológico; apagado o sin probetas devuelve una lista vacía.
+   */
+  get probeChannels(): readonly ProbeChannel[] {
+    const state = this.state
+    if (state === null) {
+      return []
+    }
+    const channels: ProbeChannel[] = []
+    let index = 0
+    for (const probe of state.probes) {
+      if (!(probe instanceof FunctionProbe)) {
+        continue
+      }
+      index += 1
+      const bits = Math.max(1, probe.bitWidth)
+      for (let bit = 0; bit < bits; bit += 1) {
+        const suffix = bits > 1 ? `[${bit}]` : ''
+        const label = probe.label.trim() || `Sonda ${index}`
+        channels.push({
+          label: `${label}${suffix}`,
+          samples: probe.read(bit).map((value) => (value === State.On1 ? 1 : 0)),
+        })
+      }
+    }
+    return channels
+  }
+
+  /** Vacía el historial de todas las probetas sin apagar el circuito. */
+  clearProbes(): void {
+    for (const probe of this.state?.probes ?? []) {
+      if (probe instanceof FunctionProbe) {
+        probe.clear()
+      }
+    }
+    this.scheduleRefresh()
   }
 
   /**

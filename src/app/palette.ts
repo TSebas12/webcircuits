@@ -23,6 +23,7 @@ import {
   constantLayout,
   gateLayout,
   pinLayout,
+  probeLayout,
   splitterLayout,
   type SymbolLayout,
 } from '../core/model/layout'
@@ -82,7 +83,18 @@ interface SplitterPiece extends PieceBase {
   readonly clockwise: boolean
 }
 
-export type Piece = GatePiece | ButtonPiece | PinPiece | ConstantPiece | SplitterPiece
+/** Una probeta: mira un cable y guarda su historial para el osciloscopio. */
+interface ProbePiece extends PieceBase {
+  readonly kind: 'probe'
+}
+
+export type Piece =
+  | GatePiece
+  | ButtonPiece
+  | PinPiece
+  | ConstantPiece
+  | SplitterPiece
+  | ProbePiece
 
 /**
  * Cuántas entradas se pueden pedir desde el panel.
@@ -210,6 +222,13 @@ export const PIECES = [
     gateType: 'led',
     inputCount: 1,
     invertedOutput: false,
+  },
+  {
+    kind: 'probe',
+    id: 'probe',
+    label: 'Sonda',
+    title: 'Sonda: mira un cable y guarda su historial para el osciloscopio',
+    group: 'io',
   },
   {
     kind: 'button',
@@ -355,6 +374,8 @@ export function pieceLayout(piece: Piece, chosen: number): SymbolLayout {
       return pinLayout({ pinType: piece.pinType, bitWidth: 1, inverted: false })
     case 'constant':
       return constantLayout(previewConstant(piece))
+    case 'probe':
+      return probeLayout('left')
     case 'splitter':
       return splitterLayout(previewSplitter(piece))
   }
@@ -377,6 +398,8 @@ export function pieceShape(piece: Piece): SymbolShape | null {
       return piece.pinType === 'output' ? 'pinOutput' : 'pinInput'
     case 'constant':
       return 'constant'
+    case 'probe':
+      return 'probe'
     case 'splitter':
       return 'splitter'
     default:
@@ -420,6 +443,8 @@ export function placePiece(
         value: piece.value,
         pinSide: 'right',
       })
+    case 'probe':
+      return diagram.addProbe(position)
     case 'splitter':
       return diagram.addSplitter(position, {
         bitWidth: piece.bitWidth,

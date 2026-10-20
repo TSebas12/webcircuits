@@ -12,6 +12,7 @@ import Modal from './Modal.svelte'
 import ExamplePicker from './ExamplePicker.svelte'
 import TruthTablePanel from './components/truthtable/TruthTablePanel.svelte'
 import TestSocketPanel from './components/test-socket/TestSocketPanel.svelte'
+import OscilloscopePanel from './components/oscilloscope/OscilloscopePanel.svelte'
 import TextPrompt from './components/TextPrompt.svelte'
 import Icon from './Icon.svelte'
 import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
@@ -64,6 +65,8 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   let showSettings = $state(false)
   let showTruthTable = $state(false)
   let showTestSockets = $state(false)
+  let showOscilloscope = $state(false)
+  let scopeChannels = $state<readonly { readonly label: string; readonly samples: readonly number[] }[]>([])
   let showThemeEditor = $state(false)
   let showCommandPalette = $state(false)
   let showConfirmClear = $state(false)
@@ -149,6 +152,9 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
       onStats: (stats) => {
         fps = stats.fps
         paintMs = stats.paintMs
+        if (showOscilloscope) {
+          scopeChannels = instance.probeChannels
+        }
       },
       onZoom: (percent) => {
         zoomPct = percent
@@ -570,6 +576,16 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
       editor?.fitToContent()
       pendingExampleId = null
     }
+  }
+
+  const openOscilloscope = (): void => {
+    scopeChannels = editor?.probeChannels ?? []
+    showOscilloscope = true
+  }
+
+  const clearOscilloscope = (): void => {
+    editor?.clearProbes()
+    scopeChannels = editor?.probeChannels ?? []
   }
 
 
@@ -1023,7 +1039,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     {/if}
     {#if unsupported > 0}
       <div class="info-badge" role="status">
-        {unsupported} {unsupported === 1 ? 'pieza' : 'piezas'} del circuito aún no se {unsupported === 1 ? 'dibuja' : 'dibujan'} (memorias, sensores, matrices o notas). Se conservan y se simulan al guardar.
+        {unsupported} {unsupported === 1 ? 'pieza' : 'piezas'} del circuito no se {unsupported === 1 ? 'dibuja' : 'dibujan'} todavía (memorias, sensores, matrices o sonido). Esta versión no {unsupported === 1 ? 'la' : 'las'} puede editar.
         <button type="button" aria-label="Ocultar aviso" onclick={() => (unsupported = 0)}>×</button>
       </div>
     {/if}
@@ -1052,6 +1068,14 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
 
   {#if showTruthTable && editor}
     <TruthTablePanel {editor} onClose={() => (showTruthTable = false)} />
+  {/if}
+
+  {#if showOscilloscope}
+    <OscilloscopePanel
+      channels={scopeChannels}
+      onclear={clearOscilloscope}
+      onClose={() => (showOscilloscope = false)}
+    />
   {/if}
 
   {#if showTestSockets && editor}
@@ -1131,6 +1155,9 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     </button>
     <button type="button" title="Pines de entrada y salida del circuito" onclick={() => (showTestSockets = true)}>
       Sockets
+    </button>
+    <button type="button" title="Ver el historial de las sondas colocadas" onclick={openOscilloscope}>
+      Osciloscopio
     </button>
     <input
       type="range"

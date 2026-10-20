@@ -22,7 +22,7 @@
 
 import { deviceBounds, deviceLayout, pinPosition, type CircuitResolver } from './layout'
 import type { CircuitAnnotation, CircuitMarker } from './overlay'
-import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Pin, PinSide, PinType, PlacedElement, Rotation, Splitter, StoredElement, Wire } from './types'
+import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Pin, PinSide, PinType, PlacedElement, Probe, Rotation, Splitter, StoredElement, Wire } from './types'
 import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
@@ -463,6 +463,35 @@ export class Diagram {
       this.items.set(constant.id, constant)
       this.changed()
       return constant
+    })
+  }
+
+  /**
+   * Coloca una probeta.
+   *
+   * En el original (`CircuitProbe`) el nombre es opcional y el lado por el que entra la
+   * señal se elige al crearla; aquí se puede cambiar después desde el inspector.
+   */
+  addProbe(
+    position: GridPoint,
+    options: { readonly name?: string; readonly pinSide?: PinSide } = {},
+  ): Probe {
+    return this.change(() => {
+      const id = this.nextId('probe')
+      const probe: Probe = {
+        kind: 'probe',
+        id,
+        circuitId: this.circuitId,
+        layerId: this.activeLayer,
+        position,
+        rotation: 'up',
+        // El original usa el Guid como nombre por defecto y lo oculta con `HasName`.
+        name: options.name?.trim() || id,
+        pinSide: options.pinSide ?? 'left',
+      }
+      this.items.set(probe.id, probe)
+      this.changed()
+      return probe
     })
   }
 
@@ -980,6 +1009,7 @@ function isDrawableDevice(item: StoredElement): item is DrawableDevice {
     case 'button':
     case 'pin':
     case 'constant':
+    case 'probe':
     case 'splitter':
     case 'circuit':
       return true

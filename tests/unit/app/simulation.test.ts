@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Simulation } from '../../../src/app/simulation'
 import { halfPeriod } from '../../../src/core/simulate/circuit-runner'
-import type { Button, Element, Gate, Wire } from '../../../src/core/model/types'
+import type { Button, Constant, Element, Gate, Probe, Wire } from '../../../src/core/model/types'
 
 /** Los fotogramas que `requestAnimationFrame` deja apuntados, para dispararlos a mano. */
 const frames: FrameRequestCallback[] = []
@@ -85,6 +85,21 @@ function clockCircuit(): Element[] {
     gate('led', { x: 6, y: 0 }, 'led', 1),
     wire('w1', 2, 1, 6, 1),
   ]
+}
+
+function probeCircuit(name = ''): Element[] {
+  const probe: Probe = {
+    kind: 'probe',
+    id: 'probe',
+    circuitId: 'main',
+    layerId: 'principal',
+    position: { x: 6, y: 0 },
+    rotation: 'up',
+    // El original usa el id como nombre por defecto; la interfaz lo oculta.
+    name: name || 'probe',
+    pinSide: 'left',
+  }
+  return [button('b1', { x: 0, y: 0 }), probe, wire('w1', 2, 1, 6, 1)]
 }
 
 describe('tener el circuito en marcha', () => {
@@ -201,6 +216,69 @@ describe('tener el circuito en marcha', () => {
     simulation.reset()
 
     expect(simulation.isPressed('b1')).toBe(false)
+  })
+
+  it('una probeta de varios bits enseña un canal por bit', () => {
+    const constant: Constant = {
+      kind: 'constant',
+      id: 'c1',
+      circuitId: 'main',
+      layerId: 'principal',
+      position: { x: 0, y: 0 },
+      rotation: 'up',
+      bitWidth: 2,
+      value: 2,
+      pinSide: 'right',
+    }
+    const probe: Probe = {
+      kind: 'probe',
+      id: 'probe',
+      circuitId: 'main',
+      layerId: 'principal',
+      position: { x: 6, y: 0 },
+      rotation: 'up',
+      name: 'probe',
+      pinSide: 'left',
+    }
+    const bus = { ...wire('w1', 2, 1, 6, 1), bitWidth: 2 }
+    const simulation = new Simulation()
+
+    simulation.setPowered(true)
+    simulation.evaluate([constant, probe, bus])
+
+    const channels = simulation.probeChannels
+    expect(channels).toHaveLength(2)
+    expect(channels.map((channel) => channel.label)).toEqual(['Sonda 1[0]', 'Sonda 1[1]'])
+    expect(channels.map((channel) => channel.samples.at(-1))).toEqual([0, 1])
+  })
+
+  it('una probeta con nombre usa ese nombre como etiqueta del canal', () => {
+    const simulation = new Simulation()
+
+    simulation.setPowered(true)
+    simulation.evaluate(probeCircuit('Entrada A'))
+
+    expect(simulation.probeChannels).toHaveLength(1)
+    expect(simulation.probeChannels[0]?.label).toBe('Entrada A')
+  })
+
+  it('las probetas alimentan el osciloscopio y se pueden limpiar', () => {
+    const simulation = new Simulation()
+    const elements = probeCircuit()
+
+    simulation.setPowered(true)
+    simulation.evaluate(elements)
+    expect(simulation.probeChannels).toHaveLength(1)
+    expect(simulation.probeChannels[0]?.label).toBe('Sonda 1')
+    expect(simulation.probeChannels[0]?.samples.length).toBeGreaterThan(0)
+
+    // Un paso de reloj graba la muestra nueva; sin reloj la probeta no inventa ticks.
+    simulation.setPressed('b1', true)
+    simulation.step()
+    expect(simulation.probeChannels[0]?.samples.at(-1)).toBe(1)
+
+    simulation.clearProbes()
+    expect(simulation.probeChannels[0]?.samples).toEqual([])
   })
 
   it('pausa y paso a paso', () => {

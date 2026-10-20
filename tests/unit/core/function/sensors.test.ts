@@ -9,8 +9,8 @@ import { FunctionProbe } from '../../../../src/core/function/probes'
 import { State } from '../../../../src/core/function/state'
 import { CircuitState } from '../../../../src/core/simulate/circuit-state'
 
-function stateWithResult(): { state: CircuitState; result: number } {
-  const state = new CircuitState(2)
+function stateWithResult(seed?: number): { state: CircuitState; result: number } {
+  const state = new CircuitState(2, seed)
   const result = state.reserveState()
   return { state, result }
 }
@@ -63,10 +63,15 @@ describe('sensores básicos (M2-12)', () => {
   })
 
   it('el sensor aleatorio cambia dentro del intervalo, sin incluir el máximo', () => {
-    const { state, result } = stateWithResult()
-    const mirror = new CircuitState(2)
+    const seed = 12345
+    const { state, result } = stateWithResult(seed)
+    const mirror = new CircuitState(2, seed)
+    // El sensor elige primero el intervalo y después el valor; el espejo hace lo mismo. Al
+    // cambiar vuelve a sortear los dos, porque `flip()` reinicia el intervalo antes de leer.
     const expectedFlip = 10 + mirror.nextRandom(10)
     mirror.nextRandom(4)
+    mirror.nextRandom(10)
+    const expectedValue = mirror.nextRandom(4)
 
     const sensor = new FunctionSensor(
       state,
@@ -78,7 +83,7 @@ describe('sensores básicos (M2-12)', () => {
     let ticks = 0
     while (!sensor.flip()) ticks += 1
     expect(ticks).toBe(expectedFlip)
-    expect(sensor.value).toBeLessThan(4)
+    expect(sensor.value).toBe(expectedValue)
   })
 
   it('una serie respeta los ticks y se detiene', () => {

@@ -27,7 +27,7 @@ const NS = 'http://LogicCircuit.net/2.0.0.15/CircuitProject.xsd'
  * original, que **no** es el mismo que el nuestro: ahí `0` es `Nop` y `8` es `Led`.
  */
 const GATE_GUIDS: readonly (GateType | null)[] = [
-  'nop', 'clock', 'not', 'or', 'and', 'xor', 'odd', 'even', 'led', 'probe', 'triState1', 'triState2',
+  'nop', 'clock', 'not', 'or', 'and', 'xor', 'odd', 'even', 'led', null, 'triState1', 'triState2',
 ]
 
 const PIN_TYPES: Readonly<Record<string, PinType>> = {
@@ -175,6 +175,18 @@ export function importCircuitProject(xml: string): CircuitProject {
     buttons.set(id, { isToggle: boolAttr(b, 'IsToggle'), inverted: boolAttr(b, 'Inverted') })
   }
 
+  interface ProbeInfo { name: string; pinSide: PinSide }
+  const probes = new Map<string, ProbeInfo>()
+  for (const p of children(root, 'CircuitProbe')) {
+    const id = attr(p, 'CircuitProbeId')
+    if (id === null) continue
+    probes.set(id, {
+      // El original (`CircuitProbe.CheckName`) sustituye un nombre vacío por el id.
+      name: (attr(p, 'Name') ?? '').trim() || id,
+      pinSide: PIN_SIDES[(attr(p, 'PinSide') ?? 'left').toLowerCase()] ?? 'left',
+    })
+  }
+
   const ownerOf = (sourceId: string | null): string => idMap.get(sourceId ?? '') ?? MAIN_CIRCUIT_ID
 
   // 2) Colocar cada símbolo en su circuito.
@@ -188,7 +200,7 @@ export function importCircuitProject(xml: string): CircuitProject {
     const rotation = ROTATIONS[(attr(sym, 'Rotation') ?? 'up').toLowerCase()] ?? 'up'
     const base = { id, circuitId: circuit.id, layerId: DEFAULT_LAYER_ID, position, rotation }
 
-    const element = symbolElement(target, base, pins, constants, splitters, buttons, idMap)
+    const element = symbolElement(target, base, pins, constants, splitters, buttons, probes, idMap)
     if (element) {
       circuit.diagram.importElement(element)
     }
@@ -230,6 +242,7 @@ function symbolElement(
   constants: Map<string, { bitWidth: number; value: number; pinSide: PinSide }>,
   splitters: Map<string, { bitWidth: number; pinCount: number; clockwise: boolean }>,
   buttons: Map<string, { isToggle: boolean; inverted: boolean }>,
+  probes: Map<string, { name: string; pinSide: PinSide }>,
   idMap: Map<string, string>,
 ): StoredElement | null {
   const pin = pins.get(target)
@@ -243,6 +256,10 @@ function symbolElement(
   const splitter = splitters.get(target)
   if (splitter) {
     return { kind: 'splitter', ...base, ...splitter }
+  }
+  const probe = probes.get(target)
+  if (probe) {
+    return { kind: 'probe', ...base, ...probe }
   }
   const button = buttons.get(target)
   if (button) {
@@ -319,6 +336,10 @@ export function exportCircuitProject(project: CircuitProject): string {
         lines.push(
           `  <lc:CircuitButton CircuitButtonId="${escapeXml(el.id)}" IsToggle="${el.isToggle}" Inverted="${el.inverted}" />`,
         )
+      } else if (el.kind === 'probe') {
+        lines.push(
+          `  <lc:CircuitProbe CircuitProbeId="${escapeXml(el.id)}" Name="${escapeXml(el.name)}" PinSide="${sideName(el.pinSide)}" />`,
+        )
       }
     }
   }
@@ -330,7 +351,7 @@ export function exportCircuitProject(project: CircuitProject): string {
         lines.push(
           `  <lc:Wire WireId="${escapeXml(el.id)}" LogicalCircuitId="${escapeXml(c.id)}" X1="${el.p1.x}" Y1="${el.p1.y}" X2="${el.p2.x}" Y2="${el.p2.y}" />`,
         )
-      } else if (el.kind === 'gate' || el.kind === 'button' || el.kind === 'pin' || el.kind === 'constant' || el.kind === 'splitter' || el.kind === 'circuit') {
+      } else if (el.kind === 'gate' || el.kind === 'button' || el.kind === 'pin' || el.kind === 'constant' || el.kind === 'probe' || el.kind === 'splitter' || el.kind === 'circuit') {
         const symbolId = `${el.id}-sym`
         const rotation = el.rotation === 'up' ? '' : ` Rotation="${rotationName(el.rotation)}"`
         const targetSource =

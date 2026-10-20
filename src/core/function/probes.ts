@@ -97,4 +97,13 @@ export class FunctionProbe extends Probe {
   mark(): void {
     this.valueHistory.add(-1n)
   }
+
+  /** Vacía el historial sin dejar de mirar el circuito. */
+  clear(): void {
+    for (const history of this.tickHistory) {
+      history.clear()
+    }
+    this.valueHistory.clear()
+    this.valueHistory.add(this.pack())
+  }
 }

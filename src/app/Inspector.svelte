@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import type { Editor } from './editor'
-  import type { Element, StoredElement } from '../core/model/types'
+  import type { Element, PinSide, StoredElement } from '../core/model/types'
   import { LIGHT_THEME } from '../core/theme/presets'
   let { editor }: { editor: Editor | null } = $props()
   let selected = $state<Element | null>(null)
@@ -98,6 +98,27 @@
         <span>Bits</span>
         <input type="number" min="1" max="32" value={selected.bitWidth}
           oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
+      </div>
+    {:else if selected.kind === 'probe'}
+      <div class="row">
+        <span>Entrada</span>
+        <select
+          value={selected.pinSide}
+          onchange={(e) => update({ pinSide: (e.currentTarget as HTMLSelectElement).value as PinSide })}
+        >
+          <option value="left">izquierda</option>
+          <option value="top">arriba</option>
+          <option value="right">derecha</option>
+          <option value="bottom">abajo</option>
+        </select>
+      </div>
+      <div class="row">
+        <span>Nombre</span>
+        <input
+          value={selected.name === selected.id ? '' : selected.name}
+          placeholder="Sonda"
+          oninput={(e) => update({ name: (e.currentTarget as HTMLInputElement).value.trim() || selected?.id || '' })}
+        />
       </div>
     {:else if selected.kind === 'splitter'}
       <div class="row">

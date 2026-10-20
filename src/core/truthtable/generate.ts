@@ -5,9 +5,9 @@
  * entrada por constantes y los de salida por probetas (`CircuitTestSocket`). Así puede
  * forzar cada combinación sin tocar el dibujo y leer la salida como un valor más.
  *
- * Aquí se hace lo mismo con una diferencia: en vez de crear una probeta visible, se marca
- * el pin de salida como consumidor y se leen los índices de estado de su cable. El resultado
- * es el mismo y no hace falta que exista todavía el dispositivo de probeta (M2-12).
+ * Aquí se hace lo mismo con una diferencia deliberada: en vez de crear una probeta, se
+ * marca el pin de salida como consumidor y se leen los índices de estado de su cable. El
+ * resultado es el mismo y la copia queda más limpia, sin símbolos extra que limpiar.
  */
 import { CircuitMap } from '../simulate/circuit-map'
 import { State } from '../function/state'

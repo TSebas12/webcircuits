@@ -33,8 +33,7 @@ export class CircuitState {
 
   private readonly listeners: FunctionUpdatedListener[] = []
 
-  constructor(reserveState: number) {
-    const seed = (Date.now() & 0x7fffffff) | 0
+  constructor(reserveState: number, seed = (Date.now() & 0x7fffffff) | 0) {
     this.random = seed
     this.dirty = new DirtyList(seed)
     this.count = reserveState
@@ -154,8 +153,6 @@ export class CircuitState {
     }
     if (count <= 0) {
       this.dirty.add(function_)
-    } else {
-      // Las sondas (FunctionProbe) se registran en M2-12, cuando exista el modelo visual.
     }
     if (function_ instanceof FunctionTriStateGroup) {
       this.triStateGroupList.push(function_)

@@ -16,9 +16,8 @@
  * ⚠️ **Lo que aquí no está, y por qué.** El original mide el tiempo con un `PreciseTimer` de
  * milisegundos y ajusta la frecuencia real de la simulación (`actualFrequency`); eso es el
  * reloj determinista, que es M7B-05, y su sitio no es el port del motor sino el de la
- * temporización. Tampoco están el osciloscopio (`FunctionProbe.Tick`) ni la lista de
- * `HistorySize` muestras de las probetas, que llegan con M2-12. Este módulo deja los
- * enganches donde irán (`hasProbes`, `step`), pero no finge tenerlos.
+ * temporización. Las probetas ya guardan sus `HistorySize` muestras y reciben su tick en
+ * `step`; el osciloscopio que las pinta vive en la capa de interfaz.
  */
 
 import { CircuitMap } from './circuit-map'
@@ -86,8 +85,8 @@ export class CircuitRunner {
   /**
    * ¿Hay probetas en el circuito? (original: `HasProbes`).
    *
-   * Lo dice el estado al aplanar. Hoy siempre es falso porque `FunctionProbe` no existe
-   * (M2-12); cuando exista, es lo que decide si hay que abrir el osciloscopio.
+   * Lo dice el estado al aplanar: es lo que decide si hay que abrir el osciloscopio y si
+   * `step` tiene que avanzar el historial de las probetas.
    */
   get hasProbes(): boolean {
     return this.probes

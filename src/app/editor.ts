@@ -64,7 +64,7 @@ import { DEFAULT_LAYER_ID } from '../core/model/types'
 import { CircuitProject } from '../core/model/circuit'
 import { circuitInstanceLayout, deviceBounds, placedPins } from '../core/model/layout'
 import { connectionCounts, pointKey } from '../core/simulate/nets'
-import { Simulation } from './simulation'
+import { Simulation, type ProbeChannel } from './simulation'
 import type { SimulationState } from '../core/simulate/engine'
 import type {
   Button,
@@ -393,6 +393,16 @@ export class Editor {
   /** El valor de un cable para la sonda (1/0), o `null` si no se puede saber. */
   probeValue(wire: Wire): number | null {
     return this.simulation.probeValue(wire)
+  }
+
+  /** Las señales de las probetas colocadas, para el osciloscopio. */
+  get probeChannels(): readonly ProbeChannel[] {
+    return this.simulation.probeChannels
+  }
+
+  /** Vacía el historial de las probetas sin apagar el circuito. */
+  clearProbes(): void {
+    this.simulation.clearProbes()
   }
 
   private savedRevision = 0
@@ -773,7 +783,7 @@ export class Editor {
   }
 
   updateSelected(patch: Partial<StoredElement>): void {
-    if (this.selected.size !== 1) return
+    if (this.simulation.powered || this.selected.size !== 1) return
     const id = [...this.selected][0]!
     const element = this.diagram.get(id)
     if (element === undefined || this.diagram.isLayerLocked(element.layerId)) return
@@ -782,7 +792,7 @@ export class Editor {
   }
 
   updateSelection(patch: Partial<StoredElement>): void {
-    if (this.selected.size === 0) return
+    if (this.simulation.powered || this.selected.size === 0) return
     this.diagram.beginChange()
     for (const id of [...this.selected]) {
       const element = this.diagram.get(id)
@@ -868,6 +878,12 @@ export class Editor {
             bitWidth: el.bitWidth,
             pinCount: el.pinCount,
             clockwise: el.clockwise,
+          }).id
+          break
+        case 'probe':
+          newId = this.diagram.addProbe(position, {
+            name: el.name,
+            pinSide: el.pinSide,
           }).id
           break
         case 'circuit':

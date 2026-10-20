@@ -78,9 +78,10 @@ export type GateShape = 'Rectangular' | 'Shaped'
 /**
  * Tipos de compuerta (original: `CircuitProject/GateType.cs`).
  *
- * Se respetan **todos** los valores del enumerado original, incluidos `odd`, `even` y
- * `probe`: existen, pero no son compuertas que se puedan colocar. Mantenerlos hace que
- * el mapeo con el formato de fichero `.CircuitProject` sea directo.
+ * Se respetan **todos** los valores del enumerado original, incluidos `odd` y `even`:
+ * existen, pero no son compuertas que se puedan colocar. Mantenerlos hace que el mapeo
+ * con el formato de fichero `.CircuitProject` sea directo. La probeta no está aquí: en el
+ * original es un `CircuitProbe` con tabla propia, no un `GateType`.
  *
  * ⚠️ No hay `nand`, `nor` ni `xnor`: en el original una NAND es una `and` con
  * `invertedOutput = true`. Así queda en el fichero, y así lo modelamos.
@@ -95,7 +96,6 @@ export type GateType =
   | 'odd'
   | 'even'
   | 'led'
-  | 'probe'
   | 'triState1'
   | 'triState2'
 
@@ -192,6 +192,7 @@ export type PlacedElement =
   | Pin
   | CircuitInstance
   | Constant
+  | Probe
   | Memory
   | LedMatrix
   | Sensor
@@ -206,7 +207,14 @@ export type PlacedElement =
  * simularse, pero no ofrecerse en la paleta ni responder al clic como si se viera. El día
  * que tenga silueta, se añade aquí y aparece en todas partes a la vez.
  */
-export type DrawableDevice = Gate | Button | Pin | CircuitInstance | Constant | Splitter
+export type DrawableDevice =
+  | Gate
+  | Button
+  | Pin
+  | CircuitInstance
+  | Constant
+  | Probe
+  | Splitter
 
 /** Un símbolo colocado sobre la rejilla. */
 export interface Device extends ElementBase {
@@ -236,6 +244,21 @@ export interface Constant extends Device {
   readonly kind: 'constant'
   readonly bitWidth: number
   readonly value: number
+  readonly pinSide: PinSide
+}
+
+/**
+ * Una probeta (original: `CircuitProbe`).
+ *
+ * No calcula nada: mira el cable que le entra y guarda un historial para el osciloscopio. A
+ * diferencia de la compuerta, **no tiene salida** y en el original es un `Circuit` con su
+ * propia tabla en el fichero (`CircuitProbe`), no un `GateType`.
+ */
+export interface Probe extends Device {
+  readonly kind: 'probe'
+  /** Nombre opcional; si está vacío, la interfaz numera las sondas. */
+  readonly name: string
+  /** Lado por el que entra la señal (original: `CircuitProbe.PinSide`). */
   readonly pinSide: PinSide
 }
 
