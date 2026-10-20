@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { StoredElement } from '../../core/model/types'
-  import { createTestSockets } from '../../core/model/test-socket'
+  import type { StoredElement } from '../../../core/model/types'
+  import { createTestSockets } from '../../../core/model/test-socket'
 
   let { elements = [] }: { elements?: readonly StoredElement[] } = $props()
 
