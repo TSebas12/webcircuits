@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CircuitProject } from '../../../../src/core/model/circuit'
+import { deserializeProject, serializeProject } from '../../../../src/core/persist/json'
 import type { Gate, Pin, StoredElement, Wire } from '../../../../src/core/model/types'
 import { generateTruthTable, truthTableToCsv } from '../../../../src/core/truthtable/generate'
 
@@ -140,6 +141,19 @@ describe('generación de tablas de verdad (M8)', () => {
       [1, 1],
       [2, 2],
       [3, 3],
+    ])
+  })
+
+  it('funciona sobre el proyecto serializado que recibe el worker', () => {
+    const project = andProject()
+    const copy = deserializeProject(serializeProject(project))
+    const table = generateTruthTable(copy, copy.current)
+
+    expect(table.rows.map((row) => [...row.input, ...row.output])).toEqual([
+      [0, 0, 0],
+      [0, 1, 0],
+      [1, 0, 0],
+      [1, 1, 1],
     ])
   })
 
