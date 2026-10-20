@@ -108,7 +108,7 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 
 | Feature | Hito | Estado |
 |---|---|---|
-| **Capas** (con vista por capa) | M5 | 🟡 (18/23 y 4 parciales; el resto llega con M12) |
+| **Capas** (con vista por capa) | M5 | 🟡 (21/23 y 2 parciales; el resto llega con M12) |
 | **Temas y colores** personalizables | M6 | ✅ (20/20) |
 | **Buses cómodos** (agrupar, rutar, etiquetar) | M3B | ⬜ (siguiente paso: M3B-01) |
 | **Biblioteca de subcircuitos** (`.wccomp`) | M4C | ⬜ |

@@ -7,33 +7,42 @@ Reescritura web de [LogicCircuit](https://www.logiccircuit.org) (C#/WPF), con **
 
 <!-- Cuando haya una captura decente: ![WebCircuits](docs/captura.png) -->
 
-> **En construcción.** 27 de 258 pasos hechos (10 %). Ya funciona un circuito pequeño de
-> punta a punta, pero esto todavía **no sirve para trabajar en serio**: faltan compuertas,
-> guardar y abrir circuitos, y el motor completo. Ver [Estado](#estado).
+> **En construcción.** 166 de 258 pasos hechos (64 %). La app ya sirve para dibujar,
+> guardar y simular circuitos de varios niveles, con capas, temas y tablas de verdad;
+> quedan los buses cómodos, la síntesis, la exportación y el pulido. Ver [Estado](#estado).
 
 ## Estado
 
-**M1 · Slice vertical** ✅ — se pueden colocar interruptores, una compuerta AND y un LED,
-cablearlos con el ratón, pulsarlos y ver el LED encenderse. Eso es todo el camino de datos
-funcionando de punta a punta.
+**M1 · Slice vertical** ✅ — el camino de datos funciona de punta a punta: colocar,
+cablear, pulsar un interruptor y ver el LED encenderse. A partir de ahí se han ido
+añadiendo el resto de piezas, la persistencia, la jerarquía y la instrumentación.
 
 Lo que ya funciona:
 
 - Lienzo con rejilla, desplazamiento y zoom de **0,1× a 3×** anclado al cursor
-- Colocar interruptores, compuertas AND y LEDs
-- Seleccionar, arrastrar y borrar, con ajuste a la rejilla
-- Cablear arrastrando desde un pin (`Esc` cancela)
-- El motor evalúa AND, OR, XOR y NOT, con salidas invertidas incluidas (ojo: hoy sólo la
-  AND se puede colocar desde la barra)
-- Apagar el circuito entero (en el original, *Circuito → Encender*)
-- Tema claro, oscuro o automático, con memoria
+- Paleta de **23 piezas**: compuertas, tri-estado, reloj, LED, display de 7 segmentos,
+  sonda, sensor, memoria RAM/ROM, altavoz, interruptor, pines, constantes y repartidores
+- Seleccionar, arrastrar, copiar/pegar, borrar y deshacer/rehacer, con ajuste a la rejilla
+- Cableado arrastrando desde un pin (`Esc` cancela), con **buses multi-bit**, uniones,
+  colores por cable y modo cableado (W)
+- Motor con compuertas, reloj, memoria (lectura/escritura por flanco), sensores, sondas,
+  interruptores y **subcircuitos jerárquicos**
+- Guardar y abrir `.CircuitProject` (XML) y JSON nativo, con archivos recientes
+- **Capas**: crear, ocultar, bloquear y ajustar opacidad
+- **Temas**: claro, oscuro, alto contraste, daltónico, monocromo y editor propio
+- **Tabla de verdad** con filtro, inversión, bus multi-bit, subcircuitos y exportación CSV/HTML
+- Ejemplos con vista previa, notas y marcadores persistentes
 
 Lo que todavía **no** funciona, y en qué hito llega:
 
-- Sólo hay tres símbolos; el resto de compuertas y la edición completa son M2
-- No se pueden guardar ni abrir circuitos (M4)
-- No hay capas (M5) ni temas propios (M6)
-- El motor no detecta conflictos ni simula retardos de propagación (M2 y M7B)
+- Las **matrices gráfica y de LED** tienen modelo, persistencia y silueta, pero aún no
+  tienen pines ni función de simulación; no se ofrecen en la paleta (M3/M11)
+- La **nota de texto** se conserva al abrir un archivo, pero el lienzo no la pinta
+- El **altavoz** es solo un indicador visual; el audio real llega con M11
+- **Buses cómodos** (M3B), biblioteca de subcircuitos (M4C), síntesis desde tabla de
+  verdad (M8B), export Verilog (M9), scripting Python (M10) y modo didáctico (M11B)
+- Los **retardos de propagación** tienen módulos y pruebas (M7B), pero aún no están
+  integrados en el `CircuitRunner`; la integración y el rendimiento llegan con M12
 
 ## Probar
 
@@ -98,23 +107,23 @@ algo que el original no tiene.
 |---|---|---|---|
 | M0 | Preparación: andamiaje y línea base del original | 12 | ✅ |
 | M1 | Slice vertical: colocar, cablear y simular | 15 | ✅ |
-| M2 | Motor y edición básica | 30 | ⬜ |
-| M3 | Jerarquía y buses | 16 | ⬜ |
+| M2 | Motor y edición básica | 30 | 🟡 (28/30) |
+| M3 | Jerarquía y buses | 16 | ✅ |
 | M3B | Buses excelentes · *diferenciador* | 9 | ⬜ |
-| M4 | Persistencia y archivos (web) | 24 | ⬜ |
+| M4 | Persistencia y archivos (web) | 24 | 🟡 (19/24) |
 | M4C | Biblioteca de subcircuitos · *nuevo* | 7 | ⬜ |
-| M5 | Capas · *nuevo* | 23 | ⬜ |
-| M6 | Personalización, colores y temas · *nuevo* | 20 | ⬜ |
-| M7 | Instrumentación | 12 | ⬜ |
-| M7B | Retardos de propagación y análisis de tiempo · *diferenciador* | 13 | ⬜ |
-| M8 | Tablas de verdad | 10 | ⬜ |
+| M5 | Capas · *nuevo* | 23 | 🟡 (21/23) |
+| M6 | Personalización, colores y temas · *nuevo* | 20 | ✅ |
+| M7 | Instrumentación | 12 | ✅ |
+| M7B | Retardos de propagación y análisis de tiempo · *diferenciador* | 13 | ✅ (módulos; integración en M12) |
+| M8 | Tablas de verdad | 10 | ✅ |
 | M8B | Síntesis: tabla de verdad → circuito · *nuevo* | 8 | ⬜ |
 | M9 | Export Verilog | 10 | ⬜ |
 | M10 | Scripting Python | 8 | ⬜ |
 | M11 | Pulido y extras | 18 | ⬜ |
 | M11B | Modo didáctico · *nuevo* | 9 | ⬜ |
 | M12 | Rendimiento y despliegue | 14 | ⬜ |
-| | **Total** | **258** | **27 (10 %)** |
+| | **Total** | **258** | **166 (64 %)** |
 
 ## Licencia y atribución
 
