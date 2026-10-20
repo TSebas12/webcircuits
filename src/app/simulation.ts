@@ -89,6 +89,9 @@ export class Simulation {
   private clockTimer: ReturnType<typeof setInterval> | null = null
   private refreshFrame: number | null = null
 
+  private frequency = CLOCK_FREQUENCY
+  private pausedFlag = false
+
   private devices: ReadonlyMap<Id, DeviceState> = new Map()
   private lastError: string | null = null
 
@@ -149,6 +152,66 @@ export class Simulation {
       this.lastError = null
     }
     this.drop()
+  }
+
+  get frequencyHz(): number {
+    return this.frequency
+  }
+
+  get paused(): boolean {
+    return this.pausedFlag
+  }
+
+  setFrequency(hz: number): void {
+    const next = Number.isFinite(hz) && hz > 0 ? hz : CLOCK_FREQUENCY
+    this.frequency = next
+    if (this.clockTimer !== null) {
+      this.stopClock()
+      this.startClock()
+    }
+  }
+
+  pause(): void {
+    if (this.pausedFlag) return
+    this.pausedFlag = true
+    this.stopClock()
+  }
+
+  resume(): void {
+    if (!this.pausedFlag) return
+    this.pausedFlag = false
+    this.startClock()
+  }
+
+  /** Avanza un tick manualmente (depuración paso a paso). */
+  step(): boolean {
+    const runner = this.runner
+    const state = this.state
+    if (runner === null || state === null || !this.poweredFlag) {
+      return false
+    }
+    const previous = this.pausedFlag
+    this.pausedFlag = true
+    this.stopClock()
+    runner.clockTick()
+    let guard = 0
+    while (runner.pendingFlips > 0 && guard < MAX_CATCH_UP) {
+      guard += 1
+      if (!runner.step(false)) {
+        this.fail(new CircuitError('El circuito no se asienta: se queda oscilando.'))
+        this.pausedFlag = previous
+        return false
+      }
+    }
+    const currentIndex = this.index
+    const currentState = this.state
+    if (currentIndex !== null && currentState !== null) {
+      this.devices = devicesSnapshot(currentIndex, runner.circuitMap, currentState, this.elements)
+      this.scheduleRefresh()
+    }
+    this.pausedFlag = previous
+    if (!previous) this.startClock()
+    return true
   }
 
   isPressed(id: Id): boolean {
@@ -328,6 +391,7 @@ export class Simulation {
   // ── El reloj ─────────────────────────────────────────────────────────────────────────
 
   private startClock(): void {
+    if (this.pausedFlag) return
     const state = this.state
     if (state === null || this.clockTimer !== null) {
       return

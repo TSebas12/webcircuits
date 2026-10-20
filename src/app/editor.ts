@@ -642,6 +642,40 @@ export class Editor {
     this.refresh()
   }
 
+  setSimulationFrequency(hz: number): void {
+    this.simulation.setFrequency(hz)
+  }
+
+  pauseSimulation(): void {
+    this.simulation.pause()
+  }
+
+  resumeSimulation(): void {
+    this.simulation.resume()
+  }
+
+  toggleSimulationPause(): void {
+    if (this.simulation.paused) {
+      this.simulation.resume()
+    } else {
+      this.simulation.pause()
+    }
+  }
+
+  stepSimulation(): boolean {
+    const result = this.simulation.step()
+    this.refresh()
+    return result
+  }
+
+  get simulationPaused(): boolean {
+    return this.simulation.paused
+  }
+
+  get simulationFrequency(): number {
+    return this.simulation.frequencyHz
+  }
+
   /**
    * Deshace la última acción. Con la corriente puesta no se edita, así que tampoco se deshace.
    *

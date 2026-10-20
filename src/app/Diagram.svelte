@@ -1020,6 +1020,25 @@ import Icon from './Icon.svelte'
     <ExamplePicker onClose={() => (showExamplePicker = false)} onPick={pickExample} />
   {/if}
 
+  <div class="sim-controls" aria-label="Controles de simulación">
+    <button type="button" title="Pausar o reanudar la simulación" onclick={() => { editor?.toggleSimulationPause(); }}>
+      {editor?.simulationPaused ? 'Reanudar' : 'Pausar'}
+    </button>
+    <button type="button" title="Avanzar un tick" onclick={() => { editor?.stepSimulation() }}>
+      Paso
+    </button>
+    <input
+      type="range"
+      min="1"
+      max="1000"
+      step="1"
+      value={editor?.simulationFrequency ?? 100}
+      title="Velocidad de simulación"
+      oninput={(event) => editor?.setSimulationFrequency(Number((event.currentTarget as HTMLInputElement).value))}
+    />
+    <span class="sim-freq">{editor?.simulationFrequency ?? 100} Hz</span>
+  </div>
+
   <div class="hud" aria-hidden="true">
     {#if dirty}<span class="dirty">● sin guardar</span><span class="sep">·</span>{/if}
     <span>{fps.toFixed(0)} FPS</span>
@@ -1506,6 +1525,36 @@ import Icon from './Icon.svelte'
     color: var(--fg);
     cursor: pointer;
     font-size: 0.75rem;
+  }
+  .sim-controls {
+    position: absolute;
+    left: 0.6rem;
+    bottom: 2.6rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 0.4rem;
+    background: color-mix(in srgb, var(--panel-bg) 85%, transparent);
+    font: 0.72rem/1.6 var(--font-mono);
+    color: var(--fg-muted);
+    z-index: 4;
+  }
+  .sim-controls button {
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    background: transparent;
+    color: var(--fg);
+    cursor: pointer;
+    padding: 0.1rem 0.35rem;
+  }
+  .sim-controls input {
+    width: 6rem;
+  }
+  .sim-freq {
+    min-width: 3.2rem;
+    text-align: right;
   }
   .hud {
     position: absolute;
