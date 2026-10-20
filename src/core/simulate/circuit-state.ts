@@ -23,11 +23,13 @@ export class CircuitState {
   private readonly _functions: CircuitFunction[] = []
   private readonly updated = new Set<CircuitFunction>()
   private readonly clockList: CircuitFunction[] = []
-  private readonly probeList: unknown[] = []
   private readonly triStateGroupList: FunctionTriStateGroup[] = []
 
   public random: number
   private readonly dirty: DirtyList
+
+  /** Probetas registradas: reciben un tick por vuelta para llenar su historial. */
+  private readonly probeList: { tick(): void }[] = []
 
   private readonly listeners: FunctionUpdatedListener[] = []
 
@@ -87,9 +89,33 @@ export class CircuitState {
     return this.probeList.length > 0
   }
 
-  get probes(): readonly unknown[] {
+  get probes(): readonly { tick(): void }[] {
     // Tracer.Assert(this.HasProbes)
     return this.probeList
+  }
+
+  /** Registra una probeta para que reciba ticks del reloj. */
+  registerProbe(probe: { tick(): void }): void {
+    this.probeList.push(probe)
+  }
+
+  /** Avanza el historial de todas las probetas (original: `FunctionProbe.Tick`). */
+  tickProbes(): void {
+    for (const probe of this.probeList) {
+      probe.tick()
+    }
+  }
+
+  /**
+   * Un entero pseudoaleatorio en `[0, max)`.
+   *
+   * Usa el mismo generador lineal que la lista de sucios del original. Está aquí para que
+   * los sensores aleatorios no dependan de `Math.random` y una misma semilla dé la misma
+   * secuencia en los tests.
+   */
+  nextRandom(max: number): number {
+    this.random = (Math.imul(213_013, this.random) + 2_531_011) | 0
+    return (this.random >>> 0) % Math.max(1, max)
   }
 
   /** Acceso por índice al estado de un pin. */

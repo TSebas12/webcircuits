@@ -138,6 +138,9 @@ export class CircuitRunner {
     if (!state.evaluate(isMaximumSpeed || flipClock)) {
       return false
     }
+    if (this.probes && flipClock) {
+      state.tickProbes()
+    }
     if (!isMaximumSpeed) {
       this.flipCount = Math.max(0, this.flipCount - 1)
     }
