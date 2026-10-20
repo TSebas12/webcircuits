@@ -183,8 +183,8 @@ export interface CircuitInstance extends Device {
  *
  * Los cables van aparte porque se colocan distinto: no tienen posición, tienen dos puntas.
  *
- * No todo lo que cabe aquí sabe dibujarse todavía: memorias, sensores, matrices, sonido y
- * notas siguen esperando su símbolo. El editor los conserva y los simula, pero no los pinta.
+ * No todo lo que cabe aquí sabe dibujarse todavía: memorias, matrices, sonido y notas siguen
+ * esperando su símbolo. El editor los conserva y los simula, pero no los pinta.
  */
 export type PlacedElement =
   | Gate
@@ -214,6 +214,7 @@ export type DrawableDevice =
   | CircuitInstance
   | Constant
   | Probe
+  | Sensor
   | Splitter
 
 /** Un símbolo colocado sobre la rejilla. */
@@ -278,6 +279,10 @@ export interface Memory extends Device {
 export interface Sensor extends Device {
   readonly kind: 'sensor'
   readonly sensorType: string
+  readonly bitWidth: number
+  readonly pinSide: PinSide
+  readonly notation: string
+  readonly data: string
 }
 
 /**
@@ -366,9 +371,9 @@ export interface Button extends Device {
  * cables.
  *
  * No es «todo lo que puede haber en un documento» —eso es `StoredElement`—, sino el
- * subconjunto con el que el lienzo y el editor trabajan de verdad. Las memorias, los
- * sensores, las matrices y las notas siguen viajando en los ficheros y simulándose, pero no
- * aparecen aquí hasta que tengan símbolo.
+ * subconjunto con el que el lienzo y el editor trabajan de verdad. Las memorias, las matrices
+ * y las notas siguen viajando en los ficheros y simulándose, pero no aparecen aquí hasta que
+ * tengan símbolo.
  */
 export type Element = DrawableDevice | Wire
 

@@ -28,6 +28,9 @@ const fixtures: ReadonlyArray<{ readonly name: string; readonly xml: string; rea
 
 describe('fixtures con jerarquía (M3-15)', () => {
   for (const fixture of fixtures) {
+    // Los fixtures grandes (ExternalCalculator) tardan varios segundos en un portátil
+    // cargado. No es una prueba de rendimiento: el criterio es que importe y resuelva, así
+    // que se le da margen para que no falle por la máquina que toque.
     it(`${fixture.name} importa y resuelve sus subcircuitos`, () => {
       const project = importCircuitProject(fixture.xml)
       expect(project.circuitsList.length).toBeGreaterThan(1)
@@ -39,7 +42,7 @@ describe('fixtures con jerarquía (M3-15)', () => {
           }
         }
       }
-    })
+    }, 20_000)
   }
 
   for (const fixture of fixtures.filter((fixture) => fixture.canSimulate)) {

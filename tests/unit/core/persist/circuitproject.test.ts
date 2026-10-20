@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import fixtureXml from '../../../../tests/fixtures/CircuitMapTests.CircuitProject?raw'
 import attributeXml from '../../../../tests/fixtures/AttributeConversion.CircuitProject?raw'
+import sensorXml from '../../../../tests/fixtures/SensorTests.CircuitProject?raw'
 import { importCircuitProject, exportCircuitProject } from '../../../../src/core/persist/circuitproject'
 import { CircuitProject } from '../../../../src/core/model/circuit'
 
@@ -31,6 +32,48 @@ describe('circuitproject (M4-07/08)', () => {
     const loaded = importCircuitProject(xml)
     const probe = loaded.current.elements.find((element) => element.kind === 'probe')
     expect(probe).toMatchObject({ kind: 'probe', name: 'A', pinSide: 'top' })
+  })
+
+  it('el sensor viaja en su propia tabla con todos sus campos', () => {
+    const project = new CircuitProject('sensor')
+    project.current.diagram.addSensor(
+      { x: 2, y: 2 },
+      { sensorType: 'keycode', bitWidth: 8, pinSide: 'top', notation: 'tecla', data: '' },
+    )
+
+    const xml = exportCircuitProject(project)
+    expect(xml).toContain('<lc:Sensor SensorId=')
+    expect(xml).toContain('SensorType="KeyCode"')
+
+    const loaded = importCircuitProject(xml)
+    const sensor = loaded.current.elements.find((element) => element.kind === 'sensor')
+    expect(sensor).toMatchObject({
+      kind: 'sensor',
+      sensorType: 'keycode',
+      bitWidth: 8,
+      pinSide: 'top',
+      notation: 'tecla',
+      data: '',
+    })
+  })
+
+  it('lee los sensores del fixture del original', () => {
+    const project = importCircuitProject(sensorXml)
+    const sensors = project.circuitsList
+      .flatMap((circuit) => circuit.elements)
+      .filter((element) => element.kind === 'sensor')
+
+    expect(sensors).toHaveLength(3)
+    const loop = sensors.find(
+      (sensor) => sensor.kind === 'sensor' && sensor.sensorType === 'loop' && sensor.bitWidth === 8,
+    )
+    expect(loop).toMatchObject({ notation: 'loop', pinSide: 'right' })
+
+    // El tercero no trae `SensorType`: el esquema del original dice que es aleatorio.
+    const fallback = sensors.find(
+      (sensor) => sensor.kind === 'sensor' && sensor.data === '1:1',
+    )
+    expect(fallback).toMatchObject({ sensorType: 'random', bitWidth: 8, notation: 'loop' })
   })
 })
 

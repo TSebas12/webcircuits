@@ -19,6 +19,7 @@ import type {
   Memory,
   Pin,
   Project,
+  Sensor,
   StoredElement,
   Wire,
 } from '../../../../src/core/model/types'
@@ -297,6 +298,29 @@ describe('símbolos primitivos', () => {
     expect(symbol.jams).toHaveLength(1)
     expect(symbol.jams[0]!.pin.type).toBe('output')
     expect(symbol.jams[0]!.bitWidth).toBe(4)
+  })
+
+  it('el sensor tiene una única salida del ancho que diga el modelo', () => {
+    const sensor: Sensor = {
+      kind: 'sensor',
+      id: 's1',
+      circuitId: 'main',
+      layerId: 'principal',
+      position: { x: 0, y: 0 },
+      rotation: 'up',
+      sensorType: 'loop',
+      bitWidth: 8,
+      pinSide: 'right',
+      notation: 'contador',
+      data: '0:0 1:1',
+    }
+    const index = new SymbolIndex(projectSymbolSource(smallProject(sensor)))
+    index.addCircuit(mainCircuit(sensor))
+
+    const symbol = index.symbol(sensor)
+    expect(symbol.jams).toHaveLength(1)
+    expect(symbol.jams[0]!.pin.type).toBe('output')
+    expect(symbol.jams[0]!.bitWidth).toBe(8)
   })
 })
 

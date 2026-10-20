@@ -2,9 +2,22 @@
   import { onMount } from 'svelte'
   import type { Editor } from './editor'
   import type { Element, PinSide, StoredElement } from '../core/model/types'
+  import { SENSOR_TYPES } from '../core/model/sensor'
   import { LIGHT_THEME } from '../core/theme/presets'
   let { editor }: { editor: Editor | null } = $props()
   let selected = $state<Element | null>(null)
+
+  /** Cómo se llama cada tipo de sensor en la interfaz. */
+  const SENSOR_LABELS: Readonly<Record<string, string>> = {
+    series: 'Serie',
+    loop: 'Serie en bucle',
+    random: 'Aleatorio',
+    manual: 'Manual',
+    keycode: 'Código de tecla',
+    ascii: 'ASCII',
+    sequence: 'Secuencia',
+    clock: 'Reloj',
+  }
 
   const refresh = () => {
     if (editor === null) { selected = null; return }
@@ -120,6 +133,53 @@
           oninput={(e) => update({ name: (e.currentTarget as HTMLInputElement).value.trim() || selected?.id || '' })}
         />
       </div>
+    {:else if selected.kind === 'sensor'}
+      <div class="row">
+        <span>Tipo</span>
+        <select
+          value={selected.sensorType}
+          onchange={(e) => update({ sensorType: (e.currentTarget as HTMLSelectElement).value })}
+        >
+          {#each SENSOR_TYPES as type (type)}
+            <option value={type}>{SENSOR_LABELS[type] ?? type}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="row">
+        <span>Bits</span>
+        <input type="number" min="1" max="32" value={selected.bitWidth}
+          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
+      </div>
+      <div class="row">
+        <span>Salida</span>
+        <select
+          value={selected.pinSide}
+          onchange={(e) => update({ pinSide: (e.currentTarget as HTMLSelectElement).value as PinSide })}
+        >
+          <option value="left">izquierda</option>
+          <option value="top">arriba</option>
+          <option value="right">derecha</option>
+          <option value="bottom">abajo</option>
+        </select>
+      </div>
+      <div class="row">
+        <span>Notación</span>
+        <input
+          value={selected.notation}
+          placeholder="opcional"
+          oninput={(e) => update({ notation: (e.currentTarget as HTMLInputElement).value })}
+        />
+      </div>
+      {#if selected.sensorType === 'series' || selected.sensorType === 'loop' || selected.sensorType === 'random' || selected.sensorType === 'manual'}
+        <div class="row">
+          <span>Datos</span>
+          <input
+            value={selected.data}
+            placeholder={selected.sensorType === 'random' ? 'A:14' : '0:0'}
+            oninput={(e) => update({ data: (e.currentTarget as HTMLInputElement).value })}
+          />
+        </div>
+      {/if}
     {:else if selected.kind === 'splitter'}
       <div class="row">
         <span>Bits</span>

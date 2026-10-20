@@ -145,6 +145,8 @@ function shapeForDevice(element: DrawableDevice): SymbolShape | null {
       return 'constant'
     case 'probe':
       return 'probe'
+    case 'sensor':
+      return 'sensor'
     case 'splitter':
       return 'splitter'
     case 'circuit':
@@ -173,6 +175,12 @@ function labelFor(
     case 'probe': {
       const name = element.name.trim()
       return name === '' || name === element.id ? undefined : name
+    }
+    case 'sensor': {
+      // El original enseña la notación bajo el valor; si no hay, el tipo es lo único que
+      // distingue dos sensores en el lienzo.
+      const notation = element.notation.trim()
+      return notation === '' ? element.sensorType : notation
     }
     case 'circuit':
       return resolveCircuit?.(element.targetCircuitId)?.name

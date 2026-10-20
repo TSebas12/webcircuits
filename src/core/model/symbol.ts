@@ -351,6 +351,9 @@ function describe(
       // Una probeta solo tiene una punta de entrada; su tamaño y su lado salen del modelo.
       return { depicted: { kind: 'device', element }, layout: deviceLayout(element) }
 
+    case 'sensor':
+      return { depicted: { kind: 'device', element }, layout: deviceLayout(element) }
+
     case 'circuit': {
       const circuit = index.circuit(element.targetCircuitId)
       if (circuit === undefined) {
@@ -366,7 +369,6 @@ function describe(
 
     case 'memory':
     case 'ledMatrix':
-    case 'sensor':
     case 'sound':
     case 'graphicsArray':
       // Estas sí son primitivas, pero su forma todavía no está portada: llegan con M2-12.

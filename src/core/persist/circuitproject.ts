@@ -17,6 +17,7 @@
 
 import { CircuitProject } from '../model/circuit'
 import { MAIN_CIRCUIT_ID } from '../model/diagram'
+import { isSensorType } from '../model/sensor'
 import { DEFAULT_LAYER_ID } from '../model/types'
 import type { GateType, PinSide, PinType, Rotation, StoredElement } from '../model/types'
 
@@ -51,6 +52,28 @@ function children(el: globalThis.Element, local: string): globalThis.Element[] {
   const ns = Array.from(el.getElementsByTagNameNS('*', local))
   if (ns.length > 0) return ns
   return Array.from(el.getElementsByTagName(local))
+}
+
+/**
+ * Las tablas de primer nivel, indexadas por nombre local.
+ *
+ * `children(root, …)` recorre todo el documento cada vez, y un `.CircuitProject` grande tiene
+ * miles de nodos: hacerlo diez veces (una por tabla) era la parte más cara de importar. El
+ * esquema del original es plano —cada tabla es hija directa de la raíz—, así que basta una
+ * pasada para tenerlas todas.
+ */
+function rootTables(root: globalThis.Element): Map<string, globalThis.Element[]> {
+  const tables = new Map<string, globalThis.Element[]>()
+  for (const child of Array.from(root.children)) {
+    const name = child.localName
+    const list = tables.get(name)
+    if (list === undefined) {
+      tables.set(name, [child])
+    } else {
+      list.push(child)
+    }
+  }
+  return tables
 }
 
 /** Lee `name`: primero como atributo; si no, como hijo con texto (formato viejo). */
@@ -97,15 +120,17 @@ function decodeGateGuid(guid: string): { gateType: GateType; inputCount: number;
 export function importCircuitProject(xml: string): CircuitProject {
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
   const root = doc.documentElement
+  const tables = rootTables(root)
+  const table = (name: string): globalThis.Element[] => tables.get(name) ?? []
 
   // Nombres de los circuitos, para crear los `Circuit` con su nombre real.
   const circuitNames = new Map<string, string>()
   let mainSourceId = ''
-  const projectEl = children(root, 'Project')[0]
+  const projectEl = table('Project')[0]
   if (projectEl) {
     mainSourceId = attr(projectEl, 'LogicalCircuitId') ?? ''
   }
-  for (const lc of children(root, 'LogicalCircuit')) {
+  for (const lc of table('LogicalCircuit')) {
     const id = attr(lc, 'LogicalCircuitId')
     if (id === null) continue
     const name = attr(lc, 'Name') ?? (id === mainSourceId ? 'Main' : '')
@@ -131,7 +156,7 @@ export function importCircuitProject(xml: string): CircuitProject {
   // Tablas de dispositivos, indexadas por el id del circuito-símbolo que las representa.
   interface PinInfo { side: PinSide; pinType: PinType; bitWidth: number; inverted: boolean; name: string }
   const pins = new Map<string, PinInfo>()
-  for (const pin of children(root, 'Pin')) {
+  for (const pin of table('Pin')) {
     const id = attr(pin, 'PinId')
     if (id === null) continue
     pins.set(id, {
@@ -145,7 +170,7 @@ export function importCircuitProject(xml: string): CircuitProject {
 
   interface ConstantInfo { bitWidth: number; value: number; pinSide: PinSide }
   const constants = new Map<string, ConstantInfo>()
-  for (const c of children(root, 'Constant')) {
+  for (const c of table('Constant')) {
     const id = attr(c, 'ConstantId')
     if (id === null) continue
     constants.set(id, {
@@ -157,7 +182,7 @@ export function importCircuitProject(xml: string): CircuitProject {
 
   interface SplitterInfo { bitWidth: number; pinCount: number; clockwise: boolean }
   const splitters = new Map<string, SplitterInfo>()
-  for (const sp of children(root, 'Splitter')) {
+  for (const sp of table('Splitter')) {
     const id = attr(sp, 'SplitterId')
     if (id === null) continue
     splitters.set(id, {
@@ -169,7 +194,7 @@ export function importCircuitProject(xml: string): CircuitProject {
 
   interface ButtonInfo { isToggle: boolean; inverted: boolean }
   const buttons = new Map<string, ButtonInfo>()
-  for (const b of children(root, 'CircuitButton')) {
+  for (const b of table('CircuitButton')) {
     const id = attr(b, 'CircuitButtonId')
     if (id === null) continue
     buttons.set(id, { isToggle: boolAttr(b, 'IsToggle'), inverted: boolAttr(b, 'Inverted') })
@@ -177,7 +202,7 @@ export function importCircuitProject(xml: string): CircuitProject {
 
   interface ProbeInfo { name: string; pinSide: PinSide }
   const probes = new Map<string, ProbeInfo>()
-  for (const p of children(root, 'CircuitProbe')) {
+  for (const p of table('CircuitProbe')) {
     const id = attr(p, 'CircuitProbeId')
     if (id === null) continue
     probes.set(id, {
@@ -187,10 +212,33 @@ export function importCircuitProject(xml: string): CircuitProject {
     })
   }
 
+  interface SensorInfo {
+    sensorType: string
+    bitWidth: number
+    pinSide: PinSide
+    notation: string
+    data: string
+  }
+  const sensors = new Map<string, SensorInfo>()
+  for (const s of table('Sensor')) {
+    const id = attr(s, 'SensorId')
+    if (id === null) continue
+    // El esquema del original pone `Random` por defecto; los ficheros viejos pueden no
+    // traer el campo (se añadió en la versión 2.0.0.7).
+    const rawType = (attr(s, 'SensorType') ?? 'Random').toLowerCase()
+    sensors.set(id, {
+      sensorType: isSensorType(rawType) ? rawType : 'random',
+      bitWidth: Math.max(1, Math.min(32, numAttr(s, 'BitWidth', 1))),
+      pinSide: PIN_SIDES[(attr(s, 'PinSide') ?? 'right').toLowerCase()] ?? 'right',
+      notation: attr(s, 'Notation') ?? '',
+      data: attr(s, 'Data') ?? '',
+    })
+  }
+
   const ownerOf = (sourceId: string | null): string => idMap.get(sourceId ?? '') ?? MAIN_CIRCUIT_ID
 
   // 2) Colocar cada símbolo en su circuito.
-  for (const sym of children(root, 'CircuitSymbol')) {
+  for (const sym of table('CircuitSymbol')) {
     const target = attr(sym, 'CircuitId')
     if (target === null) continue
     const circuit = project.circuit(ownerOf(attr(sym, 'LogicalCircuitId')))
@@ -200,14 +248,14 @@ export function importCircuitProject(xml: string): CircuitProject {
     const rotation = ROTATIONS[(attr(sym, 'Rotation') ?? 'up').toLowerCase()] ?? 'up'
     const base = { id, circuitId: circuit.id, layerId: DEFAULT_LAYER_ID, position, rotation }
 
-    const element = symbolElement(target, base, pins, constants, splitters, buttons, probes, idMap)
+    const element = symbolElement(target, base, pins, constants, splitters, buttons, probes, sensors, idMap)
     if (element) {
       circuit.diagram.importElement(element)
     }
   }
 
   // 3) Cables.
-  for (const w of children(root, 'Wire')) {
+  for (const w of table('Wire')) {
     const circuit = project.circuit(ownerOf(attr(w, 'LogicalCircuitId')))
     if (circuit === undefined) continue
     const wire: StoredElement = {
@@ -243,6 +291,7 @@ function symbolElement(
   splitters: Map<string, { bitWidth: number; pinCount: number; clockwise: boolean }>,
   buttons: Map<string, { isToggle: boolean; inverted: boolean }>,
   probes: Map<string, { name: string; pinSide: PinSide }>,
+  sensors: Map<string, { sensorType: string; bitWidth: number; pinSide: PinSide; notation: string; data: string }>,
   idMap: Map<string, string>,
 ): StoredElement | null {
   const pin = pins.get(target)
@@ -260,6 +309,10 @@ function symbolElement(
   const probe = probes.get(target)
   if (probe) {
     return { kind: 'probe', ...base, ...probe }
+  }
+  const sensor = sensors.get(target)
+  if (sensor) {
+    return { kind: 'sensor', ...base, ...sensor }
   }
   const button = buttons.get(target)
   if (button) {
@@ -340,6 +393,12 @@ export function exportCircuitProject(project: CircuitProject): string {
         lines.push(
           `  <lc:CircuitProbe CircuitProbeId="${escapeXml(el.id)}" Name="${escapeXml(el.name)}" PinSide="${sideName(el.pinSide)}" />`,
         )
+      } else if (el.kind === 'sensor') {
+        lines.push(
+          `  <lc:Sensor SensorId="${escapeXml(el.id)}" SensorType="${sensorTypeName(el.sensorType)}"` +
+            ` BitWidth="${el.bitWidth}" PinSide="${sideName(el.pinSide)}"` +
+            ` Notation="${escapeXml(el.notation)}" Data="${escapeXml(el.data)}" />`,
+        )
       }
     }
   }
@@ -351,7 +410,7 @@ export function exportCircuitProject(project: CircuitProject): string {
         lines.push(
           `  <lc:Wire WireId="${escapeXml(el.id)}" LogicalCircuitId="${escapeXml(c.id)}" X1="${el.p1.x}" Y1="${el.p1.y}" X2="${el.p2.x}" Y2="${el.p2.y}" />`,
         )
-      } else if (el.kind === 'gate' || el.kind === 'button' || el.kind === 'pin' || el.kind === 'constant' || el.kind === 'probe' || el.kind === 'splitter' || el.kind === 'circuit') {
+      } else if (el.kind === 'gate' || el.kind === 'button' || el.kind === 'pin' || el.kind === 'constant' || el.kind === 'probe' || el.kind === 'sensor' || el.kind === 'splitter' || el.kind === 'circuit') {
         const symbolId = `${el.id}-sym`
         const rotation = el.rotation === 'up' ? '' : ` Rotation="${rotationName(el.rotation)}"`
         const targetSource =
@@ -378,6 +437,28 @@ function pinAttrs(pinType: PinType, side: PinSide, bitWidth: number, inverted: b
 
 function sideName(side: PinSide): string {
   return side.charAt(0).toUpperCase() + side.slice(1)
+}
+
+/** El nombre del tipo tal y como lo escribe el original. */
+function sensorTypeName(type: string): string {
+  switch (type.toLowerCase()) {
+    case 'series':
+      return 'Series'
+    case 'loop':
+      return 'Loop'
+    case 'manual':
+      return 'Manual'
+    case 'keycode':
+      return 'KeyCode'
+    case 'ascii':
+      return 'ASCII'
+    case 'sequence':
+      return 'Sequence'
+    case 'clock':
+      return 'Clock'
+    default:
+      return 'Random'
+  }
 }
 
 function rotationName(rotation: Rotation): string {

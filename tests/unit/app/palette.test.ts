@@ -14,6 +14,7 @@ import {
   pinLayout,
   placedPins,
   probeLayout,
+  sensorLayout,
   splitterLayout,
   type SymbolLayout,
 } from '../../../src/core/model/layout'
@@ -43,7 +44,11 @@ const MUDOS_SIN_HABILITAR = new Set(['triState1', 'triState2'])
  * así que ambos van en pruebas propias.
  */
 const SIGNAL_PIECES = PIECES.filter(
-  (piece) => piece.kind === 'gate' || piece.kind === 'button' || piece.kind === 'constant',
+  (piece) =>
+    piece.kind === 'gate' ||
+    piece.kind === 'button' ||
+    piece.kind === 'constant' ||
+    piece.kind === 'sensor',
 )
 
 /** El hueco que debería reservar una pieza según el modelo. */
@@ -69,6 +74,8 @@ function modelLayout(piece: Piece): SymbolLayout {
       })
     case 'probe':
       return probeLayout('left')
+    case 'sensor':
+      return sensorLayout('right')
     case 'splitter':
       return splitterLayout({
         kind: 'splitter',

@@ -107,6 +107,22 @@ describe('de modelo a piezas de dibujo', () => {
     expect(devices.find((item) => item.shape === 'splitter')).toBeDefined()
   })
 
+  it('un sensor tiene silueta y muestra su notación o su tipo', () => {
+    const diagram = new Diagram()
+    diagram.addSensor({ x: 0, y: 0 }, { sensorType: 'loop', notation: 'contador' })
+    diagram.addSensor({ x: 6, y: 0 })
+
+    const devices = sceneOf(diagram).items.filter(
+      (item): item is DrawDevice => item.kind === 'device',
+    )
+
+    const labeled = devices.find((item) => item.label === 'contador')
+    expect(labeled).toMatchObject({ shape: 'sensor', width: 4, height: 3 })
+
+    // Sin notación, el tipo es lo único que distingue dos sensores en el lienzo.
+    expect(devices.find((item) => item.shape === 'sensor' && item.label === 'random')).toBeDefined()
+  })
+
   it('un subcircuito toma su caja y su nombre del circuito que representa', () => {
     const sheet = new Diagram()
     sheet.addPin({ x: 0, y: 0 }, { pinType: 'input', side: 'left' })

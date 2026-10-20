@@ -17,16 +17,10 @@
  */
 import { CircuitFunction } from './circuit-function'
 import type { CircuitState } from '../simulate/circuit-state'
+import type { SensorType } from '../model/sensor'
 
-export type SensorType =
-  | 'series'
-  | 'loop'
-  | 'random'
-  | 'manual'
-  | 'keycode'
-  | 'ascii'
-  | 'sequence'
-  | 'clock'
+// La lista canónica vive en el modelo, porque también la usan la paleta y el inspector.
+export type { SensorType } from '../model/sensor'
 
 export interface SensorConfig {
   readonly sensorType: SensorType

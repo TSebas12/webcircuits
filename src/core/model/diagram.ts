@@ -22,7 +22,8 @@
 
 import { deviceBounds, deviceLayout, pinPosition, type CircuitResolver } from './layout'
 import type { CircuitAnnotation, CircuitMarker } from './overlay'
-import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Pin, PinSide, PinType, PlacedElement, Probe, Rotation, Splitter, StoredElement, Wire } from './types'
+import { defaultSensorData, isSensorType } from './sensor'
+import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Pin, PinSide, PinType, PlacedElement, Probe, Rotation, Sensor, Splitter, StoredElement, Wire } from './types'
 import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
@@ -492,6 +493,44 @@ export class Diagram {
       this.items.set(probe.id, probe)
       this.changed()
       return probe
+    })
+  }
+
+  /** Coloca un sensor. */
+  addSensor(
+    position: GridPoint,
+    options: {
+      readonly sensorType?: string
+      readonly bitWidth?: number
+      readonly pinSide?: PinSide
+      readonly notation?: string
+      readonly data?: string
+    } = {},
+  ): Sensor {
+    return this.change(() => {
+      const id = this.nextId('sensor')
+      // El original coloca un sensor aleatorio de 1 bit (`SensorDescriptor`); el tipo y los
+      // datos por defecto salen de la misma tabla que usa la importación.
+      const sensorType =
+        options.sensorType !== undefined && isSensorType(options.sensorType)
+          ? options.sensorType
+          : 'random'
+      const sensor: Sensor = {
+        kind: 'sensor',
+        id,
+        circuitId: this.circuitId,
+        layerId: this.activeLayer,
+        position,
+        rotation: 'up',
+        sensorType,
+        bitWidth: Math.max(1, Math.min(options.bitWidth ?? 1, MAX_BIT_WIDTH)),
+        pinSide: options.pinSide ?? 'right',
+        notation: options.notation ?? '',
+        data: options.data ?? defaultSensorData(sensorType),
+      }
+      this.items.set(sensor.id, sensor)
+      this.changed()
+      return sensor
     })
   }
 
@@ -965,7 +1004,7 @@ export class Diagram {
    * Los símbolos con silueta de las capas visibles.
    *
    * Se usa para pintar sus pines y para saber qué hay debajo del cursor. Los dispositivos sin
-   * símbolo (memorias, sensores…) no entran: existen en el documento, pero no se ven ni se
+   * símbolo (memorias, matrices…) no entran: existen en el documento, pero no se ven ni se
    * tocan.
    */
   get devices(): DrawableDevice[] {
@@ -1004,7 +1043,7 @@ export class Diagram {
  * ¿Este elemento guardado tiene silueta propia?
  *
  * Los cables también cuentan: son parte de lo que se dibuja. Lo que no entra son memorias,
- * sensores, matrices, sonido ni notas, que se conservan y simulan pero aún no se pintan.
+ * matrices, sonido ni notas, que se conservan y simulan pero aún no se pintan.
  */
 function isDrawableElement(item: StoredElement): item is Element {
   return item.kind === 'wire' || isDrawableDevice(item)
@@ -1018,6 +1057,7 @@ function isDrawableDevice(item: StoredElement): item is DrawableDevice {
     case 'pin':
     case 'constant':
     case 'probe':
+    case 'sensor':
     case 'splitter':
     case 'circuit':
       return true

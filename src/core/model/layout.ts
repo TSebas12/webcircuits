@@ -299,6 +299,14 @@ export function probeLayout(pinSide: PinSide): SymbolLayout {
   })
 }
 
+/** La forma de un sensor (original: `Sensor`, 4×3 con una única salida). */
+export function sensorLayout(pinSide: PinSide, bitWidth = 1): SymbolLayout {
+  const specs: PinSpec[] = [
+    { side: pinSide, type: 'output', bitWidth: Math.max(1, Math.trunc(bitWidth)), inverted: false },
+  ]
+  return symbolLayout(specs, { width: 4, height: 3 })
+}
+
 /**
  * La forma de un interruptor de entrada.
  *
@@ -452,6 +460,8 @@ export function deviceLayout(
       return gateLayout(device.gateType, device.inputCount, device.invertedOutput, device.bitWidth ?? 1)
     case 'probe':
       return probeLayout(device.pinSide)
+    case 'sensor':
+      return sensorLayout(device.pinSide, device.bitWidth)
     case 'button':
       return buttonLayout(device.inverted)
     case 'pin':

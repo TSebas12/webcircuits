@@ -47,6 +47,8 @@ import {
 import type { CircuitFunction } from '../function/circuit-function'
 import { FunctionButton, FunctionClock, FunctionConstant, FunctionLed } from '../function/devices'
 import { FunctionProbe } from '../function/probes'
+import { FunctionSensor } from '../function/sensors'
+import type { SensorType } from '../function/sensors'
 import type { IFunctionVisual } from '../function/interfaces'
 import {
   Parameter,
@@ -907,6 +909,11 @@ function applySymbol(
     return
   }
 
+  if (depicted.kind === 'device' && depicted.element.kind === 'sensor') {
+    defineSensor(depicted.element, circuitState, symbolMap)
+    return
+  }
+
   const what = depicted.kind === 'device' ? `«${depicted.element.kind}»` : `«${depicted.kind}»`
   throw new CircuitError(`La simulación de ${what} todavía no está portada (M2-05/M2-12).`)
 }
@@ -971,6 +978,23 @@ function defineProbe(
     return null
   }
   return new FunctionProbe(symbolMap.circuitSymbol, circuitState, parameters, capacity, label)
+}
+
+function defineSensor(
+  sensor: { readonly sensorType: string; readonly bitWidth: number; readonly data: string; readonly notation: string },
+  circuitState: CircuitState,
+  symbolMap: SymbolMap,
+): FunctionSensor | null {
+  const results = [...symbolMap.results].sort((a, b) => a.bitNumber - b.bitNumber)
+  const map = results.map((result) => result.stateIndex)
+  if (map.length === 0) {
+    return null
+  }
+  return new FunctionSensor(circuitState, {
+    sensorType: sensor.sensorType as SensorType,
+    bitWidth: sensor.bitWidth,
+    data: sensor.data,
+  }, map)
 }
 
 /**

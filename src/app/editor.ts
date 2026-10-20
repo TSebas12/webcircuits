@@ -900,6 +900,15 @@ export class Editor {
             pinSide: el.pinSide,
           }).id
           break
+        case 'sensor':
+          newId = this.diagram.addSensor(position, {
+            sensorType: el.sensorType,
+            bitWidth: el.bitWidth,
+            pinSide: el.pinSide,
+            notation: el.notation,
+            data: el.data,
+          }).id
+          break
         case 'circuit':
           newId = this.diagram.addCircuitInstance(position, el.targetCircuitId).id
           break

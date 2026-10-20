@@ -24,6 +24,7 @@ import { orShape, xorShape } from './or'
 import { pinInputShape, pinOutputShape } from './pin'
 import { probeShape } from './probe'
 import { roundedRect } from './rounded-rect'
+import { sensorShape } from './sensor'
 import { splitterShape } from './splitter'
 
 /** Las formas que sabemos dibujar. Irá creciendo con los símbolos nuevos. */
@@ -42,6 +43,7 @@ export type SymbolShape =
   | 'button'
   | 'led'
   | 'probe'
+  | 'sensor'
   | 'splitter'
   | 'pinInput'
   | 'pinOutput'
@@ -94,6 +96,7 @@ const BUILDERS: Readonly<Record<SymbolShape, ShapeBuilder>> = {
   button: buttonShape,
   led: ledShape,
   probe: probeShape,
+  sensor: sensorShape,
   splitter: splitterShape,
   pinInput: pinInputShape,
   pinOutput: pinOutputShape,

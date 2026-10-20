@@ -6,10 +6,9 @@
  * existir en el panel sin que el editor sepa colocarla, ni al revés.
  *
  * ⚠️ **Solo entra lo que se puede dibujar y simular.** Una pieza que se coloca y luego no se ve,
- * o que revienta al dar corriente, es peor que no ofrecerla: el 7 segmentos, las memorias, los
- * sensores y las matrices llegan con M2-05/M2-12. Tampoco se ofrecen compuertas negadas que el
- * motor no niega (el LED, el reloj) porque el dibujo diría algo que el circuito no hace (ver
- * `shapeForGate`).
+ * o que revienta al dar corriente, es peor que no ofrecerla: el 7 segmentos, las memorias y
+ * las matrices llegan con M2-05. Tampoco se ofrecen compuertas negadas que el motor no niega
+ * (el LED, el reloj) porque el dibujo diría algo que el circuito no hace (ver `shapeForGate`).
  *
  * El interruptor que se coloca es **fijo**, y no por capricho: con el ratón no se pueden pulsar
  * dos a la vez, así que uno momentáneo no serviría para probar una AND de dos entradas. El
@@ -24,6 +23,7 @@ import {
   gateLayout,
   pinLayout,
   probeLayout,
+  sensorLayout,
   splitterLayout,
   type SymbolLayout,
 } from '../core/model/layout'
@@ -88,6 +88,11 @@ interface ProbePiece extends PieceBase {
   readonly kind: 'probe'
 }
 
+/** Un sensor: produce un valor de N bits que cambia con el tiempo o a mano. */
+interface SensorPiece extends PieceBase {
+  readonly kind: 'sensor'
+}
+
 export type Piece =
   | GatePiece
   | ButtonPiece
@@ -95,6 +100,7 @@ export type Piece =
   | ConstantPiece
   | SplitterPiece
   | ProbePiece
+  | SensorPiece
 
 /**
  * Cuántas entradas se pueden pedir desde el panel.
@@ -228,6 +234,13 @@ export const PIECES = [
     id: 'probe',
     label: 'Sonda',
     title: 'Sonda: mira un cable y guarda su historial para el osciloscopio',
+    group: 'io',
+  },
+  {
+    kind: 'sensor',
+    id: 'sensor',
+    label: 'Sensor',
+    title: 'Sensor: genera un valor de N bits (aleatorio, manual, serie…)',
     group: 'io',
   },
   {
@@ -376,6 +389,8 @@ export function pieceLayout(piece: Piece, chosen: number): SymbolLayout {
       return constantLayout(previewConstant(piece))
     case 'probe':
       return probeLayout('left')
+    case 'sensor':
+      return sensorLayout('right')
     case 'splitter':
       return splitterLayout(previewSplitter(piece))
   }
@@ -400,6 +415,8 @@ export function pieceShape(piece: Piece): SymbolShape | null {
       return 'constant'
     case 'probe':
       return 'probe'
+    case 'sensor':
+      return 'sensor'
     case 'splitter':
       return 'splitter'
     default:
@@ -445,6 +462,8 @@ export function placePiece(
       })
     case 'probe':
       return diagram.addProbe(position)
+    case 'sensor':
+      return diagram.addSensor(position)
     case 'splitter':
       return diagram.addSplitter(position, {
         bitWidth: piece.bitWidth,

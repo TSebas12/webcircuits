@@ -26,6 +26,26 @@ describe('json persist (M4-05/06)', () => {
     expect(probe).toMatchObject({ kind: 'probe', name: 'A', pinSide: 'top' })
   })
 
+  it('conserva un sensor con su tipo, ancho, notación y datos', () => {
+    const p = new CircuitProject('sensor')
+    p.current.diagram.addSensor(
+      { x: 2, y: 2 },
+      { sensorType: 'loop', bitWidth: 6, pinSide: 'bottom', notation: 'contador', data: '0:1 2:3' },
+    )
+
+    const p2 = deserializeProject(serializeProject(p))
+    const sensor = p2.current.elements.find((element) => element.kind === 'sensor')
+
+    expect(sensor).toMatchObject({
+      kind: 'sensor',
+      sensorType: 'loop',
+      bitWidth: 6,
+      pinSide: 'bottom',
+      notation: 'contador',
+      data: '0:1 2:3',
+    })
+  })
+
   it('rechaza formato desconocido', () => {
     expect(() => deserializeProject(JSON.stringify({ format: 'foo', version: 1, name: 'x', currentCircuitId: 'main', circuits: [] }))).toThrow()
   })
