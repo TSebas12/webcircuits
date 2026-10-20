@@ -36,23 +36,23 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | ↳ `MiniEngine` + propagación topológica *(obsoleto)* | El motor mínimo de M1 (`levelize`/`propagate`): la aplicación ya no lo usa —el motor de verdad es `CircuitMap` + `CircuitRunner`— y solo lo mantienen sus tests. Se retira en cuanto no haya nada que lo eche de menos | `src/core/simulate/engine.ts`, `propagate.ts`, `levelize.ts` | M2 | ⬜ (pendiente de retirar) |
 | `SymbolShapes/` | Geometría de los símbolos | `src/render/symbols/` | M2 | ✅ (compuertas, LED, 7 segmentos, reloj, pines, probeta, sensor, memoria, altavoz y rejillas de las matrices) |
 | `SymbolShapes/` → `Symbol.AddJam` (bolita de negación) | La punta negada se dibuja rellena: es la **misma cosa** que el pin, así que el radio es `Symbol.PinRadius` y el puntito gris no se pinta encima | `src/render/symbols/bubble.ts` | M2 | ✅ (solo las cuatro que el motor niega: `and`/`or`/`xor`/`not`) |
-| `Icon/` | Iconos | `src/render/icons/` | M2 | ⬜ |
+| `Icon/` | Iconos | `src/app/Icon.svelte` | M2 | 🟡 (juego base de iconos; el resto se dibuja con SVG/CSS) |
 | `Editor/` | Editor, herramientas, undo/redo | `src/app/editor.ts` | M2 | 🟡 |
 | `Editor/CircuitDescriptorList.cs` | Qué se puede colocar: la lista de piezas de la paleta, cada una con la compuerta tal y como la crea el original (`Gate(Not, 1, true)`, `Gate(TriState1, 2, false)`…) | `src/app/palette.ts` | M2 | 🟡 (23 piezas: seis compuertas, inversor, dos tri-estados, reloj, LED, 7 segmentos, probeta, sensor, memoria, altavoz, interruptor, dos pines, dos constantes y dos repartidores; las matrices no se ofrecen hasta que tengan pines y simulación) |
 | `DataPersistent/SnapStore.cs` | Deshacer/rehacer por **fotos** del documento (versiones *Edit/Undo/Redo*) | `src/core/model/diagram.ts` | M2 | ✅ |
 | `DataPersistent/` | Persistencia `.CircuitProject` (XML versionado) | `src/core/persist/` | M4 | 🟡 (XML y JSON con ida y vuelta de los 15 fixtures; memoria, sonido y matrices viajan en el modelo; la simulación de matrices aún no existe) |
 | `Schema/` | Esquemas XSD + gramáticas `.g4` (los `.g4` son la **especificación** de un parser que se escribe a mano: ver `expression-parser.ts`) | `src/core/schema/` | M4 | ⬜ |
-| `ColorPicker/` | Selector de color | `src/app/color-picker/` | M6 | ⬜ |
+| `ColorPicker/` | Selector de color | `src/app/ThemeEditor.svelte` | M6 | 🟡 (edita los tokens del tema y el color de cable; no es el diálogo WPF) |
 | `Function/` | Funciones lógicas, expresiones, tablas de verdad | `src/core/function/`, `src/core/truthtable/` | M8 | 🟡 (funciones, parser, sensores, probetas, memoria, altavoz y tabla de verdad; faltan las matrices y la nota de texto) |
 | `HDL/` | Verilog: importación y exportación | `src/core/hdl/` | M9 | ⬜ |
-| `Settings/` | Ajustes de la aplicación | `src/app/settings/` | M11 | ⬜ |
-| `Properties/` | Recursos, textos, sonidos | `src/i18n/` | M11 | ⬜ |
-| `Dialog/` | Diálogos (**WPF**) | `src/app/dialogs/` (Svelte) | M4+ | ⬜ |
+| `Settings/` | Ajustes de la aplicación | `src/app/files/settings.ts` | M11 | ✅ (preferencias de rejilla, imán, autoguardado y tema) |
+| `Properties/` | Recursos, textos, sonidos | `src/i18n/` | M11 | ⬜ (carpeta reservada; la UI está en español) |
+| `Dialog/` | Diálogos (**WPF**) | `src/app/components/` (Svelte) | M4+ | 🟡 (inspector, tabla de verdad, sockets, ajustes y editor de tema; faltan los demás) |
 
 > `Dialog/` es casi todo WPF: **no se porta su estructura**, solo la funcionalidad.
 >
-> 🟡 en M1 = hay una parte ya portada con tests verdes (el modelo, un motor mínimo y tres
-> símbolos), no el módulo entero; el resto llega en el hito indicado.
+> 🟡 = hay una parte portada y con tests verdes, pero el módulo no está completo; el resto
+> llega en el hito indicado. ⬜ = todavía no existe. ✅ = portado y probado.
 
 ---
 
@@ -66,7 +66,7 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | `SplitterConverterTest` | Conversión de *splitters* | `tests/unit/core/model/layout.test.ts`, `tests/unit/core/persist/circuitproject.test.ts` | 🟡 (geometría y persistencia; falta la conversión de versiones antiguas) |
 | `ProbeConverterTest` | Conversión de probetas | `tests/unit/core/persist/circuitproject.test.ts` (ida y vuelta XML de `CircuitProbe`) | 🟡 (persistencia cubierta; falta la conversión de versiones antiguas) |
 | `CircuitTest` | Circuito y sus elementos | `tests/unit/core/model/circuit.test.ts` | ✅ |
-| `CircuitMapTest` | Mapa de pines / *sockets* | `tests/unit/core/simulate/circuit-map.test.ts` | 🟡 (16 tests propios, con memoria y 7 segmentos; los 3 del original —`CleanUpTest` espera 0/0/3/8 funciones— necesitan cargar `.CircuitProject`: M4) |
+| `CircuitMapTest` | Mapa de pines / *sockets* | `tests/unit/core/simulate/circuit-map.test.ts` | 🟡 (16 tests propios, con memoria y 7 segmentos; faltan los 3 casos del original —`CleanUpTest` espera 0/0/3/8 funciones—, que ya pueden cargar `.CircuitProject`) |
 | *(no hay clase propia)* | Tener el circuito en marcha: encender, pulsar un interruptor, el reloj latiendo y la foto que se pinta | `tests/unit/core/simulate/circuit-runner.test.ts`, `tests/unit/core/simulate/snapshot.test.ts`, `tests/unit/app/simulation.test.ts` | ✅ (el original no prueba el encendedor por separado: lo cubren `EditorTest` y las pruebas a mano) |
 | *(no hay clase propia)* | Que **cada** pieza de la paleta se coloque, se dibuje y conduzca de verdad al cablearla (la que destapó que el inversor del original nace negado y que los tri-estado llevan dos entradas) | `tests/unit/app/palette.test.ts` | ✅ |
 | `CircuitTestSocketTest` | *Sockets* de test | `tests/unit/core/model/test-socket.test.ts` | ✅ |
@@ -82,7 +82,7 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | `HdlTest` | Verilog: ida y vuelta | `tests/unit/hdl/hdl.test.ts` | ⬜ |
 | `EnumHelperTest` | Utilidades de enumerados | `tests/unit/core/enum-helper.test.ts` | ✅ |
 | `SettingsTest` | Ajustes | `tests/unit/app/files/settings.test.ts` | ✅ |
-| `ResourcesTest` | Recursos e idiomas | `tests/unit/i18n/resources.test.ts` | ⬜ |
+| `ResourcesTest` | Recursos e idiomas | — (`src/i18n/` reservado) | ⬜ |
 
 ---
 

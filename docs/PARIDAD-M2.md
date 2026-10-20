@@ -21,7 +21,7 @@ tests de `core/function`, `core/simulate` y `core/model`. Los del oráculo, de
 | Memoria RAM (2+2 bits) | escribe en el flanco, lee por dirección y arranca en ceros | `FunctionRam` / `MemoryTest` | ✅ (`memory.test.ts`) |
 | Display de 7 segmentos | cada segmento (a–g + punto) se enciende con su propio pin | `Led7Segment` / `Gate` | ✅ (`seven-segment.test.ts`) |
 | Reinicio al dar corriente | interruptores vuelven a `On0`/`On1` | `CircuitRunner` → `new FunctionButton` | ✅ |
-| Conflictos (dos salidas peleando) | gana la última (sin detección) | igual en modo ideal | ✅ (conocido, M7B) |
+| Conflictos (dos salidas peleando) | gana la última (sin detección) | igual en modo ideal | ✅ (conocido; la detección sigue pendiente, M11/M12) |
 | Cruces de cable | no conectan (solo extremos) | `ConductorMap` | ✅ |
 
 ## Hallazgos de fidelidad confirmados
