@@ -102,6 +102,8 @@ export class Simulation {
   private devices: ReadonlyMap<Id, DeviceState> = new Map()
   private lastError: string | null = null
 
+  /** Modo con retardos (M7B-10). Por defecto desactivado (ideal). */
+  timedMode = false
   constructor(private readonly callbacks: SimulationCallbacks = {}) {}
 
   get powered(): boolean {
