@@ -10,6 +10,7 @@ import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS } from '../../../src/app/palette'
 import { GRID_SIZE } from '../../../src/render/geometry'
 import type { Element } from '../../../src/core/model/types'
 import { DEFAULT_LAYER_ID } from '../../../src/core/model/types'
+import { placedPins } from '../../../src/core/model/layout'
 import { installFakePath2D, makeFakeContext, type FakeContext } from '../support/canvas'
 
 /** Los fotogramas que `requestAnimationFrame` deja apuntados, para poder dispararlos a mano. */
@@ -1118,6 +1119,113 @@ describe('las piezas de la paleta se colocan como las crea el original (M2-27)',
     expect(editor.setPlaceInputs(3.7)).toBe(3)
     expect(editor.setPlaceInputs(Number.NaN)).toBe(MIN_PIECE_INPUTS)
     expect(editor.placeInputs).toBe(MIN_PIECE_INPUTS)
+
+    dispose()
+  })
+})
+
+describe('los ejemplos están cableados a pines reales (M1-15)', () => {
+  function expectEveryWireOnAPin(editor: Editor): void {
+    const pins = new Set<string>()
+    for (const device of editor.diagram.devices) {
+      for (const placed of placedPins(device, (id) => editor.project.circuit(id))) {
+        pins.add(`${placed.point.x},${placed.point.y}`)
+      }
+    }
+
+    const wires = editor.diagram.elements.filter((element) => element.kind === 'wire')
+    expect(wires.length).toBeGreaterThan(0)
+    for (const wire of wires) {
+      expect(pins.has(`${wire.p1.x},${wire.p1.y}`), `extremo suelto en ${wire.p1.x},${wire.p1.y}`).toBe(true)
+      expect(pins.has(`${wire.p2.x},${wire.p2.y}`), `extremo suelto en ${wire.p2.x},${wire.p2.y}`).toBe(true)
+    }
+  }
+
+  it.each(['and', 'or', 'not', 'xor', 'clock'] as const)(
+    'el ejemplo «%s» no deja ningún cable colgando',
+    (id) => {
+      const { editor, dispose } = mount()
+      editor.loadExample(id)
+      expectEveryWireOnAPin(editor)
+      dispose()
+    },
+  )
+
+  it('el inversor NOT enciende el LED con la entrada en 0 y lo apaga al pulsarla', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample('not')
+    editor.setPowered(true)
+
+    const output = editor.diagram.elements.find(
+      (element) =>
+        element.kind === 'wire' &&
+        element.p1.x === 11 &&
+        element.p1.y === 3 &&
+        element.p2.x === 14 &&
+        element.p2.y === 3,
+    )
+    expect(output).toBeDefined()
+    if (output === undefined || output.kind !== 'wire') {
+      dispose()
+      return
+    }
+
+    expect(editor.probeValue(output)).toBe(1)
+    clickAt(canvas, 3, 3)
+    expect(editor.probeValue(output)).toBe(0)
+
+    dispose()
+  })
+
+  it('el reloj a LED solo tiene el cable de salida del reloj al LED', () => {
+    const { editor, dispose } = mount()
+    editor.loadExample('clock')
+
+    const wires = editor.diagram.elements.filter((element) => element.kind === 'wire')
+    expect(wires).toHaveLength(1)
+    expect(wires[0]?.kind === 'wire' ? wires[0].p1 : null).toEqual({ x: 4, y: 4 })
+    expect(wires[0]?.kind === 'wire' ? wires[0].p2 : null).toEqual({ x: 10, y: 4 })
+
+    dispose()
+  })
+})
+
+describe('gestión de subcircuitos', () => {
+  it('borrar un subcircuito se lleva sus instancias y sus cables', () => {
+    const { editor, dispose } = mount()
+    const sub = editor.createSubcircuit('Sumador')
+    editor.enterSubcircuit(sub)
+    editor.diagram.addPin({ x: 1, y: 1 }, { pinType: 'input', name: 'A' })
+    editor.exitSubcircuit()
+
+    const instance = editor.diagram.addCircuitInstance({ x: 2, y: 2 }, sub)
+    const pin = placedPins(instance, (id) => editor.project.circuit(id))[0]?.point
+    expect(pin).toBeDefined()
+    if (pin === undefined) {
+      dispose()
+      return
+    }
+    editor.diagram.addWire(pin, { x: pin.x + 3, y: pin.y })
+
+    expect(editor.subcircuitUseCount(sub)).toBe(1)
+    expect(editor.deleteSubcircuit(sub)).toBe(true)
+    expect(editor.project.circuit(sub)).toBeUndefined()
+    expect(editor.diagram.storedElements.some((element) => element.kind === 'circuit')).toBe(false)
+    expect(editor.diagram.storedElements.some((element) => element.kind === 'wire')).toBe(false)
+    expect(editor.dirty).toBe(true)
+
+    dispose()
+  })
+
+  it('borrar el subcircuito que se está editando vuelve al padre', () => {
+    const { editor, dispose } = mount()
+    const sub = editor.createSubcircuit('Resta')
+    editor.enterSubcircuit(sub)
+    expect(editor.currentCircuitId).toBe(sub)
+
+    expect(editor.deleteSubcircuit(sub)).toBe(true)
+    expect(editor.currentCircuitId).toBe('main')
+    expect(editor.circuitPath).toEqual(['main'])
 
     dispose()
   })

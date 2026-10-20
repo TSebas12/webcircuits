@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import type { Editor } from './editor'
   import type { Layer } from '../core/model/types'
+  import Icon from './Icon.svelte'
 
   let {
     editor,
@@ -108,9 +109,13 @@
   <header>
     <span>Capas</span>
     <span class="actions">
-      <button type="button" title="Nueva capa" aria-label="Nueva capa" onclick={create}>+</button>
+      <button type="button" class="icon" title="Nueva capa" aria-label="Nueva capa" onclick={create}>
+        <Icon name="plus" size={14} />
+      </button>
       {#if onClose !== undefined}
-        <button type="button" title="Cerrar capas" aria-label="Cerrar capas" onclick={onClose}>×</button>
+        <button type="button" class="icon" title="Cerrar capas" aria-label="Cerrar capas" onclick={onClose}>
+          <Icon name="close" size={14} />
+        </button>
       {/if}
     </span>
   </header>
@@ -125,23 +130,25 @@
           aria-label="Capa activa: {layer.name}"
           aria-pressed={layer.id === activeId}
           onclick={() => setActive(layer.id)}
-        >{layer.id === activeId ? '●' : '○'}</button>
+        ><Icon name="target" size={13} /></button>
         <button
           type="button"
           class="vis"
+          class:off={!layer.visible}
           title={layer.visible ? 'Ocultar capa' : 'Mostrar capa'}
           aria-label={layer.visible ? 'Ocultar capa' : 'Mostrar capa'}
           aria-pressed={!layer.visible}
           onclick={() => toggleVisibility(layer)}
-        >{layer.visible ? '●' : '○'}</button>
+        ><Icon name={layer.visible ? 'eye' : 'eyeOff'} size={14} /></button>
         <button
           type="button"
           class="lock"
+          class:on={layer.locked}
           title={layer.locked ? 'Desbloquear capa' : 'Bloquear capa'}
           aria-label={layer.locked ? 'Desbloquear capa' : 'Bloquear capa'}
           aria-pressed={layer.locked}
           onclick={() => toggleLock(layer)}
-        >{layer.locked ? '■' : '□'}</button>
+        ><Icon name={layer.locked ? 'lock' : 'unlock'} size={14} /></button>
         <input
           value={layer.name}
           aria-label="Nombre de la capa"
@@ -153,7 +160,7 @@
           title="Mover la selección a esta capa"
           aria-label="Mover la selección a {layer.name}"
           onclick={() => moveSelection(layer.id)}
-        >↪</button>
+        ><Icon name="arrowRight" size={13} /></button>
         {#if layer.id !== 'principal'}
           <button
             type="button"
@@ -161,36 +168,48 @@
             title="Borrar capa (sus piezas pasan a la principal)"
             aria-label="Borrar capa {layer.name}"
             onclick={() => remove(layer.id)}
-          >×</button>
+          ><Icon name="trash" size={13} /></button>
         {/if}
       </li>
     {/each}
   </ul>
   <div class="ops">
-    <button type="button" title="Duplicar la capa activa con sus piezas" onclick={duplicate}>Duplicar</button>
+    <button type="button" title="Duplicar la capa activa con sus piezas" onclick={duplicate}>
+      <Icon name="copy" size={12} /><span>Duplicar</span>
+    </button>
     <button
       type="button"
       title="Mover las piezas de la capa activa a la principal y borrarla"
       disabled={activeId === 'principal'}
       onclick={mergeIntoPrincipal}
-    >Fusionar</button>
-    <button type="button" title="Ocultar las demás capas" onclick={isolate}>Aislar</button>
-    <button type="button" title="Mostrar todas las capas" onclick={showAll}>Ver todas</button>
-    <button type="button" title="Seleccionar todas las piezas de la capa activa" onclick={selectAll}>Todo</button>
+    ><Icon name="merge" size={12} /><span>Fusionar</span></button>
+    <button type="button" title="Ocultar las demás capas" onclick={isolate}>
+      <Icon name="isolate" size={12} /><span>Aislar</span>
+    </button>
+    <button type="button" title="Mostrar todas las capas" onclick={showAll}>
+      <Icon name="eye" size={12} /><span>Ver todas</span>
+    </button>
+    <button type="button" title="Seleccionar todas las piezas de la capa activa" onclick={selectAll}>
+      <Icon name="grid" size={12} /><span>Todo</span>
+    </button>
     <button
       type="button"
+      class="icon"
       title="Subir la capa activa en el orden de dibujado"
+      aria-label="Subir la capa activa"
       disabled={activeIndex < 0 || activeIndex >= layers.length - 1}
       onclick={() => reorder(1)}
-    >↑</button>
+    ><Icon name="up" size={13} /></button>
     <button
       type="button"
+      class="icon"
       title="Bajar la capa activa en el orden de dibujado"
+      aria-label="Bajar la capa activa"
       disabled={activeIndex <= 0}
       onclick={() => reorder(-1)}
-    >↓</button>
+    ><Icon name="down" size={13} /></button>
   </div>
-  <p class="hint">La capa ● recibe las piezas nuevas. ↪ mueve lo seleccionado.</p>
+  <p class="hint">Candado abierto: capa editable. El punto marca la capa que recibe las piezas nuevas.</p>
 </aside>
 
 <style>
@@ -228,15 +247,17 @@
   .use,
   .move,
   .del {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: 1px solid transparent;
     border-radius: 0.25rem;
     background: transparent;
-    color: inherit;
+    color: var(--fg-muted);
     cursor: pointer;
-    padding: 0 0.1rem;
+    padding: 0.1rem;
     font: inherit;
-    font-size: 0.75rem;
-    line-height: 1.5;
+    line-height: 1;
   }
 
   header button:hover,
@@ -246,6 +267,15 @@
   .move:hover,
   .del:hover {
     background: var(--panel-bg-hover);
+    color: var(--fg);
+  }
+
+  .vis.off {
+    color: var(--wc-error);
+  }
+
+  .lock.on {
+    color: var(--wc-state-one);
   }
 
   ul {
@@ -271,7 +301,6 @@
 
   .use {
     color: var(--fg-muted);
-    font-size: 0.7rem;
   }
 
   .use.on {
@@ -298,7 +327,10 @@
   }
 
   .ops button {
-    padding: 0.08rem 0.3rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.12rem 0.3rem;
     border: 1px solid var(--border);
     border-radius: 0.25rem;
     background: var(--panel-bg);
@@ -306,6 +338,10 @@
     font: inherit;
     font-size: 0.68rem;
     cursor: pointer;
+  }
+
+  .ops button.icon {
+    padding: 0.16rem;
   }
 
   .ops button:hover:not(:disabled) {

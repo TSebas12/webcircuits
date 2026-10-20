@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Diagram } from '../../../../src/core/model/diagram'
-import { DEFAULT_LAYER_ID } from '../../../../src/core/model/types'
+import { DEFAULT_LAYER_ID, type Layer } from '../../../../src/core/model/types'
 
 describe('layers', () => {
   it('default layer exists', () => {
@@ -184,6 +184,20 @@ describe('layers', () => {
     d.setLayers([{ id: 'otra', name: 'Otra', visible: true, locked: false, color: '#fff', opacity: 1 }])
     expect(d.layersList.some((x) => x.id === DEFAULT_LAYER_ID)).toBe(true)
     expect(d.get(g.id)!.layerId).toBe(DEFAULT_LAYER_ID)
+  })
+
+  it('las capas nacen y se cargan desbloqueadas', () => {
+    const d = new Diagram()
+    const created = d.createLayer('L2')
+    expect(created.locked).toBe(false)
+
+    // Un fichero antiguo puede no traer `locked`. Antes se copiaba tal cual y la capa
+    // aparecía bloqueada sin que el usuario hubiera tocado el candado.
+    d.setLayers([
+      { id: DEFAULT_LAYER_ID, name: 'Principal', visible: true, locked: false, color: '#888888', opacity: 1 },
+      { id: 'legacy', name: 'Antigua', visible: true, color: '#888888', opacity: 1 } as unknown as Layer,
+    ])
+    expect(d.layersList.find((layer) => layer.id === 'legacy')!.locked).toBe(false)
   })
 
   // Los ficheros anteriores a M5 no llevan `layerId`. Antes se importaban tal cual: el

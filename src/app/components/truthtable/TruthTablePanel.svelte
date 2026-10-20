@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte'
+  import Icon from '../../Icon.svelte'
   import type { Editor } from '../../editor'
   import { truthTableToCsv, truthTableToHtml } from '../../../core/truthtable/generate'
   import { serializeProject } from '../../../core/persist/json'
@@ -162,7 +163,7 @@
         <h2>Tabla de verdad</h2>
         <p class="subtitle">{circuitName}</p>
       </div>
-      <button type="button" class="close" onclick={close} aria-label="Cerrar" title="Cerrar">×</button>
+      <button type="button" class="close" onclick={close} aria-label="Cerrar" title="Cerrar"><Icon name="close" size={16} /></button>
     </header>
 
     <div class="controls">

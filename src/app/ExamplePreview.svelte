@@ -5,19 +5,22 @@
 <svg class="example-preview" viewBox="0 0 140 54" role="img" aria-label="Vista previa del ejemplo">
   <g class="wire">
     {#if kind === 'clock'}
-      <line x1="28" y1="27" x2="52" y2="27" />
+      <line x1="84" y1="27" x2="110" y2="27" />
+    {:else if kind === 'not'}
+      <line x1="26" y1="27" x2="52" y2="27" />
+      <line x1="86" y1="27" x2="110" y2="27" />
     {:else}
       <line x1="26" y1="18" x2="52" y2="18" />
       <line x1="26" y1="36" x2="52" y2="36" />
+      <line x1="84" y1="27" x2="110" y2="27" />
     {/if}
-    <line x1="84" y1="27" x2="110" y2="27" />
   </g>
 
   {#if kind === 'clock'}
     <rect class="body" x="52" y="12" width="30" height="30" rx="4" />
     <path class="stroke" d="M58 27 h4 v-8 h8 v16 h8 v-8 h4" />
   {:else if kind === 'not'}
-    <rect class="body" x="8" y="15" width="16" height="10" rx="2" />
+    <rect class="body" x="8" y="22" width="16" height="10" rx="2" />
     <path class="body" d="M52 12 L78 27 L52 42 Z" />
     <circle class="body" cx="82" cy="27" r="4" />
   {:else}

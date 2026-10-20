@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { StoredElement } from '../../../core/model/types'
+  import Icon from '../../Icon.svelte'
   import { createTestSockets } from '../../../core/model/test-socket'
 
   let {
@@ -33,7 +34,7 @@
   >
     <header>
       <h3>Sockets de test</h3>
-      <button type="button" class="close" onclick={onClose} aria-label="Cerrar" title="Cerrar">×</button>
+      <button type="button" class="close" onclick={onClose} aria-label="Cerrar" title="Cerrar"><Icon name="close" size={16} /></button>
     </header>
 
     {#if sockets === null}

@@ -32,10 +32,10 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
    * la tecla que le toca, que es donde se buscan los atajos; el editor los escucha en su
    * `onKeyDown` y aquí no se repite la tabla.
    */
-  const TOOLS: readonly { readonly id: Tool; readonly glyph: string; readonly title: string }[] = [
-    { id: 'select', glyph: '⌖', title: 'Seleccionar, mover y cablear (S)' },
-    { id: 'erase', glyph: '⌫', title: 'Borrar con un clic lo que se toque (E)' },
-    { id: 'wire', glyph: '∿', title: 'Modo cableado: solo cablear y colorear (W)' },
+  const TOOLS: readonly { readonly id: Tool; readonly icon: string; readonly title: string }[] = [
+    { id: 'select', icon: 'cursor', title: 'Seleccionar, mover y cablear (S)' },
+    { id: 'erase', icon: 'eraser', title: 'Borrar con un clic lo que se toque (E)' },
+    { id: 'wire', icon: 'wire', title: 'Modo cableado: solo cablear y colorear (W)' },
   ]
 
   /** Las piezas agrupadas como las enseña la paleta: el orden lo manda `palette.ts`. */
@@ -76,6 +76,15 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   let showLayers = $state(false)
   let canUndo = $state(false)
   let canRedo = $state(false)
+  /** Subcircuito pendiente de confirmar para borrar. */
+  let pendingCircuitDelete = $state<{
+    readonly id: string
+    readonly name: string
+    readonly uses: number
+  } | null>(null)
+  /** Velocidad y pausa de la simulación: el editor no es reactivo por sí solo. */
+  let simFrequency = $state(100)
+  let simPaused = $state(false)
   /** Se está tendiendo un cable: el cursor deja de ser la mano y pasa a ser la flecha. */
   let wiring = $state(false)
   /** El circuito no se pudo simular. Se enseña y se quita al volver a dar corriente. */
@@ -249,6 +258,8 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     canUndo = instance.canUndo
     canRedo = instance.canRedo
     placeInputs = instance.placeInputs
+    simFrequency = instance.simulationFrequency
+    simPaused = instance.simulationPaused
     isEmpty = instance.elementCount === 0
     dirty = instance.dirty
     syncHierarchy(instance)
@@ -588,6 +599,53 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     scopeChannels = editor?.probeChannels ?? []
   }
 
+  const toggleSimulationPause = (): void => {
+    if (editor === null) return
+    editor.toggleSimulationPause()
+    simPaused = editor.simulationPaused
+  }
+
+  const changeSimulationFrequency = (event: Event): void => {
+    if (editor === null) return
+    const value = Number((event.currentTarget as HTMLInputElement).value)
+    editor.setSimulationFrequency(value)
+    simFrequency = editor.simulationFrequency
+  }
+
+  /** Quita una nota del circuito abierto. */
+  const removeAnnotation = (id: string): void => {
+    if (editor === null || powered) return
+    editor.diagram.removeAnnotation(id)
+    syncOverlays(editor)
+  }
+
+  /** Quita un marcador del circuito abierto. */
+  const removeMarker = (id: string): void => {
+    if (editor === null || powered) return
+    editor.diagram.removeMarker(id)
+    syncOverlays(editor)
+  }
+
+  /** Pide confirmación antes de borrar la definición de un subcircuito. */
+  const requestDeleteSubcircuit = (id: string): void => {
+    if (editor === null || powered) return
+    const circuit = editor.project.circuit(id)
+    if (circuit === undefined || id === 'main') return
+    pendingCircuitDelete = {
+      id,
+      name: circuit.name,
+      uses: editor.subcircuitUseCount(id),
+    }
+  }
+
+  const confirmDeleteSubcircuit = (): void => {
+    const pending = pendingCircuitDelete
+    pendingCircuitDelete = null
+    if (pending === null || editor === null) return
+    editor.deleteSubcircuit(pending.id)
+    editor.fitToContent()
+  }
+
 
 
   const removeSelected = (): void => {
@@ -705,12 +763,32 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   {#key viewVersion}
     {#each annotations as note (note.id)}
       {@const pos = editor?.toScreen(note.position) ?? { x: 0, y: 0 }}
-      <div class="annotation" style="left:{pos.x}px; top:{pos.y}px;">{note.text}</div>
+      <div class="annotation" style="left:{pos.x}px; top:{pos.y}px;">
+        <span>{note.text}</span>
+        <button
+          type="button"
+          class="overlay-del"
+          title={powered ? 'Apaga la corriente para editar' : 'Borrar nota'}
+          aria-label="Borrar nota"
+          disabled={powered}
+          onclick={() => removeAnnotation(note.id)}
+        ><Icon name="close" size={11} /></button>
+      </div>
     {/each}
 
     {#each markers as mark (mark.id)}
       {@const pos = editor?.toScreen(mark.position) ?? { x: 0, y: 0 }}
-      <div class="marker" style="left:{pos.x}px; top:{pos.y}px;" title={mark.label}>●</div>
+      <div class="marker" style="left:{pos.x}px; top:{pos.y}px;">
+        <span class="marker-dot" title={mark.label}>●</span>
+        <button
+          type="button"
+          class="overlay-del"
+          title={powered ? 'Apaga la corriente para editar' : `Borrar marcador «${mark.label}»`}
+          aria-label="Borrar marcador {mark.label}"
+          disabled={powered}
+          onclick={() => removeMarker(mark.id)}
+        ><Icon name="close" size={11} /></button>
+      </div>
     {/each}
   {/key}
 
@@ -757,7 +835,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
         disabled={powered}
         onclick={() => chooseTool(item.id)}
       >
-        {item.glyph}
+        <Icon name={item.icon} size={16} />
       </button>
     {/each}
 
@@ -826,7 +904,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
       title="Deshacer (Ctrl+Z)"
       aria-label="Deshacer"
     >
-      ↶
+      <Icon name="undo" size={16} />
     </button>
     <button
       type="button"
@@ -836,7 +914,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
       title="Rehacer (Ctrl+Y)"
       aria-label="Rehacer"
     >
-      ↷
+      <Icon name="redo" size={16} />
     </button>
 
     <span class="divider"></span>
@@ -871,6 +949,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
       title="Apagado se edita; encendido solo se prueba · P (en el original, Circuito → Encender)"
       aria-pressed={powered}
     >
+      <Icon name="power" size={15} />
       {powered ? 'Encendido' : 'Apagado'}
     </button>
   </div>
@@ -936,6 +1015,21 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
          mientras se edita. Por eso su grupo se pinta aparte y se alimenta de `circuits`. -->
     <div class="palette-group">
       <span class="group-title">Subcircuitos</span>
+      {#if currentCircuitId !== 'main'}
+        <div class="sub-row sub-current">
+          <span class="sub-preview" aria-hidden="true">SUB</span>
+          <span class="sub-name">{circuits.find((circuit) => circuit.id === currentCircuitId)?.name ?? 'Subcircuito'}</span>
+          <span class="sub-editing">en edición</span>
+          <button
+            type="button"
+            class="sub-del"
+            title="Borrar este subcircuito"
+            aria-label="Borrar el subcircuito actual"
+            disabled={powered}
+            onclick={() => requestDeleteSubcircuit(currentCircuitId)}
+          ><Icon name="trash" size={13} /></button>
+        </div>
+      {/if}
       {#if otherCircuits.length === 0}
         <p class="palette-hint">
           Crea uno con «+ Subcircuito», añade pines dentro y vuelve aquí para colocarlo como
@@ -944,23 +1038,33 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
       {:else}
         <div class="pieces">
           {#each otherCircuits as circuit (circuit.id)}
-            <button
-              type="button"
-              class="piece sub-piece"
-              class:active={tool === 'subcircuit' && placeCircuitId === circuit.id}
-              title={powered
-                ? 'Con la corriente puesta no se edita: apágala para colocar'
-                : `Colocar «${circuit.name}» como una pieza`}
-              aria-pressed={tool === 'subcircuit' && placeCircuitId === circuit.id}
-              disabled={powered}
-              onclick={() => chooseSubcircuit(circuit.id)}
-            >
-              <span class="sub-preview" aria-hidden="true">SUB</span>
-              <span class="sub-name">{circuit.name}</span>
-            </button>
+            <div class="sub-row">
+              <button
+                type="button"
+                class="piece sub-piece"
+                class:active={tool === 'subcircuit' && placeCircuitId === circuit.id}
+                title={powered
+                  ? 'Con la corriente puesta no se edita: apágala para colocar'
+                  : `Colocar «${circuit.name}» como una pieza`}
+                aria-pressed={tool === 'subcircuit' && placeCircuitId === circuit.id}
+                disabled={powered}
+                onclick={() => chooseSubcircuit(circuit.id)}
+              >
+                <span class="sub-preview" aria-hidden="true">SUB</span>
+                <span class="sub-name">{circuit.name}</span>
+              </button>
+              <button
+                type="button"
+                class="sub-del"
+                title="Borrar el subcircuito «{circuit.name}»"
+                aria-label="Borrar el subcircuito {circuit.name}"
+                disabled={powered}
+                onclick={() => requestDeleteSubcircuit(circuit.id)}
+              ><Icon name="trash" size={13} /></button>
+            </div>
           {/each}
         </div>
-        <p class="palette-hint">Doble clic en una instancia del lienzo para editarla.</p>
+        <p class="palette-hint">Doble clic en una instancia para editarla. La papelera borra la definición; selecciona una instancia y pulsa Supr para quitarla del lienzo.</p>
       {/if}
     </div>
   </aside>
@@ -972,7 +1076,14 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     {/each}
     <button type="button" class="crumb-btn" onclick={newSubcircuit} disabled={powered} title="Crear y entrar en un subcircuito">+ Subcircuito</button>
     {#if circuitPath.length > 1}
-      <button type="button" class="crumb-btn" onclick={goUp} disabled={powered} title="Subir un nivel">↑ Subir</button>
+      <button type="button" class="crumb-btn" onclick={goUp} disabled={powered} title="Subir un nivel"><Icon name="up" size={12} /> Subir</button>
+      <button
+        type="button"
+        class="crumb-btn danger"
+        onclick={() => requestDeleteSubcircuit(currentCircuitId)}
+        disabled={powered}
+        title="Borrar este subcircuito y sus instancias"
+      ><Icon name="trash" size={12} /> Borrar</button>
     {/if}
     </div>
   </div>
@@ -1034,13 +1145,13 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     {#if recovered}
       <div class="info-badge" role="status">
         Sesión recuperada del autoguardado.
-        <button type="button" onclick={() => (recovered = false)}>×</button>
+        <button type="button" aria-label="Ocultar aviso" onclick={() => (recovered = false)}><Icon name="close" size={12} /></button>
       </div>
     {/if}
     {#if unsupported > 0}
       <div class="info-badge" role="status">
         {unsupported} {unsupported === 1 ? 'pieza' : 'piezas'} del circuito no se {unsupported === 1 ? 'dibuja' : 'dibujan'} todavía (memorias, sensores, matrices o sonido). Esta versión no {unsupported === 1 ? 'la' : 'las'} puede editar.
-        <button type="button" aria-label="Ocultar aviso" onclick={() => (unsupported = 0)}>×</button>
+        <button type="button" aria-label="Ocultar aviso" onclick={() => (unsupported = 0)}><Icon name="close" size={12} /></button>
       </div>
     {/if}
     {#if openError !== null}
@@ -1140,35 +1251,62 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     <ExamplePicker onClose={() => (showExamplePicker = false)} onPick={pickExample} />
   {/if}
 
-  <div class="sim-controls" aria-label="Controles de simulación">
-    <button type="button" title="Pausar o reanudar la simulación" onclick={() => { editor?.toggleSimulationPause(); }}>
-      {editor?.simulationPaused ? 'Reanudar' : 'Pausar'}
-    </button>
-    <button type="button" title="Avanzar un tick" onclick={() => { editor?.stepSimulation() }}>
-      Paso
-    </button>
-    <button type="button" title="Añadir una nota de texto" onclick={() => { annotateMode = true; markerMode = false }}>
-      Nota
-    </button>
-    <button type="button" title="Añadir un marcador" onclick={() => { markerMode = true; annotateMode = false }}>
-      Marcador
-    </button>
-    <button type="button" title="Pines de entrada y salida del circuito" onclick={() => (showTestSockets = true)}>
-      Sockets
-    </button>
-    <button type="button" title="Ver el historial de las sondas colocadas" onclick={openOscilloscope}>
-      Osciloscopio
-    </button>
-    <input
-      type="range"
-      min="1"
-      max="1000"
-      step="1"
-      value={editor?.simulationFrequency ?? 100}
-      title="Velocidad de simulación"
-      oninput={(event) => editor?.setSimulationFrequency(Number((event.currentTarget as HTMLInputElement).value))}
+  {#if pendingCircuitDelete !== null}
+    <Modal
+      title="Borrar subcircuito"
+      message={pendingCircuitDelete.uses > 0
+        ? `Se borrará «${pendingCircuitDelete.name}» y ${pendingCircuitDelete.uses} ${pendingCircuitDelete.uses === 1 ? 'instancia que lo usa' : 'instancias que lo usan'} en el proyecto. Esta acción no se puede deshacer.`
+        : `Se borrará «${pendingCircuitDelete.name}». Esta acción no se puede deshacer.`}
+      confirmLabel="Borrar"
+      danger={true}
+      onConfirm={confirmDeleteSubcircuit}
+      onCancel={() => (pendingCircuitDelete = null)}
     />
-    <span class="sim-freq">{editor?.simulationFrequency ?? 100} Hz</span>
+  {/if}
+
+  <div class="sim-controls" aria-label="Controles de simulación">
+    <div class="sim-group" role="group" aria-label="Reloj de simulación">
+      <button type="button" title="Pausar o reanudar la simulación" onclick={toggleSimulationPause}>
+        <Icon name={simPaused ? 'play' : 'pause'} size={13} />
+        {simPaused ? 'Reanudar' : 'Pausar'}
+      </button>
+      <button type="button" title="Avanzar un tick de la simulación" onclick={() => editor?.stepSimulation()}>
+        <Icon name="step" size={13} />
+        Paso
+      </button>
+    </div>
+    <span class="sim-sep" aria-hidden="true"></span>
+    <div class="sim-group" role="group" aria-label="Anotaciones y paneles">
+      <button type="button" title="Añadir una nota de texto" onclick={() => { annotateMode = true; markerMode = false }}>
+        <Icon name="note" size={13} />
+        Nota
+      </button>
+      <button type="button" title="Añadir un marcador" onclick={() => { markerMode = true; annotateMode = false }}>
+        <Icon name="marker" size={13} />
+        Marcador
+      </button>
+      <button type="button" title="Pines de entrada y salida del circuito" onclick={() => (showTestSockets = true)}>
+        <Icon name="socket" size={13} />
+        Sockets
+      </button>
+      <button type="button" title="Ver el historial de las sondas colocadas" onclick={openOscilloscope}>
+        <Icon name="scope" size={13} />
+        Osciloscopio
+      </button>
+    </div>
+    <label class="sim-speed" title="Frecuencia de simulación: ticks por segundo">
+      <span>Velocidad</span>
+      <input
+        type="range"
+        min="1"
+        max="1000"
+        step="1"
+        value={simFrequency}
+        aria-label="Frecuencia de simulación en hercios"
+        oninput={changeSimulationFrequency}
+      />
+      <output class="sim-freq">{simFrequency} Hz</output>
+    </label>
   </div>
 
   <div class="hud" aria-hidden="true">
@@ -1408,12 +1546,63 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
 
   /* Un subcircuito ocupa toda la fila: su nombre es más largo que el de una compuerta y
      partirlo en dos columnas lo dejaría ilegible. */
-  .sub-piece {
+  .sub-row {
     grid-column: 1 / -1;
+    display: flex;
+    gap: 0.2rem;
+    align-items: stretch;
+  }
+
+  .sub-piece {
+    flex: 1 1 auto;
     display: flex;
     gap: 0.4rem;
     align-items: center;
     text-align: left;
+    min-width: 0;
+  }
+
+  .sub-current {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.3rem;
+    border: 1px dashed var(--border);
+    border-radius: 0.35rem;
+  }
+
+  .sub-current .sub-name {
+    flex: 1 1 auto;
+  }
+
+  .sub-editing {
+    color: var(--fg-muted);
+    font-size: 0.64rem;
+    white-space: nowrap;
+  }
+
+  .sub-del {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.7rem;
+    border: 1px solid transparent;
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--fg-muted);
+    cursor: pointer;
+  }
+
+  .sub-del:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--wc-error) 40%, transparent);
+    background: color-mix(in srgb, var(--wc-error) 10%, transparent);
+    color: var(--wc-error);
+  }
+
+  .sub-del:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
 
   .sub-preview {
@@ -1566,6 +1755,9 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   }
 
   .breadcrumb .crumb-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
     padding: 0.15rem 0.4rem;
     border: 1px solid var(--border);
     border-radius: 0.35rem;
@@ -1574,6 +1766,12 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     font: inherit;
     font-size: 0.72rem;
     cursor: pointer;
+  }
+
+  .breadcrumb .crumb-btn.danger:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--wc-error) 45%, transparent);
+    background: color-mix(in srgb, var(--wc-error) 10%, transparent);
+    color: var(--wc-error);
   }
 
   .breadcrumb .crumb-btn:disabled {
@@ -1679,20 +1877,54 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     color: var(--fg-muted);
     z-index: 4;
   }
+
+  .sim-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+  }
+
+  .sim-sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 0.1rem 0.05rem;
+    background: var(--border);
+  }
+
   .sim-controls button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
     border: 1px solid var(--border);
     border-radius: 0.3rem;
     background: transparent;
     color: var(--fg);
     cursor: pointer;
     padding: 0.1rem 0.35rem;
+    font: inherit;
   }
-  .sim-controls input {
+
+  .sim-controls button:hover {
+    background: var(--panel-bg-hover);
+  }
+
+  .sim-speed {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding-left: 0.1rem;
+  }
+
+  .sim-speed input {
     width: 6rem;
+    accent-color: var(--accent);
   }
+
   .sim-freq {
-    min-width: 3.2rem;
+    min-width: 3.9rem;
     text-align: right;
+    color: var(--fg);
+    font-variant-numeric: tabular-nums;
   }
   .overlay-capture {
     position: absolute;
@@ -1703,7 +1935,10 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   .annotation {
     position: absolute;
     z-index: 7;
-    padding: 0.2rem 0.4rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.25rem;
+    padding: 0.2rem 0.3rem 0.2rem 0.4rem;
     border: 1px solid var(--border);
     border-radius: 0.3rem;
     background: color-mix(in srgb, var(--panel-bg) 90%, transparent);
@@ -1716,11 +1951,41 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   .marker {
     position: absolute;
     z-index: 7;
+    display: flex;
+    align-items: center;
+    gap: 0.05rem;
     color: var(--accent);
     font-size: 1.1rem;
     line-height: 1;
     transform: translate(-50%, -50%);
     pointer-events: none;
+  }
+  .marker-dot {
+    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 25%));
+  }
+  .overlay-del {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    padding: 0;
+    border: none;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: var(--fg-muted);
+    cursor: pointer;
+    pointer-events: auto;
+    opacity: 0.55;
+  }
+  .overlay-del:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--wc-error) 14%, transparent);
+    color: var(--wc-error);
+    opacity: 1;
+  }
+  .overlay-del:disabled {
+    cursor: default;
+    opacity: 0.25;
   }
   .hud {
     position: absolute;

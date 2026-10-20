@@ -1,5 +1,6 @@
 <script lang="ts">
   import Oscilloscope from './Oscilloscope.svelte'
+  import Icon from '../../Icon.svelte'
   import type { OscilloscopeChannel } from './oscilloscope-draw'
   import { visibleWindow, zoomIn, zoomOut } from './oscilloscope-view'
 
@@ -72,7 +73,7 @@
     {#if onClose !== undefined}
       <header>
         <h2>Osciloscopio</h2>
-        <button type="button" class="close" onclick={onClose} aria-label="Cerrar" title="Cerrar">×</button>
+        <button type="button" class="close" onclick={onClose} aria-label="Cerrar" title="Cerrar"><Icon name="close" size={16} /></button>
       </header>
     {/if}
 

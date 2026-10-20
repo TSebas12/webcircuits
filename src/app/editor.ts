@@ -69,6 +69,7 @@ import type { SimulationState } from '../core/simulate/engine'
 import type {
   Button,
   Circuit,
+  CircuitInstance,
   DrawableDevice,
   GridPoint,
   Id,
@@ -406,14 +407,26 @@ export class Editor {
   }
 
   private savedRevision = 0
+  /**
+   * Versión del proyecto que se guardó por última vez.
+   *
+   * El documento solo sabe de cambios en el circuito abierto. Crear o borrar un subcircuito
+   * cambia el proyecto entero sin tocar ese documento, así que sin esta marca el aviso de
+   * «sin guardar» mentiría y el autoguardado no se enteraría.
+   */
+  private savedProjectVersion = 0
   get revision(): number {
     return this.diagram.revision
   }
   get dirty(): boolean {
-    return this.diagram.revision !== this.savedRevision
+    return (
+      this.diagram.revision !== this.savedRevision ||
+      this.project.version !== this.savedProjectVersion
+    )
   }
   markSaved(): void {
     this.savedRevision = this.diagram.revision
+    this.savedProjectVersion = this.project.version
   }
 
   /** Carga un proyecto completo, reemplazando el actual. */
@@ -423,6 +436,7 @@ export class Editor {
     this.placeCircuit = null
     this.selected.clear()
     this.savedRevision = this.diagram.revision
+    this.savedProjectVersion = project.version
     this.followDiagram()
     this.evaluate()
     this.refresh()
@@ -1042,11 +1056,11 @@ export class Editor {
         this.diagram.addWire({ x: 4, y: 5 }, { x: 8, y: 5 })
         this.diagram.addWire({ x: 11, y: 4 }, { x: 14, y: 4 })
       } else if (id === 'not') {
-        this.diagram.addButton({ x: 2, y: 3 }, { isToggle: true })
-        this.diagram.addGate('not', { x: 8, y: 2 }, 1)
-        this.diagram.addGate('led', { x: 14, y: 3 }, 1)
-        this.diagram.addWire({ x: 4, y: 4 }, { x: 8, y: 3 })
-        this.diagram.addWire({ x: 10, y: 3 }, { x: 14, y: 4 })
+        this.diagram.addButton({ x: 2, y: 2 }, { isToggle: true })
+        this.diagram.addGate('not', { x: 8, y: 1 }, 1, true)
+        this.diagram.addGate('led', { x: 14, y: 2 }, 1)
+        this.diagram.addWire({ x: 4, y: 3 }, { x: 8, y: 3 })
+        this.diagram.addWire({ x: 11, y: 3 }, { x: 14, y: 3 })
       } else if (id === 'xor') {
         this.diagram.addButton({ x: 2, y: 2 }, { isToggle: true })
         this.diagram.addButton({ x: 2, y: 4 }, { isToggle: true })
@@ -1103,6 +1117,86 @@ export class Editor {
   createSubcircuit(name?: string): Id {
     const circuit = this.project.createCircuit({ name })
     return circuit.id
+  }
+
+  /**
+   * Cuántas instancias usan un subcircuito en todo el proyecto.
+   *
+   * Se cuenta en todos los circuitos, no solo en el que se está viendo: borrar una definición
+   * que otro nivel usa dejaría una pieza apuntando al vacío. La interfaz lo enseña antes de
+   * confirmar el borrado.
+   */
+  subcircuitUseCount(id: Id): number {
+    let count = 0
+    for (const circuit of this.project.circuitsList) {
+      for (const element of circuit.diagram.storedElements) {
+        if (element.kind === 'circuit' && element.targetCircuitId === id) {
+          count += 1
+        }
+      }
+    }
+    return count
+  }
+
+  /**
+   * Borra un subcircuito y las instancias que lo usaban.
+   *
+   * No basta con quitarlo del mapa de circuitos: si queda una instancia, la simulación se
+   * encuentra una referencia rota. Las instancias se llevan por delante sus cables, igual que
+   * al borrar una pieza a mano. Si el circuito borrado era el que se estaba editando (o un
+   * antepasado suyo), la navegación sube al padre antes de borrarlo.
+   */
+  deleteSubcircuit(id: Id): boolean {
+    if (this.simulation.powered || id === MAIN_CIRCUIT_ID) {
+      return false
+    }
+    if (this.project.circuit(id) === undefined) {
+      return false
+    }
+
+    for (const circuit of this.project.circuitsList) {
+      const instances = circuit.diagram.storedElements.filter(
+        (element): element is CircuitInstance =>
+          element.kind === 'circuit' && element.targetCircuitId === id,
+      )
+      if (instances.length === 0) {
+        continue
+      }
+      circuit.diagram.beginChange()
+      try {
+        for (const instance of instances) {
+          for (const wire of attachedWires(
+            circuit.diagram.storedElements,
+            instance,
+            this.resolveCircuit,
+          )) {
+            circuit.diagram.remove(wire.id)
+          }
+          circuit.diagram.remove(instance.id)
+        }
+      } finally {
+        circuit.diagram.endChange()
+      }
+    }
+
+    const pathIndex = this.circuitPathIds.indexOf(id)
+    if (pathIndex >= 0) {
+      const nextPath = pathIndex > 0
+        ? this.circuitPathIds.slice(0, pathIndex)
+        : [MAIN_CIRCUIT_ID]
+      this.circuitPathIds = nextPath.length > 0 ? nextPath : [MAIN_CIRCUIT_ID]
+      this.project.openCircuit(this.circuitPathIds[this.circuitPathIds.length - 1] as Id)
+    }
+
+    this.project.deleteCircuit(id)
+    this.placeCircuit = null
+    this.selected.clear()
+    this.followDiagram()
+    this.evaluate()
+    this.refresh()
+    this.callbacks.onCircuitChange?.(this.circuitPath)
+    this.callbacks.onDocumentChange?.()
+    return true
   }
 
   /** Entra a editar un subcircuito. Devuelve false si no existe. */

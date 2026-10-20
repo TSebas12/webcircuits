@@ -579,7 +579,15 @@ export class Diagram {
    * principal en vez de desaparecer (una capa oculta o inexistente lo volvía invisible).
    */
   setLayers(layers: readonly Layer[]): void {
-    const next = layers.map((l) => ({ ...l }))
+    // Se normaliza el estado de edición: un fichero antiguo puede no traer `locked` o
+    // `visible`. Si `locked` llegara como texto o `undefined`, la capa quedaría bloqueada
+    // sin que nadie lo hubiera pedido. Las capas nuevas nacen siempre editables.
+    const next = layers.map((l) => ({
+      ...l,
+      visible: l.visible !== false,
+      locked: l.locked === true,
+      opacity: typeof l.opacity === 'number' ? l.opacity : 1,
+    }))
     if (!next.some((l) => l.id === DEFAULT_LAYER_ID)) {
       next.unshift({ id: DEFAULT_LAYER_ID, name: 'Principal', visible: true, locked: false, color: '#888888', opacity: 1 })
     }
