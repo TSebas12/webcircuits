@@ -2040,6 +2040,14 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     cursor: pointer;
     padding: 0;
   }
+  .wire-colors .swatch.active {
+    outline: 2px solid var(--wc-selection, #4f8cff);
+    outline-offset: 1px;
+  }
+  .wire-colors .clear-color.active {
+    outline: 2px solid var(--wc-selection, #4f8cff);
+    outline-offset: 1px;
+  }
   .wire-colors .clear-color {
     min-width: 1.5rem;
     height: 1.5rem;
