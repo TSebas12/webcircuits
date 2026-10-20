@@ -121,6 +121,28 @@ describe('generación de tablas de verdad (M8)', () => {
     expect(table.truncated).toBe(true)
   })
 
+  it('enumera buses de varios bits y conserva el peso de cada bit', () => {
+    const project = new CircuitProject('bus')
+    const elements: StoredElement[] = [
+      pin('a', 'input', -4, 0, 'A', 2),
+      pin('q', 'output', 5, 0, 'Q', 2),
+      wire('w', -2, 1, 5, 1, 2),
+    ]
+    for (const element of elements) {
+      project.current.diagram.importElement(element)
+    }
+
+    const table = generateTruthTable(project, project.current)
+
+    expect(table.totalRows).toBe(4)
+    expect(table.rows.map((row) => [...row.input, ...row.output])).toEqual([
+      [0, 0],
+      [1, 1],
+      [2, 2],
+      [3, 3],
+    ])
+  })
+
   it('exporta la tabla a CSV con cabecera', () => {
     const project = andProject()
     const table = generateTruthTable(project, project.current)

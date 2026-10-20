@@ -135,9 +135,10 @@ export abstract class CircuitFunction {
   protected setResultInt(state: number): boolean {
     let changed = false
     for (let i = 0; i < this.result.length; i++) {
-      changed =
-        changed ||
-        this.setResult(i, CircuitFunction.fromBool((state & (1 << i)) !== 0))
+      // ⚠️ No encadenar con `changed || this.setResult(...)`: el cortocircuito se salta
+      // los bits siguientes en cuanto el primero cambia y deja buses a medias.
+      const bitChanged = this.setResult(i, CircuitFunction.fromBool((state & (1 << i)) !== 0))
+      changed = bitChanged || changed
     }
     return changed
   }
