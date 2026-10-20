@@ -2041,11 +2041,11 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     padding: 0;
   }
   .wire-colors .swatch.active {
-    outline: 2px solid var(--wc-selection, #4f8cff);
+    outline: 2px solid var(--wc-selection);
     outline-offset: 1px;
   }
   .wire-colors .clear-color.active {
-    outline: 2px solid var(--wc-selection, #4f8cff);
+    outline: 2px solid var(--wc-selection);
     outline-offset: 1px;
   }
   .wire-colors .clear-color {
