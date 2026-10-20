@@ -1,10 +1,14 @@
 <script lang="ts">
+  import ExamplePreview from './ExamplePreview.svelte'
+
+  type ExampleKind = 'and' | 'or' | 'not' | 'xor' | 'clock'
+
   let {
     onClose,
     onPick,
   }: { onClose: () => void; onPick: (id: string) => void } = $props()
 
-  const examples = [
+  const examples: readonly { readonly id: ExampleKind; readonly name: string; readonly desc: string }[] = [
     { id: 'and', name: 'Compuerta AND', desc: 'Dos interruptores y un LED' },
     { id: 'or', name: 'Compuerta OR', desc: 'La salida se enciende si alguna entrada es 1' },
     { id: 'not', name: 'Inversor NOT', desc: 'Una entrada, salida contraria' },
@@ -19,6 +23,7 @@
     <div class="grid">
       {#each examples as ex (ex.id)}
         <button type="button" class="card" onclick={() => onPick(ex.id)}>
+          <ExamplePreview kind={ex.id} />
           <span class="name">{ex.name}</span>
           <span class="desc">{ex.desc}</span>
         </button>
