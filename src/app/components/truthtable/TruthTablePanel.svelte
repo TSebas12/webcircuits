@@ -115,7 +115,8 @@
     anchor.href = url
     anchor.download = `${safeName(circuitName)}.${extension}`
     anchor.click()
-    URL.revokeObjectURL(url)
+    // Revocar en el mismo tick cancela la descarga en algunos navegadores.
+    setTimeout(() => URL.revokeObjectURL(url), 0)
   }
 
   function safeName(name: string): string {
