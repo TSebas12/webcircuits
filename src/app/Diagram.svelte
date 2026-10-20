@@ -46,6 +46,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
 
   let canvasEl = $state<HTMLCanvasElement | null>(null)
   let tool = $state<Tool>('select')
+let wireColor = $state<string | null>(null)
   /** Los dos modos los gobierna la corriente. Arranca apagada, como el original. */
   let powered = $state(false)
   let hasSelection = $state(false)
@@ -957,9 +958,9 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   {#if tool === 'wire' && !powered}
     <div class="wire-colors" role="toolbar" aria-label="Colores de cable">
       {#each loadSettings().savedWireColors as color, index (index)}
-        <button type="button" class="swatch" style="background:{color}" title="Aplicar color {color}" aria-label="Aplicar color {color}" onclick={() => editor?.colorSelection(color)}></button>
+        <button type="button" class="swatch" class:active={wireColor === color} style="background:{color}" title="Aplicar color {color}" aria-label="Aplicar color {color}" onclick={() => { wireColor = color; editor?.colorSelection(color) }}></button>
       {/each}
-      <button type="button" class="clear-color" title="Quitar color forzado" onclick={() => editor?.colorSelection('')}>x</button>
+      <button type="button" class="clear-color" class:active={wireColor === null} title="Quitar color forzado" onclick={() => { wireColor = null; editor?.colorSelection('') }}>x</button>
     </div>
   {/if}
 
@@ -1066,6 +1067,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
         </div>
         <p class="palette-hint">Doble clic en una instancia para editarla. La papelera borra la definición; selecciona una instancia y pulsa Supr para quitarla del lienzo.</p>
       {/if}
+      <button type="button" class="sub-create" onclick={newSubcircuit} disabled={powered} title="Crear y entrar en un subcircuito">+ Subcircuito</button>
     </div>
   </aside>
 
@@ -1074,7 +1076,6 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
       <span class="crumb" title={crumb.name}>{crumb.id === 'main' ? 'Principal' : crumb.name}</span>
       {#if i < breadcrumb.length - 1}<span class="sep">›</span>{/if}
     {/each}
-    <button type="button" class="crumb-btn" onclick={newSubcircuit} disabled={powered} title="Crear y entrar en un subcircuito">+ Subcircuito</button>
     {#if circuitPath.length > 1}
       <button type="button" class="crumb-btn" onclick={goUp} disabled={powered} title="Subir un nivel"><Icon name="up" size={12} /> Subir</button>
       <button
@@ -1264,6 +1265,15 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     />
   {/if}
 
+  <div class="hud" aria-hidden="true">
+    {#if dirty}<span class="dirty">● sin guardar</span><span class="sep">·</span>{/if}
+    <span>{fps.toFixed(0)} FPS</span>
+    <span class="sep">·</span>
+    <span>{paintMs.toFixed(2)} ms</span>
+    <span class="sep">·</span>
+    <span>{zoomPct} %</span>
+  </div>
+
   <div class="sim-controls" aria-label="Controles de simulación">
     <div class="sim-group" role="group" aria-label="Reloj de simulación">
       <button type="button" title="Pausar o reanudar la simulación" onclick={toggleSimulationPause}>
@@ -1307,15 +1317,6 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
       />
       <output class="sim-freq">{simFrequency} Hz</output>
     </label>
-  </div>
-
-  <div class="hud" aria-hidden="true">
-    {#if dirty}<span class="dirty">● sin guardar</span><span class="sep">·</span>{/if}
-    <span>{fps.toFixed(0)} FPS</span>
-    <span class="sep">·</span>
-    <span>{paintMs.toFixed(2)} ms</span>
-    <span class="sep">·</span>
-    <span>{zoomPct} %</span>
   </div>
 </div>
 

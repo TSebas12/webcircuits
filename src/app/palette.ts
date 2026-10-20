@@ -326,7 +326,7 @@ export const PIECES = [
     group: 'bits',
     bitWidth: 8,
     pinCount: 2,
-    clockwise: true,
+    clockwise: false,
   },
 ] as const satisfies readonly Piece[]
 
