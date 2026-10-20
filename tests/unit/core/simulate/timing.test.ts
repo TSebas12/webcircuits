@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { EventQueue } from '../../../../src/core/simulate/event-queue'
 import { GlitchDetector } from '../../../../src/core/simulate/glitch-detector'
+import { deterministicSeed } from '../../../../src/core/simulate/clock-frequency'
 
 describe('M7B timing helpers', () => {
   it('EventQueue ordena por tiempo', () => {
@@ -16,5 +17,10 @@ describe('M7B timing helpers', () => {
     expect(d.record(1)).toBeNull()
     const g = d.record(2)
     expect(g).not.toBeNull()
+  })
+  it('determinismo: misma semilla misma secuencia', () => {
+    const a = deterministicSeed('abc')
+    const b = deterministicSeed('abc')
+    expect(a).toBe(b)
   })
 })
