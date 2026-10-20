@@ -1596,6 +1596,8 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     .left-rail { width: 10rem }
     .palette { font-size: 0.75rem }
     .toolbar { flex-wrap: wrap; gap: 0.2rem }
+    .sim-controls, .hud { left: 11rem }
+    .sim-controls { max-width: calc(100% - 19rem) }
   }
 
   .wire-colors {
@@ -1633,11 +1635,15 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   }
   .sim-controls {
     position: absolute;
-    left: 0.6rem;
+    /* A la derecha de la columna de piezas: el panel se desplaza hasta abajo y estos
+       controles no deben taparlo. */
+    left: 13.5rem;
     bottom: 2.6rem;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.35rem;
+    max-width: calc(100% - 21.5rem);
     padding: 0.25rem 0.5rem;
     border: 1px solid var(--border);
     border-radius: 0.4rem;
@@ -1691,7 +1697,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   }
   .hud {
     position: absolute;
-    left: 0.6rem;
+    left: 13.5rem;
     bottom: 0.6rem;
     display: flex;
     gap: 0.35rem;
