@@ -46,10 +46,11 @@ const MUDOS_SIN_HABILITAR = new Set(['triState1', 'triState2'])
  */
 const SIGNAL_PIECES = PIECES.filter(
   (piece) =>
-    piece.kind === 'gate' ||
-    piece.kind === 'button' ||
-    piece.kind === 'constant' ||
-    piece.kind === 'sensor',
+    (piece.kind === 'gate' ||
+      piece.kind === 'button' ||
+      piece.kind === 'constant' ||
+      piece.kind === 'sensor') &&
+    piece.id !== 'sevenSegment',
 )
 
 /** El hueco que debería reservar una pieza según el modelo. */

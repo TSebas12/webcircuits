@@ -269,6 +269,7 @@ export class Editor {
   private insets: ViewInsets = NO_INSETS
 
   private readonly selected = new Set<Id>()
+  private pendingWireColor: string | null = null
   private readonly callbacks: EditorCallbacks
 
   private canvas: HTMLCanvasElement | null = null
@@ -958,7 +959,11 @@ export class Editor {
    * piezas había. (Antes solo borraba la primera de la selección múltiple.)
    */
   colorSelection(color: string): void {
-    if (this.selected.size === 0) return
+    this.pendingWireColor = color === '' ? null : color
+    if (this.selected.size === 0) {
+      this.refresh()
+      return
+    }
     this.diagram.beginChange()
     for (const id of this.selected) {
       const el = this.diagram.get(id)
@@ -1398,6 +1403,9 @@ export class Editor {
 
     if (hit !== null && hit.kind === 'wire') {
       this.select(hit.element.id)
+      if (this.pendingWireColor !== null) {
+        this.diagram.setWireColor(hit.element.id, this.pendingWireColor)
+      }
       this.refresh()
       return
     }
@@ -1859,6 +1867,14 @@ export class Editor {
       return
     }
     this.diagram.addWire(from, end)
+    if (this.pendingWireColor !== null) {
+      // El último cable creado recibe el color pendiente (modo cableado).
+      const wires = [...this.diagram.elements].filter((e) => e.kind === 'wire')
+      const last = wires[wires.length - 1]
+      if (last !== undefined) {
+        this.diagram.setWireColor(last.id, this.pendingWireColor)
+      }
+    }
   }
 
   /**

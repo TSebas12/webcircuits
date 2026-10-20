@@ -150,6 +150,9 @@ export function buildScene(options: SceneOptions): RenderScene {
 function shapeForDevice(element: DrawableDevice): SymbolShape | null {
   switch (element.kind) {
     case 'gate':
+      if (element.gateType === 'led' && element.inputCount === 8) {
+        return 'sevenSegment'
+      }
       return shapeForGate(element.gateType, element.invertedOutput)
     case 'button':
       return 'button'

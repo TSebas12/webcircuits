@@ -663,7 +663,7 @@ export class Diagram {
     const next = layers.map((l) => ({
       ...l,
       visible: l.visible !== false,
-      locked: l.locked === true,
+      locked: false,
       opacity: typeof l.opacity === 'number' ? l.opacity : 1,
     }))
     if (!next.some((l) => l.id === DEFAULT_LAYER_ID)) {

@@ -237,6 +237,16 @@ export const PIECES = [
     invertedOutput: false,
   },
   {
+    kind: 'gate',
+    id: 'sevenSegment',
+    label: '7 segmentos',
+    title: 'Display de 7 segmentos: 8 entradas (a-g + punto)',
+    group: 'io',
+    gateType: 'led',
+    inputCount: 8,
+    invertedOutput: false,
+  },
+  {
     kind: 'probe',
     id: 'probe',
     label: 'Sonda',

@@ -25,6 +25,7 @@ import { pinInputShape, pinOutputShape } from './pin'
 import { probeShape } from './probe'
 import { roundedRect } from './rounded-rect'
 import { sensorShape } from './sensor'
+import { sevenSegmentShape } from './seven-segment'
 import { memoryShape } from './memory'
 import { splitterShape } from './splitter'
 
@@ -46,6 +47,7 @@ export type SymbolShape =
   | 'probe'
   | 'sensor'
   | 'memory'
+  | 'sevenSegment'
   | 'splitter'
   | 'pinInput'
   | 'pinOutput'
@@ -100,6 +102,7 @@ const BUILDERS: Readonly<Record<SymbolShape, ShapeBuilder>> = {
   probe: probeShape,
   sensor: sensorShape,
   memory: memoryShape,
+  sevenSegment: sevenSegmentShape,
   splitter: splitterShape,
   pinInput: pinInputShape,
   pinOutput: pinOutputShape,
