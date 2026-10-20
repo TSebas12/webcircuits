@@ -230,6 +230,9 @@ export class Canvas2DRenderer implements IRenderer {
 
 /** Pinta una pieza suelta. Reutilizado por las dos capas. */
 function paintItem(ctx: CanvasRenderingContext2D, item: DrawItem, theme: RenderTheme): void {
+  const alpha = 'layerOpacity' in item ? (item.layerOpacity ?? 1) : 1
+  ctx.save()
+  ctx.globalAlpha = alpha
   switch (item.kind) {
     case 'junction':
       drawJunction(ctx, item, theme)
@@ -244,4 +247,5 @@ function paintItem(ctx: CanvasRenderingContext2D, item: DrawItem, theme: RenderT
       drawPinDot(ctx, item, theme)
       break
   }
+  ctx.restore()
 }

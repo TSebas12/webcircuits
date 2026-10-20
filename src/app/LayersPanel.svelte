@@ -11,12 +11,14 @@
 
   let layers = $state<Layer[]>([])
   let activeId = $state('principal')
+  let dim = $state(false)
   const activeIndex = $derived(layers.findIndex((layer) => layer.id === activeId))
 
   const refresh = (): void => {
     if (editor === null) return
     layers = [...editor.diagram.layersList]
     activeId = editor.diagram.activeLayerId
+    dim = editor.diagram.dimOtherLayers
   }
 
   onMount(() => {
@@ -83,6 +85,30 @@
     refresh()
   }
 
+  const toggleDim = (): void => {
+    if (editor === null) return
+    editor.diagram.dimOtherLayers = !editor.diagram.dimOtherLayers
+    refresh()
+  }
+
+  // Arrastrar filas para reordenar (M5).
+  let dragIndex = $state<number | null>(null)
+  const onDragStart = (index: number): void => {
+    dragIndex = index
+  }
+  const onDragOver = (event: DragEvent): void => {
+    event.preventDefault()
+  }
+  const onDrop = (index: number): void => {
+    if (dragIndex === null || editor === null) return
+    const id = layers[dragIndex]?.id
+    if (id !== undefined) {
+      editor.diagram.moveLayerTo(id, index)
+    }
+    dragIndex = null
+    refresh()
+  }
+
   const selectAll = (): void => {
     editor?.selectAllInLayer(activeId)
     refresh()
@@ -120,8 +146,14 @@
     </span>
   </header>
   <ul>
-    {#each layers as layer (layer.id)}
-      <li class:active={layer.id === activeId}>
+    {#each layers as layer, index (layer.id)}
+      <li
+        class:active={layer.id === activeId}
+        draggable="true"
+        ondragstart={() => onDragStart(index)}
+        ondragover={onDragOver}
+        ondrop={() => onDrop(index)}
+      >
         <button
           type="button"
           class="use"
@@ -188,6 +220,9 @@
     </button>
     <button type="button" title="Mostrar todas las capas" onclick={showAll}>
       <Icon name="eye" size={12} /><span>Ver todas</span>
+    </button>
+    <button type="button" title="Atenuar las demás capas" class:on={dim} onclick={toggleDim}>
+      <Icon name="eye" size={12} /><span>{dim ? 'Atenuando' : 'Atenuar'}</span>
     </button>
     <button type="button" title="Seleccionar todas las piezas de la capa activa" onclick={selectAll}>
       <Icon name="grid" size={12} /><span>Todo</span>

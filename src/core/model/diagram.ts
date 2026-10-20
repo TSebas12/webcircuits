@@ -64,6 +64,7 @@ export class Diagram {
   private markerList: CircuitMarker[] = []
   /** Capa donde caen los elementos nuevos. No se guarda: es estado de edición. */
   private activeLayer: Id = DEFAULT_LAYER_ID
+  private dimOthers = false
   private readonly listeners = new Set<() => void>()
   private counter = 0
   private layerCounter = 0
@@ -595,6 +596,14 @@ export class Diagram {
     this.ensureActiveLayerVisible()
   }
 
+  /** Si es true, las capas que no son la activa se atenúan en el render (M5). */
+  get dimOtherLayers(): boolean {
+    return this.dimOthers
+  }
+  set dimOtherLayers(value: boolean) {
+    this.dimOthers = value
+  }
+
   /**
    * Deja visible la capa activa.
    *
@@ -793,6 +802,24 @@ export class Diagram {
       const [layer] = next.splice(index, 1)
       if (layer !== undefined) {
         next.splice(target, 0, layer)
+      }
+      this.layers = next
+      this.changed()
+    })
+    return true
+  }
+
+  /** Mueve una capa a una posición concreta (para arrastrar filas en el panel). */
+  moveLayerTo(id: Id, targetIndex: number): boolean {
+    const index = this.layers.findIndex((layer) => layer.id === id)
+    if (index < 0 || targetIndex < 0 || targetIndex >= this.layers.length || index === targetIndex) {
+      return false
+    }
+    this.change(() => {
+      const next = [...this.layers]
+      const [layer] = next.splice(index, 1)
+      if (layer !== undefined) {
+        next.splice(targetIndex, 0, layer)
       }
       this.layers = next
       this.changed()

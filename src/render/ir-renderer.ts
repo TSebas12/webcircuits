@@ -70,6 +70,11 @@ export interface DrawDevice {
   readonly hovered?: boolean
   readonly state: DeviceState
   /**
+   * Opacidad efectiva de la capa a la que pertenece (M5). El render la aplica como
+   * `globalAlpha` al pintar el símbolo.
+   */
+  readonly layerOpacity?: number
+  /**
    * Texto que va dentro del símbolo: el valor de una constante, el nombre de un subcircuito
    * o el de un pin de hoja. No se guarda en la silueta porque cambia con el elemento.
    */
@@ -90,6 +95,10 @@ export interface DrawWire {
   readonly bus: boolean
   /** Color forzado a mano para este cable (M6-14). Gana al color por estado. */
   readonly color?: string
+  /**
+   * Opacidad efectiva de la capa a la que pertenece (M5).
+   */
+  readonly layerOpacity?: number
   /**
    * Es un cable **provisional** (el que se está tendiendo), no del circuito.
    *

@@ -58,6 +58,7 @@ function mixItem(hash: number, item: DrawItem): number {
       result = mix(result, STATE_CODE[item.state] ?? 0)
       result = mix(result, item.selected ? 1 : 0)
       result = mix(result, item.hovered === true ? 1 : 0)
+      result = mix(result, Math.round(((item as { layerOpacity?: number }).layerOpacity ?? 1) * 1000))
       for (const character of item.shape) {
         result = mix(result, character.charCodeAt(0))
       }
@@ -69,6 +70,7 @@ function mixItem(hash: number, item: DrawItem): number {
       result = mix(result, item.p2.y)
       result = mix(result, item.selected ? 1 : 0)
       result = mix(result, item.hovered === true ? 1 : 0)
+      result = mix(result, Math.round(((item as { layerOpacity?: number }).layerOpacity ?? 1) * 1000))
       result = mix(result, item.overlay === true ? 1 : 0)
       result = mix(result, item.bus ? 1 : 0)
       result = mix(result, item.signal === 'high' ? 3 : item.signal === 'low' ? 2 : item.signal === 'floating' ? 1 : 0)
@@ -269,6 +271,9 @@ export class StaticLayerCache {
     ctx.lineCap = 'round'
 
     for (const item of items) {
+      const alpha = 'layerOpacity' in item ? (item.layerOpacity ?? 1) : 1
+      ctx.save()
+      ctx.globalAlpha = alpha
       switch (item.kind) {
         case 'junction':
           drawJunction(ctx, item, theme)
@@ -280,6 +285,7 @@ export class StaticLayerCache {
           drawDevice(ctx, item, theme)
           break
       }
+      ctx.restore()
     }
     return canvas
   }
