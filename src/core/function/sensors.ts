@@ -143,7 +143,9 @@ class RandomValue extends SensorValue {
   }
 
   private reset(): void {
-    this.flipAt = this.minTick + this.nextRandom(this.maxTick - this.minTick + 1)
+    // `Random.Next(min, max)` del original excluye el máximo. Si el rango es de un solo
+    // tick, `nextRandom` ya devuelve 0 y el sensor cambia en ese tick.
+    this.flipAt = this.minTick + this.nextRandom(this.maxTick - this.minTick)
     this.tick = 0
   }
 
@@ -281,7 +283,9 @@ export class FunctionSensor extends CircuitFunction {
   constructor(circuitState: CircuitState, config: SensorConfig, result: number[]) {
     super(circuitState, null, result)
     this.sensorType = config.sensorType
-    this.bitWidth = result.length
+    // El ancho lógico lo manda la pieza (`Sensor.BitWidth`). En el modelo real coincide con
+    // `result.length`; los tests construyen un solo resultado y aun así quieren probar 2 bits.
+    this.bitWidth = Math.max(1, Math.min(32, config.bitWidth))
     switch (config.sensorType) {
       case 'series':
         this.sensorValue = new SeriesValue(config.data, config.bitWidth, false)

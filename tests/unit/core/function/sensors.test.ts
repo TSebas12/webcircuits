@@ -62,6 +62,25 @@ describe('sensores básicos (M2-12)', () => {
     expect(sensor.value).toBe(0)
   })
 
+  it('el sensor aleatorio cambia dentro del intervalo, sin incluir el máximo', () => {
+    const { state, result } = stateWithResult()
+    const mirror = new CircuitState(2)
+    const expectedFlip = 10 + mirror.nextRandom(10)
+    mirror.nextRandom(4)
+
+    const sensor = new FunctionSensor(
+      state,
+      { sensorType: 'random', bitWidth: 2, data: 'A:14' },
+      [result],
+    )
+    state.endDefinition()
+
+    let ticks = 0
+    while (!sensor.flip()) ticks += 1
+    expect(ticks).toBe(expectedFlip)
+    expect(sensor.value).toBeLessThan(4)
+  })
+
   it('una serie respeta los ticks y se detiene', () => {
     const { state, result } = stateWithResult()
     const sensor = new FunctionSensor(state, { sensorType: 'series', bitWidth: 4, data: '0:2 2:A' }, [result])
