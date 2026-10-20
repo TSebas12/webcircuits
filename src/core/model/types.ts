@@ -238,6 +238,8 @@ export interface Gate extends Device {
   readonly bitWidth?: number
   /** Salida negada: así se hace una NAND (`gateType: 'and'` + `invertedOutput`). */
   readonly invertedOutput: boolean
+  /** Retardo de propagación de la compuerta, en unidades de tiempo (M7B). Por defecto 0 (ideal). */
+  readonly delay?: number
 }
 
 /**
