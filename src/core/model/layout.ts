@@ -305,6 +305,14 @@ export function soundLayout(pinSide: PinSide): SymbolLayout {
   return symbolLayout(specs, { width: Math.max(3, base.width), height: Math.max(3, base.height) })
 }
 
+export function graphicsArrayLayout(): SymbolLayout {
+  return { width: 4, height: 4, pins: [] }
+}
+
+export function ledMatrixLayout(): SymbolLayout {
+  return { width: 4, height: 4, pins: [] }
+}
+
 /** La forma de una memoria (original: `Memory`, caja con dirección a la izquierda y datos a la derecha). */
 export function memoryLayout(
   addressBitWidth: number,
@@ -505,6 +513,10 @@ export function deviceLayout(
       )
     case 'sound':
       return soundLayout(device.pinSide)
+    case 'graphicsArray':
+      return graphicsArrayLayout()
+    case 'ledMatrix':
+      return ledMatrixLayout()
     case 'button':
       return buttonLayout(device.inverted)
     case 'pin':

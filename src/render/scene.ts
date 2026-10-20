@@ -170,6 +170,10 @@ function shapeForDevice(element: DrawableDevice): SymbolShape | null {
       return 'memory'
     case 'sound':
       return 'sound'
+    case 'graphicsArray':
+      return 'graphicsArray'
+    case 'ledMatrix':
+      return 'ledMatrix'
     case 'splitter':
       return 'splitter'
     case 'circuit':

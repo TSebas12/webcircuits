@@ -17,6 +17,8 @@ import {
   sensorLayout,
   memoryLayout,
   soundLayout,
+  graphicsArrayLayout,
+  ledMatrixLayout,
   splitterLayout,
   type SymbolLayout,
 } from '../../../src/core/model/layout'
@@ -83,6 +85,10 @@ function modelLayout(piece: Piece): SymbolLayout {
       return memoryLayout(4, 4)
     case 'sound':
       return soundLayout('left')
+    case 'graphicsArray':
+      return graphicsArrayLayout()
+    case 'ledMatrix':
+      return ledMatrixLayout()
     case 'splitter':
       return splitterLayout({
         kind: 'splitter',

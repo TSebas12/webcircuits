@@ -968,6 +968,19 @@ export class Editor {
             notation: el.notation,
           }).id
           break
+        case 'graphicsArray':
+          newId = this.diagram.addGraphicsArray(position, {
+            bitWidth: el.bitWidth,
+            width: el.width,
+            height: el.height,
+          }).id
+          break
+        case 'ledMatrix':
+          newId = this.diagram.addLedMatrix(position, {
+            rows: el.rows,
+            columns: el.columns,
+          }).id
+          break
         case 'circuit':
           newId = this.diagram.addCircuitInstance(position, el.targetCircuitId).id
           break

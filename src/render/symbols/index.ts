@@ -28,6 +28,8 @@ import { sensorShape } from './sensor'
 import { sevenSegmentShape } from './seven-segment'
 import { memoryShape } from './memory'
 import { soundShape } from './sound'
+import { graphicsArrayShape } from './graphics-array'
+import { ledMatrixShape } from './led-matrix'
 import { splitterShape } from './splitter'
 
 /** Las formas que sabemos dibujar. Irá creciendo con los símbolos nuevos. */
@@ -49,6 +51,8 @@ export type SymbolShape =
   | 'sensor'
   | 'memory'
   | 'sound'
+  | 'graphicsArray'
+  | 'ledMatrix'
   | 'sevenSegment'
   | 'splitter'
   | 'pinInput'
@@ -105,6 +109,8 @@ const BUILDERS: Readonly<Record<SymbolShape, ShapeBuilder>> = {
   sensor: sensorShape,
   memory: memoryShape,
   sound: soundShape,
+  graphicsArray: graphicsArrayShape,
+  ledMatrix: ledMatrixShape,
   sevenSegment: sevenSegmentShape,
   splitter: splitterShape,
   pinInput: pinInputShape,

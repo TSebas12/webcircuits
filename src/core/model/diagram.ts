@@ -23,7 +23,7 @@
 import { deviceBounds, deviceLayout, pinPosition, type CircuitResolver } from './layout'
 import type { CircuitAnnotation, CircuitMarker } from './overlay'
 import { defaultSensorData, isSensorType } from './sensor'
-import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Memory, MemoryOnStart, Pin, PinSide, PinType, PlacedElement, Probe, Rotation, Sensor, Sound, Splitter, StoredElement, Wire } from './types'
+import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GraphicsArray, GridPoint, GridRect, Id, Layer, LedMatrix, Memory, MemoryOnStart, Pin, PinSide, PinType, PlacedElement, Probe, Rotation, Sensor, Sound, Splitter, StoredElement, Wire } from './types'
 import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
@@ -588,6 +588,47 @@ export class Diagram {
       this.items.set(sound.id, sound)
       this.changed()
       return sound
+    })
+  }
+
+  /** Coloca una matriz gráfica. */
+  addGraphicsArray(position: GridPoint, options: { readonly bitWidth?: number; readonly width?: number; readonly height?: number } = {}): GraphicsArray {
+    return this.change(() => {
+      const id = this.nextId('graphicsArray')
+      const ga: GraphicsArray = {
+        kind: 'graphicsArray',
+        id,
+        circuitId: this.circuitId,
+        layerId: this.activeLayer,
+        position,
+        rotation: 'up',
+        bitWidth: Math.max(1, Math.min(32, options.bitWidth ?? 8)),
+        width: Math.max(1, options.width ?? 8),
+        height: Math.max(1, options.height ?? 8),
+      }
+      this.items.set(ga.id, ga)
+      this.changed()
+      return ga
+    })
+  }
+
+  /** Coloca una matriz de LED. */
+  addLedMatrix(position: GridPoint, options: { readonly rows?: number; readonly columns?: number } = {}): LedMatrix {
+    return this.change(() => {
+      const id = this.nextId('ledMatrix')
+      const lm: LedMatrix = {
+        kind: 'ledMatrix',
+        id,
+        circuitId: this.circuitId,
+        layerId: this.activeLayer,
+        position,
+        rotation: 'up',
+        rows: Math.max(1, Math.min(32, options.rows ?? 8)),
+        columns: Math.max(1, Math.min(32, options.columns ?? 8)),
+      }
+      this.items.set(lm.id, lm)
+      this.changed()
+      return lm
     })
   }
 

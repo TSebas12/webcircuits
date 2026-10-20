@@ -218,6 +218,8 @@ export type DrawableDevice =
   | Splitter
   | Memory
   | Sound
+  | GraphicsArray
+  | LedMatrix
 
 /** Un símbolo colocado sobre la rejilla. */
 export interface Device extends ElementBase {
@@ -272,6 +274,7 @@ export interface Sound extends Device {
   /** Notación del altavoz. */
   readonly notation: string
 }
+
 
 /**
  * Memoria (ROM o RAM) (original: `Memory`).

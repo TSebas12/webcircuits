@@ -26,6 +26,8 @@ import {
   sensorLayout,
   memoryLayout,
   soundLayout,
+  graphicsArrayLayout,
+  ledMatrixLayout,
   splitterLayout,
   type SymbolLayout,
 } from '../core/model/layout'
@@ -106,6 +108,14 @@ interface SoundPiece extends PieceBase {
   readonly kind: 'sound'
 }
 
+interface GraphicsArrayPiece extends PieceBase {
+  readonly kind: 'graphicsArray'
+}
+
+interface LedMatrixPiece extends PieceBase {
+  readonly kind: 'ledMatrix'
+}
+
 export type Piece =
   | GatePiece
   | ButtonPiece
@@ -116,6 +126,8 @@ export type Piece =
   | SensorPiece
   | MemoryPiece
   | SoundPiece
+  | GraphicsArrayPiece
+  | LedMatrixPiece
 
 /**
  * Cuántas entradas se pueden pedir desde el panel.
@@ -322,6 +334,20 @@ export const PIECES = [
     group: 'io',
   },
   {
+    kind: 'graphicsArray',
+    id: 'graphicsArray',
+    label: 'Matriz gráfica',
+    title: 'Matriz gráfica: memoria de píxeles direccionada',
+    group: 'io',
+  },
+  {
+    kind: 'ledMatrix',
+    id: 'ledMatrix',
+    label: 'Matriz LED',
+    title: 'Matriz de LED: muestra un valor de varios bits',
+    group: 'io',
+  },
+  {
     kind: 'button',
     id: 'button',
     label: 'Interruptor',
@@ -473,6 +499,10 @@ export function pieceLayout(piece: Piece, chosen: number): SymbolLayout {
       return memoryLayout(4, 4)
     case 'sound':
       return soundLayout('left')
+    case 'graphicsArray':
+      return graphicsArrayLayout()
+    case 'ledMatrix':
+      return ledMatrixLayout()
     case 'splitter':
       return splitterLayout(previewSplitter(piece))
   }
@@ -503,6 +533,10 @@ export function pieceShape(piece: Piece): SymbolShape | null {
       return 'memory'
     case 'sound':
       return 'sound'
+    case 'graphicsArray':
+      return 'graphicsArray'
+    case 'ledMatrix':
+      return 'ledMatrix'
     case 'splitter':
       return 'splitter'
     default:
@@ -554,6 +588,10 @@ export function placePiece(
       return diagram.addMemory(position)
     case 'sound':
       return diagram.addSound(position)
+    case 'graphicsArray':
+      return diagram.addGraphicsArray(position)
+    case 'ledMatrix':
+      return diagram.addLedMatrix(position)
     case 'splitter':
       return diagram.addSplitter(position, {
         bitWidth: piece.bitWidth,

@@ -102,6 +102,10 @@ function serializeElement(el: StoredElement): SerializedElement {
       }
     case 'sound':
       return { ...dev, pinSide: el.pinSide, notation: el.notation }
+    case 'graphicsArray':
+      return { ...dev, bitWidth: el.bitWidth, width: el.width, height: el.height }
+    case 'ledMatrix':
+      return { ...dev, rows: el.rows, columns: el.columns }
     case 'splitter':
       return { ...dev, bitWidth: el.bitWidth, pinCount: el.pinCount, clockwise: el.clockwise }
     case 'circuit':
@@ -274,6 +278,21 @@ function deserializeElement(raw: SerializedElement): StoredElement {
         ...deviceBase,
         pinSide: (raw.pinSide as PinSide) ?? 'left',
         notation: (raw.notation as string) ?? '',
+      }
+    case 'graphicsArray':
+      return {
+        kind: 'graphicsArray',
+        ...deviceBase,
+        bitWidth: (raw.bitWidth as number) ?? 8,
+        width: (raw.width as number) ?? 8,
+        height: (raw.height as number) ?? 8,
+      }
+    case 'ledMatrix':
+      return {
+        kind: 'ledMatrix',
+        ...deviceBase,
+        rows: (raw.rows as number) ?? 8,
+        columns: (raw.columns as number) ?? 8,
       }
     case 'splitter':
       return {
