@@ -394,6 +394,9 @@ describe('mapa de simulación (portado de CircuitMap.cs)', () => {
         addressBitWidth: 2,
         dataBitWidth: 2,
         isRom: false,
+        writeOn1: false,
+        onStart: 'random',
+        dualPort: false,
       },
     ])
     const index = projectIndex(project(withMemory))

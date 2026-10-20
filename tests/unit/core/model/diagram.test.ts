@@ -264,6 +264,9 @@ describe('la vista del editor y los datos guardados', () => {
       addressBitWidth: 4,
       dataBitWidth: 8,
       isRom: true,
+      writeOn1: false,
+      onStart: 'random',
+      dualPort: false,
     })
 
     expect(diagram.storedElements).toHaveLength(3)

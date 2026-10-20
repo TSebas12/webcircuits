@@ -7,7 +7,7 @@ import { CircuitProject } from '../model/circuit'
 import { MAIN_CIRCUIT_ID } from '../model/diagram'
 import { DEFAULT_LAYER_ID } from '../model/types'
 import type { CircuitAnnotation, CircuitMarker } from '../model/overlay'
-import type { GridPoint, Layer, PinSide, PinType, StoredElement } from '../model/types'
+import type { GridPoint, Layer, MemoryOnStart, PinSide, PinType, StoredElement } from '../model/types'
 
 export const FORMAT_NAME = 'webcircuits'
 export const FORMAT_VERSION = 1
@@ -95,6 +95,9 @@ function serializeElement(el: StoredElement): SerializedElement {
         addressBitWidth: el.addressBitWidth,
         dataBitWidth: el.dataBitWidth,
         isRom: el.isRom,
+        writeOn1: el.writeOn1,
+        onStart: el.onStart,
+        dualPort: el.dualPort,
         data: el.data,
       }
     case 'splitter':
@@ -258,6 +261,9 @@ function deserializeElement(raw: SerializedElement): StoredElement {
         addressBitWidth: (raw.addressBitWidth as number) ?? 4,
         dataBitWidth: (raw.dataBitWidth as number) ?? 4,
         isRom: (raw.isRom as boolean) ?? false,
+        writeOn1: (raw.writeOn1 as boolean) ?? false,
+        onStart: ((raw.onStart as MemoryOnStart) ?? 'random'),
+        dualPort: (raw.dualPort as boolean) ?? false,
         data: raw.data as string | undefined,
       }
     case 'splitter':

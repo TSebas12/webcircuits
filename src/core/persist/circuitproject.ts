@@ -19,7 +19,7 @@ import { CircuitProject } from '../model/circuit'
 import { MAIN_CIRCUIT_ID } from '../model/diagram'
 import { isSensorType } from '../model/sensor'
 import { DEFAULT_LAYER_ID } from '../model/types'
-import type { GateType, PinSide, PinType, Rotation, StoredElement } from '../model/types'
+import type { GateType, MemoryOnStart, PinSide, PinType, Rotation, StoredElement } from '../model/types'
 
 const NS = 'http://LogicCircuit.net/2.0.0.15/CircuitProject.xsd'
 
@@ -239,6 +239,9 @@ export function importCircuitProject(xml: string): CircuitProject {
     addressBitWidth: number
     dataBitWidth: number
     isRom: boolean
+    writeOn1: boolean
+    onStart: MemoryOnStart
+    dualPort: boolean
     data?: string
   }
   const memories = new Map<string, MemoryInfo>()
@@ -247,9 +250,12 @@ export function importCircuitProject(xml: string): CircuitProject {
     if (id === null) continue
     const writable = (attr(m, 'Writable') ?? '').toLowerCase() === 'true'
     memories.set(id, {
-      addressBitWidth: Math.max(1, Math.min(32, numAttr(m, 'AddressBitWidth', 4))),
+      addressBitWidth: Math.max(1, Math.min(16, numAttr(m, 'AddressBitWidth', 4))),
       dataBitWidth: Math.max(1, Math.min(32, numAttr(m, 'DataBitWidth', 4))),
       isRom: !writable,
+      writeOn1: (attr(m, 'WriteOn1') ?? '').toLowerCase() === 'true',
+      onStart: 'random',
+      dualPort: (attr(m, 'DualPort') ?? '').toLowerCase() === 'true',
       data: attr(m, 'Data') ?? undefined,
     })
   }
@@ -336,7 +342,7 @@ function symbolElement(
   }
   const memory = memories.get(target)
   if (memory) {
-    return { kind: 'memory', ...base, ...memory }
+    return { kind: 'memory', ...base, ...(memory as Record<string, unknown>) } as StoredElement
   }
   const button = buttons.get(target)
   if (button) {
@@ -426,7 +432,7 @@ export function exportCircuitProject(project: CircuitProject): string {
       } else if (el.kind === 'memory') {
         const writable = el.isRom ? 'False' : 'True'
         lines.push(
-          `  <lc:Memory MemoryId="${escapeXml(el.id)}" Writable="${writable}" AddressBitWidth="${el.addressBitWidth}" DataBitWidth="${el.dataBitWidth}"${el.data !== undefined ? ` Data="${escapeXml(el.data)}"` : ''} />`,
+          `  <lc:Memory MemoryId="${escapeXml(el.id)}" Writable="${writable}" WriteOn1="${el.writeOn1}" DualPort="${el.dualPort}" AddressBitWidth="${el.addressBitWidth}" DataBitWidth="${el.dataBitWidth}"${el.data !== undefined ? ` Data="${escapeXml(el.data)}"` : ''} />`,
         )
       }
     }

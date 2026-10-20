@@ -48,6 +48,7 @@ import type { CircuitFunction } from '../function/circuit-function'
 import { FunctionButton, FunctionClock, FunctionConstant, FunctionLed } from '../function/devices'
 import { FunctionProbe } from '../function/probes'
 import { FunctionSensor } from '../function/sensors'
+import { FunctionMemory } from '../function/memory'
 import type { SensorType } from '../function/sensors'
 import type { IFunctionVisual } from '../function/interfaces'
 import {
@@ -848,9 +849,12 @@ function validate(list: SymbolMapList): void {
   for (const symbolMap of list.symbolMaps) {
     const depicted = symbolMap.circuitSymbol.depicted
     if (depicted.kind === 'device' && depicted.element.kind === 'memory') {
-      // TODO(M2-05): cuando el modelo tenga `onStart`, comprobar que dos memorias que
-      // conservan sus datos no arranquen con los mismos datos iniciales.
-      persisted.add(symbolMap.circuitSymbol)
+      const mem = depicted.element
+      if (!mem.isRom && mem.onStart === 'data') {
+        if (!persisted.add(symbolMap.circuitSymbol)) {
+          throw new CircuitError('Dos memorias que conservan sus datos no pueden arrancar con los mismos datos iniciales.')
+        }
+      }
     }
   }
 }
@@ -911,6 +915,11 @@ function applySymbol(
 
   if (depicted.kind === 'device' && depicted.element.kind === 'sensor') {
     defineSensor(depicted.element, circuitState, symbolMap)
+    return
+  }
+
+  if (depicted.kind === 'device' && depicted.element.kind === 'memory') {
+    defineMemory(depicted.element, circuitState, symbolMap)
     return
   }
 
@@ -995,6 +1004,67 @@ function defineSensor(
     bitWidth: sensor.bitWidth,
     data: sensor.data,
   }, map)
+}
+
+function defineMemory(
+  memory: { readonly addressBitWidth: number; readonly dataBitWidth: number; readonly isRom: boolean; readonly writeOn1: boolean; readonly onStart: 'random' | 'zeros' | 'ones' | 'data'; readonly dualPort: boolean; readonly data?: string },
+  circuitState: CircuitState,
+  symbolMap: SymbolMap,
+): FunctionMemory | null {
+  const jams = jamsByPinOrder(symbolMap.circuitSymbol)
+  const results = [...symbolMap.results].sort((a, b) => a.bitNumber - b.bitNumber)
+  const dataResults = results.slice(0, memory.dataBitWidth).map((r) => r.stateIndex)
+  if (dataResults.length === 0) {
+    return null
+  }
+  // Pines: address (left), dataOut (right), [dataIn (left), write (bottom)], [address2, dataOut2].
+  const addressJam = jams[0]!
+  const addressIndexes = new Array<number>(memory.addressBitWidth).fill(-1)
+  for (const p of symbolMap.allParameters(addressJam)) {
+    if (p.bitNumber >= 0 && p.bitNumber < addressIndexes.length) {
+      addressIndexes[p.bitNumber] = p.result.stateIndex
+    }
+  }
+  for (let _i = 0; _i < addressIndexes.length; _i++) {
+    if (addressIndexes[_i]! < 0) addressIndexes[_i] = circuitState.reserveState()
+  }
+
+  let inputDataIndexes: number[] | null = null
+  let writeIndex = -1
+  if (!memory.isRom) {
+    const dataInJam = jams[2]
+    const idx = new Array<number>(memory.dataBitWidth).fill(-1)
+    if (dataInJam !== undefined) {
+      for (const p of symbolMap.allParameters(dataInJam)) {
+        if (p.bitNumber >= 0 && p.bitNumber < idx.length) {
+          idx[p.bitNumber] = p.result.stateIndex
+        }
+      }
+    }
+    for (let i = 0; i < idx.length; i++) {
+      if (idx[i]! < 0) idx[i] = circuitState.reserveState()
+    }
+    inputDataIndexes = idx
+
+    const writeJam = jams[3]
+    if (writeJam !== undefined) {
+      const w = symbolMap.parameter(writeJam, 0)
+      writeIndex = w !== null ? w.result.stateIndex : -1
+    }
+    if (writeIndex < 0) {
+      writeIndex = circuitState.reserveState()
+    }
+  }
+
+  const fn = new FunctionMemory(
+    circuitState,
+    addressIndexes.length > 0 ? addressIndexes : Array.from({ length: memory.addressBitWidth }, (_, _i) => 0),
+    memory.isRom ? null : inputDataIndexes,
+    dataResults,
+    memory.isRom ? 0 : writeIndex,
+    memory,
+  )
+  return fn
 }
 
 /**

@@ -267,11 +267,19 @@ export interface Probe extends Device {
 /**
  * Memoria (ROM o RAM) (original: `Memory`).
  */
+export type MemoryOnStart = 'random' | 'zeros' | 'ones' | 'data'
+
 export interface Memory extends Device {
   readonly kind: 'memory'
   readonly addressBitWidth: number
   readonly dataBitWidth: number
   readonly isRom: boolean
+  /** Polaridad del pin de escritura: escribe cuando la señal coincide con este valor. */
+  readonly writeOn1: boolean
+  /** Estado inicial de la RAM al arrancar. */
+  readonly onStart: MemoryOnStart
+  /** Si es verdadero, la memoria tiene un segundo puerto (dirección + datos). */
+  readonly dualPort: boolean
   /** Datos ROM (base64), si los tiene. */
   readonly data?: string
 }

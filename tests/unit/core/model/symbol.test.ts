@@ -336,6 +336,9 @@ describe('lo que todavía no está portado', () => {
       addressBitWidth: 4,
       dataBitWidth: 8,
       isRom: true,
+      writeOn1: false,
+      onStart: 'random',
+      dualPort: false,
     }
     const index = new SymbolIndex(projectSymbolSource(smallProject(memory)))
     index.addCircuit(mainCircuit(memory))
