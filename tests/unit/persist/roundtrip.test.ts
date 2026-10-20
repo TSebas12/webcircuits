@@ -1,19 +1,21 @@
 // @vitest-environment jsdom
-import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { importCircuitProject, exportCircuitProject } from '../../../src/core/persist/circuitproject'
 
-const FIXTURES = join(process.cwd(), 'tests', 'fixtures')
+const fixtures = import.meta.glob('../../../tests/fixtures/*.CircuitProject', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
 
 describe('M4-11 ida y vuelta con fixtures', () => {
-  const files = readdirSync(FIXTURES).filter((f) => f.endsWith('.CircuitProject'))
+  const entries = Object.entries(fixtures)
   it('hay fixtures que probar', () => {
-    expect(files.length).toBeGreaterThan(0)
+    expect(entries.length).toBeGreaterThan(0)
   })
-  for (const file of files) {
-    it(`round-trip: ${file}`, { timeout: 120000 }, () => {
-      const xml = readFileSync(join(FIXTURES, file), 'utf8')
+  for (const [path, xml] of entries) {
+    const name = path.split('/').pop()!
+    it(`round-trip: ${name}`, { timeout: 120000 }, () => {
       const project = importCircuitProject(xml)
       const out = exportCircuitProject(project)
       const project2 = importCircuitProject(out)
