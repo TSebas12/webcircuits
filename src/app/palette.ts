@@ -34,6 +34,7 @@ import type {
   PinType,
   Splitter,
 } from '../core/model/types'
+import { shapeForGate, type SymbolShape } from '../render/symbols'
 
 export type PieceGroup = 'gates' | 'tristate' | 'io' | 'pins' | 'bits'
 
@@ -356,6 +357,30 @@ export function pieceLayout(piece: Piece, chosen: number): SymbolLayout {
       return constantLayout(previewConstant(piece))
     case 'splitter':
       return splitterLayout(previewSplitter(piece))
+  }
+}
+
+/**
+ * La silueta que le toca a la pieza en la vista previa.
+ *
+ * Vive aquí, junto a `pieceLayout`, para que la paleta y el lienzo no se separen cuando se
+ * añade un tipo de pieza. Si una pieza no tiene silueta devuelve `null` y la vista previa se
+ * queda vacía, pero no revienta.
+ */
+export function pieceShape(piece: Piece): SymbolShape | null {
+  switch (piece.kind) {
+    case 'gate':
+      return shapeForGate(piece.gateType, piece.invertedOutput)
+    case 'button':
+      return 'button'
+    case 'pin':
+      return piece.pinType === 'output' ? 'pinOutput' : 'pinInput'
+    case 'constant':
+      return 'constant'
+    case 'splitter':
+      return 'splitter'
+    default:
+      return null
   }
 }
 

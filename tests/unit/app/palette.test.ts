@@ -3,7 +3,7 @@
 // se coloca y luego no se ve, o que revienta al dar corriente, es peor que no ofrecerla.
 
 import { describe, expect, it } from 'vitest'
-import { PIECES, findPiece, pieceInputs, pieceLayout, placePiece } from '../../../src/app/palette'
+import { PIECES, findPiece, pieceInputs, pieceLayout, pieceShape, placePiece } from '../../../src/app/palette'
 import { Diagram } from '../../../src/core/model/diagram'
 import {
   buttonLayout,
@@ -20,7 +20,7 @@ import { projectIndex } from '../../../src/core/model/symbol'
 import { CircuitRunner } from '../../../src/core/simulate/circuit-runner'
 import { devicesSnapshot } from '../../../src/core/simulate/snapshot'
 import type { DeviceState } from '../../../src/core/model/types'
-import { shapeForGate } from '../../../src/render/symbols'
+import { symbolDrawing, type SymbolShape } from '../../../src/render/symbols'
 import { installFakePath2D } from '../support/canvas'
 import type { Circuit, Element, Project } from '../../../src/core/model/types'
 import type { Piece } from '../../../src/app/palette'
@@ -43,22 +43,6 @@ const MUDOS_SIN_HABILITAR = new Set(['triState1', 'triState2'])
 const SIGNAL_PIECES = PIECES.filter(
   (piece) => piece.kind === 'gate' || piece.kind === 'button' || piece.kind === 'constant',
 )
-
-/** La silueta que le toca a una pieza de la paleta, para comprobar que se puede dibujar. */
-function pieceShape(piece: Piece): string | null {
-  switch (piece.kind) {
-    case 'gate':
-      return shapeForGate(piece.gateType, piece.invertedOutput)
-    case 'button':
-      return 'button'
-    case 'pin':
-      return piece.pinType === 'output' ? 'pinOutput' : 'pinInput'
-    case 'constant':
-      return 'constant'
-    case 'splitter':
-      return 'splitter'
-  }
-}
 
 /** El hueco que debería reservar una pieza según el modelo. */
 function modelLayout(piece: Piece): SymbolLayout {
@@ -192,8 +176,18 @@ describe('el catálogo de piezas (M2-27)', () => {
 
   it('todas se pueden dibujar: si no se viera, no estaría en la paleta', () => {
     for (const piece of PIECES) {
-      expect(pieceShape(piece), piece.id).not.toBeNull()
+      const shape = pieceShape(piece)
+      expect(shape, piece.id).not.toBeNull()
+      if (shape !== null) {
+        // No basta con que la pieza diga una forma: el registro tiene que saber construirla.
+        expect(() => symbolDrawing(shape, 2, 2), piece.id).not.toThrow()
+      }
     }
+  })
+
+  it('una forma desconocida cae en una caja y no rompe la vista previa', () => {
+    // Protege una pestaña con HMR viejo: una pieza nueva con una silueta que aún no existe.
+    expect(() => symbolDrawing('forma-futura' as SymbolShape, 2, 2)).not.toThrow()
   })
 
   it('todas se pueden simular: cableadas, el circuito se asienta y da señal', () => {

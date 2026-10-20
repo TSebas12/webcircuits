@@ -22,6 +22,7 @@ import { ledShape } from './led'
 import { notShape, triState1Shape, triState2Shape } from './not'
 import { orShape, xorShape } from './or'
 import { pinInputShape, pinOutputShape } from './pin'
+import { roundedRect } from './rounded-rect'
 import { splitterShape } from './splitter'
 
 /** Las formas que sabemos dibujar. Irá creciendo con los símbolos nuevos. */
@@ -101,6 +102,20 @@ const BUILDERS: Readonly<Record<SymbolShape, ShapeBuilder>> = {
 const cache = new Map<string, SymbolDrawing>()
 
 /**
+ * Caja neutra para una forma que no está en el registro.
+ *
+ * No se espera llegar aquí con el código actual, pero una pestaña abierta mientras se
+ * actualizan los módulos (HMR) puede quedarse con una pieza nueva y una lista de siluetas
+ * vieja. En ese caso es mejor enseñar una caja que tumbar el `$effect` de la vista previa:
+ * una excepción ahí deja la interfaz sin responder.
+ */
+function unknownShape(width: number, height: number): SymbolDrawing {
+  const body = new Path2D()
+  roundedRect(body, 0.1, 0.1, Math.max(0, width - 0.2), Math.max(0, height - 0.2), 0.15)
+  return { body, bodyFill: 'symbol' }
+}
+
+/**
  * La silueta de un símbolo, en unidades de rejilla.
  *
  * La primera vez la construye; después devuelve la misma instancia.
@@ -112,7 +127,10 @@ export function symbolDrawing(shape: SymbolShape, width: number, height: number)
     return cached
   }
 
-  const drawing = BUILDERS[shape](width, height)
+  // El `?` no es teórico: en una actualización en caliente pueden convivir una pieza nueva
+  // con este registro antiguo. La caja de reserva evita que la vista previa rompa la interfaz.
+  const builder = (BUILDERS as Readonly<Record<string, ShapeBuilder | undefined>>)[shape]
+  const drawing = builder === undefined ? unknownShape(width, height) : builder(width, height)
   cache.set(key, drawing)
   return drawing
 }

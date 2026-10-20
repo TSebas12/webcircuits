@@ -1,25 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import type { Piece } from './palette'
-  import { pieceLayout } from './palette'
-  import { shapeForGate, symbolDrawing, type SymbolShape } from '../render/symbols'
+  import { pieceLayout, pieceShape } from './palette'
+  import { symbolDrawing } from '../render/symbols'
   import { LIGHT_THEME } from '../core/theme/presets'
-
-  /** La silueta que le toca a la pieza. */
-  function shapeForPiece(piece: Piece): SymbolShape | null {
-    switch (piece.kind) {
-      case 'gate':
-        return shapeForGate(piece.gateType, piece.invertedOutput)
-      case 'button':
-        return 'button'
-      case 'pin':
-        return piece.pinType === 'output' ? 'pinOutput' : 'pinInput'
-      case 'constant':
-        return 'constant'
-      case 'splitter':
-        return 'splitter'
-    }
-  }
 
   let { piece }: { piece: Piece } = $props()
 
@@ -49,7 +33,7 @@
           : piece.inputCount
         : 2
     const layout = pieceLayout(piece, count)
-    const shape = shapeForPiece(piece)
+    const shape = pieceShape(piece)
     if (shape === null) return
 
     const drawing = symbolDrawing(shape, layout.width, layout.height)
