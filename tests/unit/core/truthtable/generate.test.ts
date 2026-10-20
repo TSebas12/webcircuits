@@ -111,6 +111,13 @@ describe('generación de tablas de verdad (M8)', () => {
     expect(table.rows[0]?.output).toEqual([1])
   })
 
+  it('evalúa filtros aritméticos sobre las columnas', () => {
+    const project = andProject()
+    const table = generateTruthTable(project, project.current, { filter: 'A + B == 2' })
+
+    expect(table.rows.map((row) => [...row.input, ...row.output])).toEqual([[1, 1, 1]])
+  })
+
   it('invierte el filtro', () => {
     const project = andProject()
     const table = generateTruthTable(project, project.current, {
