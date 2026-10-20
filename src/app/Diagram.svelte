@@ -10,6 +10,7 @@
   import CommandPalette from './CommandPalette.svelte'
 import Modal from './Modal.svelte'
 import ExamplePicker from './ExamplePicker.svelte'
+import TruthTablePanel from './components/truthtable/TruthTablePanel.svelte'
 import Icon from './Icon.svelte'
   import { deserializeProject, serializeProject } from '../core/persist/json'
   import { exportCircuitProject, importCircuitProject } from '../core/persist/circuitproject'
@@ -58,6 +59,7 @@ import Icon from './Icon.svelte'
   let hoverInfo = $state<{ x: number; y: number; value: number; bitWidth: number } | null>(null)
   let contextMenu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null)
   let showSettings = $state(false)
+  let showTruthTable = $state(false)
   let showThemeEditor = $state(false)
   let showCommandPalette = $state(false)
   let showConfirmClear = $state(false)
@@ -751,6 +753,15 @@ import Icon from './Icon.svelte'
     <button
       type="button"
       class="tool"
+      onclick={() => (showTruthTable = true)}
+      title="Tabla de verdad (M8)"
+      aria-label="Tabla de verdad"
+    >
+      <Icon name="table" />
+    </button>
+    <button
+      type="button"
+      class="tool"
       onclick={() => (showSettings = true)}
       title="Preferencias"
       aria-label="Preferencias"
@@ -1013,6 +1024,10 @@ import Icon from './Icon.svelte'
 
   {#if editor && !isEmpty}
     <Minimap {editor} />
+  {/if}
+
+  {#if showTruthTable && editor}
+    <TruthTablePanel {editor} onClose={() => (showTruthTable = false)} />
   {/if}
 
   {#if showSettings}
