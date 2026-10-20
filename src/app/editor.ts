@@ -89,10 +89,14 @@ import { loadSettings } from './settings'
 import {
   MAX_GATE_INPUTS,
   MIN_PIECE_INPUTS,
+  clampSplitterSettings,
   findPiece,
   pieceLayout,
   placePiece,
+  splitterDefaults,
+  type Piece,
   type PlaceTool,
+  type SplitterSettings,
 } from './palette'
 
 /**
@@ -288,6 +292,15 @@ export class Editor {
    * recuerda para que colocar tres ORs seguidas no obligue a elegir «3» tres veces.
    */
   private inputs = 2
+  /**
+   * Ajustes elegidos para cada pieza de la paleta, por identificador.
+   *
+   * Son cosa del panel, no del circuito: la pieza guarda lo que se eligió al colocarla. Se
+   * separan por pieza (y no un único número global) porque el original también deja configurar
+   * cada compuerta y cada repartidor por su cuenta.
+   */
+  private readonly paletteInputs = new Map<string, number>()
+  private readonly paletteSplitters = new Map<string, SplitterSettings>()
   private pan: PanState | null = null
   private drag: DragState | null = null
   /** Selección por área (M2-19): rectángulo en curso. */
@@ -622,6 +635,37 @@ export class Editor {
     const accepted = Math.max(MIN_PIECE_INPUTS, Math.min(MAX_GATE_INPUTS, Math.trunc(count)))
     this.inputs = Number.isFinite(accepted) ? accepted : MIN_PIECE_INPUTS
     return this.inputs
+  }
+
+  /**
+   * Fija cuántas entradas tendrá **esa** compuerta de la paleta y devuelve el número aceptado.
+   *
+   * Cada compuerta recuerda el suyo: cambiar la AND no toca la OR. Devuelve el valor recortado
+   * para que el selector de la interfaz no se quede enseñando un número que no se va a usar.
+   */
+  setPaletteInput(pieceId: string, count: number): number {
+    const accepted = Math.max(MIN_PIECE_INPUTS, Math.min(MAX_GATE_INPUTS, Math.trunc(count)))
+    const safe = Number.isFinite(accepted) ? accepted : MIN_PIECE_INPUTS
+    this.paletteInputs.set(pieceId, safe)
+    return safe
+  }
+
+  /**
+   * Cambia el reparto de un repartidor de la paleta y devuelve el reparto efectivo.
+   *
+   * Se pasa la pieza porque sus valores del catálogo son el punto de partida la primera vez.
+   */
+  setPaletteSplitter(
+    piece: Piece,
+    patch: Partial<SplitterSettings>,
+  ): SplitterSettings {
+    if (piece.kind !== 'splitter') {
+      return { pinCount: MIN_PIECE_INPUTS, bitsPerPin: 1, clockwise: true }
+    }
+    const current = this.paletteSplitters.get(piece.id) ?? splitterDefaults(piece)
+    const next = clampSplitterSettings({ ...current, ...patch })
+    this.paletteSplitters.set(piece.id, next)
+    return next
   }
 
   /** El subcircuito que se colocará con la herramienta `subcircuit`, si hay uno elegido. */
@@ -1722,6 +1766,28 @@ export class Editor {
   // ── Lo de dentro ──────────────────────────────────────────────────────
 
   /**
+   * La pieza del catálogo con los ajustes que se hayan elegido en la paleta.
+   *
+   * Se devuelve una copia para no mutar el catálogo: el original sigue siendo la plantilla de
+   * la próxima colocación.
+   */
+  private configuredPiece(piece: Piece): Piece {
+    if (piece.kind === 'gate' && piece.inputCount === 'variable') {
+      return { ...piece, inputCount: this.paletteInputs.get(piece.id) ?? this.inputs }
+    }
+    if (piece.kind === 'splitter') {
+      const settings = this.paletteSplitters.get(piece.id) ?? splitterDefaults(piece)
+      return {
+        ...piece,
+        pinCount: settings.pinCount,
+        bitWidth: settings.pinCount * settings.bitsPerPin,
+        clockwise: settings.clockwise,
+      }
+    }
+    return piece
+  }
+
+  /**
    * Coloca la pieza de la herramienta activa, centrada en la celda donde se hizo clic.
    *
    * El hueco se mide con el modelo (`pieceLayout`), no a ojo: si el dibujo y el hueco libre se
@@ -1748,7 +1814,7 @@ export class Editor {
       if (tool === 'select' || tool === 'erase' || tool === 'wire') {
         return
       }
-      piece = findPiece(tool)
+      piece = this.configuredPiece(findPiece(tool))
       size = pieceLayout(piece, this.placeInputs)
     }
 

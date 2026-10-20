@@ -6,7 +6,7 @@
 
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Editor, type EditorCallbacks, type HistoryState, type Tool } from '../../../src/app/editor'
-import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS } from '../../../src/app/palette'
+import { MAX_GATE_INPUTS, MIN_PIECE_INPUTS, findPiece } from '../../../src/app/palette'
 import { GRID_SIZE } from '../../../src/render/geometry'
 import type { Element } from '../../../src/core/model/types'
 import { DEFAULT_LAYER_ID } from '../../../src/core/model/types'
@@ -1119,6 +1119,57 @@ describe('las piezas de la paleta se colocan como las crea el original (M2-27)',
     expect(editor.setPlaceInputs(3.7)).toBe(3)
     expect(editor.setPlaceInputs(Number.NaN)).toBe(MIN_PIECE_INPUTS)
     expect(editor.placeInputs).toBe(MIN_PIECE_INPUTS)
+
+    dispose()
+  })
+
+  it('cada compuerta recuerda sus propias entradas', () => {
+    const { editor, canvas, dispose } = mount()
+
+    // Como en el panel del original: cambiar la AND no toca la OR.
+    expect(editor.setPaletteInput('or', 5)).toBe(5)
+    expect(editor.setPaletteInput('and', 3)).toBe(3)
+
+    const or = placeFromPalette(editor, canvas, 'or')
+    expect(or.kind === 'gate' && or.inputCount).toBe(5)
+    editor.diagram.remove(or.id)
+
+    const and = placeFromPalette(editor, canvas, 'and')
+    expect(and.kind === 'gate' && and.inputCount).toBe(3)
+
+    // El recorte también se devuelve por pieza.
+    expect(editor.setPaletteInput('and', 99)).toBe(MAX_GATE_INPUTS)
+
+    dispose()
+  })
+
+  it('el repartidor se coloca con el reparto elegido en la paleta', () => {
+    const { editor, canvas, dispose } = mount()
+
+    expect(
+      editor.setPaletteSplitter(findPiece('splitter-4'), {
+        pinCount: 3,
+        bitsPerPin: 1,
+        clockwise: false,
+      }),
+    ).toEqual({ pinCount: 3, bitsPerPin: 1, clockwise: false })
+
+    const splitter = placeFromPalette(editor, canvas, 'splitter-4')
+    if (splitter.kind !== 'splitter') {
+      throw new Error('la paleta debería colocar un repartidor')
+    }
+
+    expect(splitter.bitWidth).toBe(3)
+    expect(splitter.pinCount).toBe(3)
+    expect(splitter.clockwise).toBe(false)
+    expect(
+      placedPins(splitter)
+        .filter((placed) => placed.pin.side === 'left')
+        .map((placed) => placed.pin.bitWidth),
+    ).toEqual([1, 1, 1])
+    expect(
+      placedPins(splitter).filter((placed) => placed.pin.side === 'right'),
+    ).toEqual([expect.objectContaining({ pin: expect.objectContaining({ bitWidth: 3 }) })])
 
     dispose()
   })

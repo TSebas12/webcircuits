@@ -36,6 +36,7 @@ import type {
   PinType,
   Splitter,
 } from '../core/model/types'
+import { MAX_BIT_WIDTH } from '../core/model/types'
 import { shapeForGate, type SymbolShape } from '../render/symbols'
 
 export type PieceGroup = 'gates' | 'tristate' | 'io' | 'pins' | 'bits'
@@ -77,7 +78,7 @@ interface ConstantPiece extends PieceBase {
 }
 
 /** Un repartidor de bits con un ancho y un número de salidas fijos. */
-interface SplitterPiece extends PieceBase {
+export interface SplitterPiece extends PieceBase {
   readonly kind: 'splitter'
   readonly bitWidth: number
   readonly pinCount: number
@@ -116,6 +117,45 @@ export type Piece =
  * porque una compuerta de una sola entrada es una NOT y tiene su propia pieza.
  */
 export const MIN_PIECE_INPUTS = 2
+
+/**
+ * Cómo reparte el bus un repartidor de la paleta.
+ *
+ * El original pide estos tres datos en su diálogo (`Splitter`): en cuántos cables se parte,
+ * cuántos bits lleva cada uno y de qué lado queda el pin combinado.
+ */
+export interface SplitterSettings {
+  readonly pinCount: number
+  readonly bitsPerPin: number
+  /** `true` deja el bus combinado a la izquierda. */
+  readonly clockwise: boolean
+}
+
+/** Tope de cables en los que se puede partir un bus desde la paleta. */
+export const MAX_SPLITTER_PINS = 16
+
+/** El reparto con el que nace un repartidor del catálogo. */
+export function splitterDefaults(piece: SplitterPiece): SplitterSettings {
+  const pinCount = Math.max(MIN_PIECE_INPUTS, piece.pinCount)
+  return {
+    pinCount,
+    bitsPerPin: Math.max(1, Math.trunc(piece.bitWidth / pinCount)),
+    clockwise: piece.clockwise,
+  }
+}
+
+/** Recorta un reparto a lo que admite el modelo: de 2 a 16 cables y 32 bits en total. */
+export function clampSplitterSettings(settings: SplitterSettings): SplitterSettings {
+  const pinCount = Math.max(
+    MIN_PIECE_INPUTS,
+    Math.min(MAX_SPLITTER_PINS, Math.trunc(settings.pinCount)),
+  )
+  const bitsPerPin = Math.max(
+    1,
+    Math.min(Math.trunc(MAX_BIT_WIDTH / pinCount), Math.trunc(settings.bitsPerPin)),
+  )
+  return { pinCount, bitsPerPin, clockwise: settings.clockwise }
+}
 
 /** Las piezas, en el orden en que las enseña el panel. */
 export const PIECES = [
@@ -311,8 +351,8 @@ export const PIECES = [
   {
     kind: 'splitter',
     id: 'splitter-4',
-    label: 'Bus 4→2',
-    title: 'Repartidor: un bus de 4 bits en dos cables de 2 bits',
+    label: 'Repartidor ↻',
+    title: 'Repartidor de bus: elige salidas, bits por pin y lado del bus',
     group: 'bits',
     bitWidth: 4,
     pinCount: 2,
@@ -321,8 +361,8 @@ export const PIECES = [
   {
     kind: 'splitter',
     id: 'splitter-8',
-    label: 'Bus 8→2',
-    title: 'Repartidor: un bus de 8 bits en dos cables de 4 bits',
+    label: 'Repartidor ↺',
+    title: 'Repartidor de bus: elige salidas, bits por pin y lado del bus',
     group: 'bits',
     bitWidth: 8,
     pinCount: 2,

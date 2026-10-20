@@ -23,7 +23,16 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   import { createFileProvider } from './files/provider-factory'
   import { addRecent } from './files/recents'
   import { saveVersion } from './files/versions'
-  import { PIECE_GROUPS, PIECES } from './palette'
+  import {
+    MAX_GATE_INPUTS,
+    MAX_SPLITTER_PINS,
+    MIN_PIECE_INPUTS,
+    PIECE_GROUPS,
+    PIECES,
+    splitterDefaults,
+    type SplitterPiece,
+    type SplitterSettings,
+  } from './palette'
   import PiecePreview from './PiecePreview.svelte'
 
   /**
@@ -44,9 +53,27 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     pieces: PIECES.filter((piece) => piece.group === group.id),
   }))
 
+  /** Opciones del selector de entradas: de 2 al tope del modelo. */
+  const GATE_INPUT_OPTIONS = Array.from(
+    { length: MAX_GATE_INPUTS - MIN_PIECE_INPUTS + 1 },
+    (_, index) => MIN_PIECE_INPUTS + index,
+  )
+  /** Opciones del selector de cables de un repartidor. */
+  const SPLITTER_PIN_OPTIONS = Array.from(
+    { length: MAX_SPLITTER_PINS - MIN_PIECE_INPUTS + 1 },
+    (_, index) => MIN_PIECE_INPUTS + index,
+  )
+  /** Bits por cable; el editor recorta el total a 32 bits. */
+  const SPLITTER_BIT_OPTIONS = Array.from({ length: 16 }, (_, index) => index + 1)
+
   let canvasEl = $state<HTMLCanvasElement | null>(null)
   let tool = $state<Tool>('select')
-let wireColor = $state<string | null>(null)
+  let wireColor = $state<string | null>(null)
+
+  /** Entradas elegidas para cada compuerta de la paleta, por identificador. */
+  let gateInputs = $state<Record<string, number>>({})
+  /** Reparto elegido para cada repartidor de la paleta, por identificador. */
+  let splitterSettings = $state<Record<string, SplitterSettings>>({})
   /** Los dos modos los gobierna la corriente. Arranca apagada, como el original. */
   let powered = $state(false)
   let hasSelection = $state(false)
@@ -517,11 +544,25 @@ let wireColor = $state<string | null>(null)
   }
 
   /**
-   * El número de entradas de la próxima compuerta.
+   * Cambia las entradas de **una** compuerta de la paleta.
    *
-   * El editor recorta al tope del modelo y **devuelve** lo que ha aceptado: si se escribe un
-   * 99, se coloca una compuerta de 18 y el campo tiene que enseñar ese 18, no el 99.
+   * El editor recorta al tope del modelo y devuelve lo aceptado; el estado local se queda con
+   * ese valor para que el selector no enseñe un número que no se va a colocar.
    */
+  const changeGateInputs = (pieceId: string, count: number): void => {
+    gateInputs[pieceId] = editor?.setPaletteInput(pieceId, count) ?? count
+  }
+
+  /** Cambia un dato del reparto de un bus de la paleta (salidas, bits por pin o lado). */
+  const changeSplitter = (
+    piece: SplitterPiece,
+    patch: Partial<SplitterSettings>,
+  ): void => {
+    const base = splitterSettings[piece.id] ?? splitterDefaults(piece)
+    const next = editor?.setPaletteSplitter(piece, patch) ?? { ...base, ...patch }
+    splitterSettings[piece.id] = next
+  }
+
   const togglePower = (): void => {
     // El estado lo devuelve el editor por `onPoweredChange`, igual que la herramienta: una
     // sola fuente de verdad. Y esto no es solo encender: es el **interruptor de modo**
@@ -969,25 +1010,99 @@ let wireColor = $state<string | null>(null)
         <span class="group-title">{section.title}</span>
         <div class="pieces">
           {#each section.pieces as piece (piece.id)}
-            <button
-              type="button"
-              class="piece"
-              class:active={tool === piece.id}
-              title={powered
-                ? 'Con la corriente puesta no se edita: apágala para colocar'
-                : piece.title}
-              aria-pressed={tool === piece.id}
-              disabled={powered}
-              onclick={() => chooseTool(piece.id)}
+            {@const hasInputs = piece.kind === 'gate' && piece.inputCount === 'variable'}
+            {@const split =
+              piece.kind === 'splitter'
+                ? (splitterSettings[piece.id] ?? splitterDefaults(piece))
+                : null}
+            <div
+              class="piece-cell"
+              class:wide={hasInputs || piece.kind === 'splitter'}
+              class:splitter={piece.kind === 'splitter'}
             >
-              <PiecePreview piece={piece} />
-              <span>{piece.label}</span>
-              {#if piece.kind === 'splitter'}
-                <small class="piece-sub">{piece.bitWidth}→{piece.pinCount} bits</small>
-              {:else if piece.kind === 'gate' && piece.gateType !== 'led' && typeof piece.inputCount === 'number'}
-                <small class="piece-sub">{piece.inputCount} entradas</small>
+              <button
+                type="button"
+                class="piece"
+                class:active={tool === piece.id}
+                title={powered
+                  ? 'Con la corriente puesta no se edita: apágala para colocar'
+                  : piece.title}
+                aria-pressed={tool === piece.id}
+                disabled={powered}
+                onclick={() => chooseTool(piece.id)}
+              >
+                <PiecePreview piece={piece} />
+                <span class="piece-label">{piece.label}</span>
+                {#if piece.kind === 'splitter' && split !== null}
+                  <small class="piece-sub">{split.pinCount} × {split.bitsPerPin} bits</small>
+                {:else if piece.kind === 'gate' && piece.gateType !== 'led' && typeof piece.inputCount === 'number'}
+                  <small class="piece-sub">{piece.inputCount} entradas</small>
+                {/if}
+              </button>
+
+              {#if hasInputs}
+                <select
+                  class="piece-select"
+                  title="Número de entradas de esta compuerta"
+                  aria-label="Entradas de {piece.label}"
+                  value={gateInputs[piece.id] ?? MIN_PIECE_INPUTS}
+                  disabled={powered}
+                  onchange={(event) =>
+                    changeGateInputs(piece.id, Number((event.currentTarget as HTMLSelectElement).value))}
+                >
+                  {#each GATE_INPUT_OPTIONS as count (count)}
+                    <option value={count}>{count}</option>
+                  {/each}
+                </select>
+              {:else if piece.kind === 'splitter' && split !== null}
+                <div class="splitter-options">
+                  <label>
+                    <span>Salidas</span>
+                    <select
+                      value={split.pinCount}
+                      disabled={powered}
+                      onchange={(event) =>
+                        changeSplitter(piece, {
+                          pinCount: Number((event.currentTarget as HTMLSelectElement).value),
+                        })}
+                    >
+                      {#each SPLITTER_PIN_OPTIONS as count (count)}
+                        <option value={count}>{count}</option>
+                      {/each}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Bits/pin</span>
+                    <select
+                      value={split.bitsPerPin}
+                      disabled={powered}
+                      onchange={(event) =>
+                        changeSplitter(piece, {
+                          bitsPerPin: Number((event.currentTarget as HTMLSelectElement).value),
+                        })}
+                    >
+                      {#each SPLITTER_BIT_OPTIONS as bits (bits)}
+                        <option value={bits}>{bits}</option>
+                      {/each}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Bus</span>
+                    <select
+                      value={split.clockwise ? 'left' : 'right'}
+                      disabled={powered}
+                      onchange={(event) =>
+                        changeSplitter(piece, {
+                          clockwise: (event.currentTarget as HTMLSelectElement).value === 'left',
+                        })}
+                    >
+                      <option value="left">Izq.</option>
+                      <option value="right">Der.</option>
+                    </select>
+                  </label>
+                </div>
               {/if}
-            </button>
+            </div>
           {/each}
         </div>
       </div>
@@ -1414,7 +1529,7 @@ let wireColor = $state<string | null>(null)
      pueden solaparse: una empuja a la otra. La columna se desplaza por dentro si no cabe. */
   .left-rail {
     position: absolute;
-    top: 4rem;
+    top: 3.75rem;
     left: 0.6rem;
     bottom: 0.6rem;
     display: flex;
@@ -1470,6 +1585,87 @@ let wireColor = $state<string | null>(null)
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.2rem;
+  }
+
+  /* Una pieza con ajustes ocupa la fila entera: así el selector cabe sin apretar el nombre. */
+  .piece-cell {
+    min-width: 0;
+  }
+
+  .piece-cell.wide {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 0.25rem;
+    align-items: stretch;
+  }
+
+  .piece-cell.wide:not(.splitter) .piece {
+    flex: 1 1 auto;
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .piece-cell.splitter {
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .piece-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .piece-select {
+    flex: 0 0 auto;
+    width: 3.1rem;
+    padding: 0.1rem 0.15rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    background: var(--panel-bg);
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.72rem;
+    text-align: center;
+  }
+
+  /* El repartidor pide los mismos tres datos que el diálogo del original: en cuántos cables
+     se parte, cuántos bits lleva cada uno y de qué lado queda el bus combinado. */
+  .splitter-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.2rem;
+    padding: 0 0.1rem;
+  }
+
+  .splitter-options label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+    color: var(--fg-muted);
+    font-size: 0.6rem;
+  }
+
+  .splitter-options select {
+    width: 100%;
+    min-width: 0;
+    padding: 0.1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    background: var(--panel-bg);
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.7rem;
+  }
+
+  .palette.disabled .piece-select,
+  .palette.disabled .splitter-options select {
+    opacity: 0.45;
   }
 
   .piece {
@@ -1588,6 +1784,36 @@ let wireColor = $state<string | null>(null)
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* El alta de subcircuitos era un botón sin estilo y parecía HTML crudo. Va a lo ancho de la
+     paleta, con el color de acento y trazo discontinuo: se distingue de una pieza sin gritar. */
+  .sub-create {
+    display: block;
+    width: 100%;
+    margin-top: 0.35rem;
+    padding: 0.3rem 0.4rem;
+    border: 1px dashed color-mix(in srgb, var(--accent) 60%, var(--border));
+    border-radius: 0.35rem;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background-color 100ms ease,
+      border-color 100ms ease;
+  }
+
+  .sub-create:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+
+  .sub-create:disabled {
+    opacity: 0.45;
+    cursor: default;
   }
 
   .palette-hint {
@@ -1957,7 +2183,7 @@ let wireColor = $state<string | null>(null)
   .hud {
     position: absolute;
     left: 13.5rem;
-    bottom: 3.2rem;
+    bottom: 2.8rem;
     display: flex;
     gap: 0.35rem;
     padding: 0.25rem 0.5rem;
