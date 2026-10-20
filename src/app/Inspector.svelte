@@ -180,6 +180,27 @@
           />
         </div>
       {/if}
+    {:else if selected.kind === 'memory'}
+      <div class="row">
+        <span>Bits de dirección</span>
+        <input type="number" min="1" max="32" value={selected.addressBitWidth}
+          oninput={(e) => update({ addressBitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
+      </div>
+      <div class="row">
+        <span>Bits de datos</span>
+        <input type="number" min="1" max="32" value={selected.dataBitWidth}
+          oninput={(e) => update({ dataBitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
+      </div>
+      <div class="row">
+        <span>Tipo</span>
+        <select
+          value={selected.isRom ? 'rom' : 'ram'}
+          onchange={(e) => update({ isRom: (e.currentTarget as HTMLSelectElement).value === 'rom' })}
+        >
+          <option value="ram">RAM</option>
+          <option value="rom">ROM</option>
+        </select>
+      </div>
     {:else if selected.kind === 'splitter'}
       <div class="row">
         <span>Bits</span>

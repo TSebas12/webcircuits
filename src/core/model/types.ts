@@ -216,6 +216,7 @@ export type DrawableDevice =
   | Probe
   | Sensor
   | Splitter
+  | Memory
 
 /** Un símbolo colocado sobre la rejilla. */
 export interface Device extends ElementBase {
@@ -271,6 +272,8 @@ export interface Memory extends Device {
   readonly addressBitWidth: number
   readonly dataBitWidth: number
   readonly isRom: boolean
+  /** Datos ROM (base64), si los tiene. */
+  readonly data?: string
 }
 
 /**

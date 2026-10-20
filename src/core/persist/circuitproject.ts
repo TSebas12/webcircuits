@@ -235,6 +235,25 @@ export function importCircuitProject(xml: string): CircuitProject {
     })
   }
 
+  interface MemoryInfo {
+    addressBitWidth: number
+    dataBitWidth: number
+    isRom: boolean
+    data?: string
+  }
+  const memories = new Map<string, MemoryInfo>()
+  for (const m of table('Memory')) {
+    const id = attr(m, 'MemoryId')
+    if (id === null) continue
+    const writable = (attr(m, 'Writable') ?? '').toLowerCase() === 'true'
+    memories.set(id, {
+      addressBitWidth: Math.max(1, Math.min(32, numAttr(m, 'AddressBitWidth', 4))),
+      dataBitWidth: Math.max(1, Math.min(32, numAttr(m, 'DataBitWidth', 4))),
+      isRom: !writable,
+      data: attr(m, 'Data') ?? undefined,
+    })
+  }
+
   const ownerOf = (sourceId: string | null): string => idMap.get(sourceId ?? '') ?? MAIN_CIRCUIT_ID
 
   // 2) Colocar cada símbolo en su circuito.
@@ -248,7 +267,7 @@ export function importCircuitProject(xml: string): CircuitProject {
     const rotation = ROTATIONS[(attr(sym, 'Rotation') ?? 'up').toLowerCase()] ?? 'up'
     const base = { id, circuitId: circuit.id, layerId: DEFAULT_LAYER_ID, position, rotation }
 
-    const element = symbolElement(target, base, pins, constants, splitters, buttons, probes, sensors, idMap)
+    const element = symbolElement(target, base, pins, constants, splitters, buttons, probes, sensors, memories, idMap)
     if (element) {
       circuit.diagram.importElement(element)
     }
@@ -292,6 +311,7 @@ function symbolElement(
   buttons: Map<string, { isToggle: boolean; inverted: boolean }>,
   probes: Map<string, { name: string; pinSide: PinSide }>,
   sensors: Map<string, { sensorType: string; bitWidth: number; pinSide: PinSide; notation: string; data: string }>,
+  memories: Map<string, { addressBitWidth: number; dataBitWidth: number; isRom: boolean; data?: string }>,
   idMap: Map<string, string>,
 ): StoredElement | null {
   const pin = pins.get(target)
@@ -313,6 +333,10 @@ function symbolElement(
   const sensor = sensors.get(target)
   if (sensor) {
     return { kind: 'sensor', ...base, ...sensor }
+  }
+  const memory = memories.get(target)
+  if (memory) {
+    return { kind: 'memory', ...base, ...memory }
   }
   const button = buttons.get(target)
   if (button) {
@@ -399,6 +423,11 @@ export function exportCircuitProject(project: CircuitProject): string {
             ` BitWidth="${el.bitWidth}" PinSide="${sideName(el.pinSide)}"` +
             ` Notation="${escapeXml(el.notation)}" Data="${escapeXml(el.data)}" />`,
         )
+      } else if (el.kind === 'memory') {
+        const writable = el.isRom ? 'False' : 'True'
+        lines.push(
+          `  <lc:Memory MemoryId="${escapeXml(el.id)}" Writable="${writable}" AddressBitWidth="${el.addressBitWidth}" DataBitWidth="${el.dataBitWidth}"${el.data !== undefined ? ` Data="${escapeXml(el.data)}"` : ''} />`,
+        )
       }
     }
   }
@@ -410,7 +439,7 @@ export function exportCircuitProject(project: CircuitProject): string {
         lines.push(
           `  <lc:Wire WireId="${escapeXml(el.id)}" LogicalCircuitId="${escapeXml(c.id)}" X1="${el.p1.x}" Y1="${el.p1.y}" X2="${el.p2.x}" Y2="${el.p2.y}" />`,
         )
-      } else if (el.kind === 'gate' || el.kind === 'button' || el.kind === 'pin' || el.kind === 'constant' || el.kind === 'probe' || el.kind === 'sensor' || el.kind === 'splitter' || el.kind === 'circuit') {
+      } else if (el.kind === 'gate' || el.kind === 'button' || el.kind === 'pin' || el.kind === 'constant' || el.kind === 'probe' || el.kind === 'sensor' || el.kind === 'memory' || el.kind === 'splitter' || el.kind === 'circuit') {
         const symbolId = `${el.id}-sym`
         const rotation = el.rotation === 'up' ? '' : ` Rotation="${rotationName(el.rotation)}"`
         const targetSource =

@@ -299,6 +299,21 @@ export function probeLayout(pinSide: PinSide): SymbolLayout {
   })
 }
 
+/** La forma de una memoria (original: `Memory`, caja con dirección a la izquierda y datos a la derecha). */
+export function memoryLayout(addressBitWidth: number, dataBitWidth: number): SymbolLayout {
+  const addr = Math.max(1, Math.trunc(addressBitWidth))
+  const data = Math.max(1, Math.trunc(dataBitWidth))
+  const specs: PinSpec[] = [
+    { side: 'left', type: 'input', bitWidth: addr, inverted: false },
+    { side: 'right', type: 'output', bitWidth: data, inverted: false },
+  ]
+  const base = defaultSymbolSize(specs)
+  return symbolLayout(specs, {
+    width: Math.max(4, base.width),
+    height: Math.max(3, base.height),
+  })
+}
+
 /** La forma de un sensor (original: `Sensor`, 4×3 con una única salida). */
 export function sensorLayout(pinSide: PinSide, bitWidth = 1): SymbolLayout {
   const specs: PinSpec[] = [
@@ -462,6 +477,8 @@ export function deviceLayout(
       return probeLayout(device.pinSide)
     case 'sensor':
       return sensorLayout(device.pinSide, device.bitWidth)
+    case 'memory':
+      return memoryLayout(device.addressBitWidth, device.dataBitWidth)
     case 'button':
       return buttonLayout(device.inverted)
     case 'pin':

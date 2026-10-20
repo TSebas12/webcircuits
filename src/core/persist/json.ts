@@ -89,6 +89,14 @@ function serializeElement(el: StoredElement): SerializedElement {
         notation: el.notation,
         data: el.data,
       }
+    case 'memory':
+      return {
+        ...dev,
+        addressBitWidth: el.addressBitWidth,
+        dataBitWidth: el.dataBitWidth,
+        isRom: el.isRom,
+        data: el.data,
+      }
     case 'splitter':
       return { ...dev, bitWidth: el.bitWidth, pinCount: el.pinCount, clockwise: el.clockwise }
     case 'circuit':
@@ -242,6 +250,15 @@ function deserializeElement(raw: SerializedElement): StoredElement {
         pinSide: asPinSide(raw.pinSide),
         notation: (raw.notation as string) ?? '',
         data: (raw.data as string) ?? '',
+      }
+    case 'memory':
+      return {
+        kind: 'memory',
+        ...deviceBase,
+        addressBitWidth: (raw.addressBitWidth as number) ?? 4,
+        dataBitWidth: (raw.dataBitWidth as number) ?? 4,
+        isRom: (raw.isRom as boolean) ?? false,
+        data: raw.data as string | undefined,
       }
     case 'splitter':
       return {

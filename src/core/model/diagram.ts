@@ -23,7 +23,7 @@
 import { deviceBounds, deviceLayout, pinPosition, type CircuitResolver } from './layout'
 import type { CircuitAnnotation, CircuitMarker } from './overlay'
 import { defaultSensorData, isSensorType } from './sensor'
-import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Pin, PinSide, PinType, PlacedElement, Probe, Rotation, Sensor, Splitter, StoredElement, Wire } from './types'
+import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GridPoint, GridRect, Id, Layer, Memory, Pin, PinSide, PinType, PlacedElement, Probe, Rotation, Sensor, Splitter, StoredElement, Wire } from './types'
 import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
@@ -532,6 +532,36 @@ export class Diagram {
       this.items.set(sensor.id, sensor)
       this.changed()
       return sensor
+    })
+  }
+
+  /** Coloca una memoria (ROM o RAM). */
+  addMemory(
+    position: GridPoint,
+    options: {
+      readonly addressBitWidth?: number
+      readonly dataBitWidth?: number
+      readonly isRom?: boolean
+      readonly data?: string
+    } = {},
+  ): Memory {
+    return this.change(() => {
+      const id = this.nextId('memory')
+      const memory: Memory = {
+        kind: 'memory',
+        id,
+        circuitId: this.circuitId,
+        layerId: this.activeLayer,
+        position,
+        rotation: 'up',
+        addressBitWidth: Math.max(1, Math.min(options.addressBitWidth ?? 4, MAX_BIT_WIDTH)),
+        dataBitWidth: Math.max(1, Math.min(options.dataBitWidth ?? 4, MAX_BIT_WIDTH)),
+        isRom: options.isRom ?? false,
+        data: options.data,
+      }
+      this.items.set(memory.id, memory)
+      this.changed()
+      return memory
     })
   }
 

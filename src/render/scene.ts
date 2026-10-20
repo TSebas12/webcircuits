@@ -163,6 +163,8 @@ function shapeForDevice(element: DrawableDevice): SymbolShape | null {
       return 'probe'
     case 'sensor':
       return 'sensor'
+    case 'memory':
+      return 'memory'
     case 'splitter':
       return 'splitter'
     case 'circuit':
@@ -198,6 +200,8 @@ function labelFor(
       const notation = element.notation.trim()
       return notation === '' ? element.sensorType : notation
     }
+    case 'memory':
+      return element.isRom ? 'ROM' : 'RAM'
     case 'circuit':
       return resolveCircuit?.(element.targetCircuitId)?.name
     default:

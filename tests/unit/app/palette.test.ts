@@ -15,6 +15,7 @@ import {
   placedPins,
   probeLayout,
   sensorLayout,
+  memoryLayout,
   splitterLayout,
   type SymbolLayout,
 } from '../../../src/core/model/layout'
@@ -76,6 +77,8 @@ function modelLayout(piece: Piece): SymbolLayout {
       return probeLayout('left')
     case 'sensor':
       return sensorLayout('right')
+    case 'memory':
+      return memoryLayout(4, 4)
     case 'splitter':
       return splitterLayout({
         kind: 'splitter',

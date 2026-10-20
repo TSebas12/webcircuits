@@ -24,6 +24,7 @@ import {
   pinLayout,
   probeLayout,
   sensorLayout,
+  memoryLayout,
   splitterLayout,
   type SymbolLayout,
 } from '../core/model/layout'
@@ -93,6 +94,11 @@ interface SensorPiece extends PieceBase {
   readonly kind: 'sensor'
 }
 
+/** Una memoria (ROM o RAM): direccionada por un bus, lee/escribe un dato. */
+interface MemoryPiece extends PieceBase {
+  readonly kind: 'memory'
+}
+
 export type Piece =
   | GatePiece
   | ButtonPiece
@@ -101,6 +107,7 @@ export type Piece =
   | SplitterPiece
   | ProbePiece
   | SensorPiece
+  | MemoryPiece
 
 /**
  * Cuántas entradas se pueden pedir desde el panel.
@@ -241,6 +248,13 @@ export const PIECES = [
     id: 'sensor',
     label: 'Sensor',
     title: 'Sensor: genera un valor de N bits (aleatorio, manual, serie…)',
+    group: 'io',
+  },
+  {
+    kind: 'memory',
+    id: 'memory',
+    label: 'Memoria',
+    title: 'Memoria (ROM/RAM): direccionada por un bus, lee/escribe un dato',
     group: 'io',
   },
   {
@@ -391,6 +405,8 @@ export function pieceLayout(piece: Piece, chosen: number): SymbolLayout {
       return probeLayout('left')
     case 'sensor':
       return sensorLayout('right')
+    case 'memory':
+      return memoryLayout(4, 4)
     case 'splitter':
       return splitterLayout(previewSplitter(piece))
   }
@@ -417,6 +433,8 @@ export function pieceShape(piece: Piece): SymbolShape | null {
       return 'probe'
     case 'sensor':
       return 'sensor'
+    case 'memory':
+      return 'memory'
     case 'splitter':
       return 'splitter'
     default:
@@ -464,6 +482,8 @@ export function placePiece(
       return diagram.addProbe(position)
     case 'sensor':
       return diagram.addSensor(position)
+    case 'memory':
+      return diagram.addMemory(position)
     case 'splitter':
       return diagram.addSplitter(position, {
         bitWidth: piece.bitWidth,

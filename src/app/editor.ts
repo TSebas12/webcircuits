@@ -909,6 +909,14 @@ export class Editor {
             data: el.data,
           }).id
           break
+        case 'memory':
+          newId = this.diagram.addMemory(position, {
+            addressBitWidth: el.addressBitWidth,
+            dataBitWidth: el.dataBitWidth,
+            isRom: el.isRom,
+            data: el.data,
+          }).id
+          break
         case 'circuit':
           newId = this.diagram.addCircuitInstance(position, el.targetCircuitId).id
           break

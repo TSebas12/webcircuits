@@ -25,6 +25,7 @@ import { pinInputShape, pinOutputShape } from './pin'
 import { probeShape } from './probe'
 import { roundedRect } from './rounded-rect'
 import { sensorShape } from './sensor'
+import { memoryShape } from './memory'
 import { splitterShape } from './splitter'
 
 /** Las formas que sabemos dibujar. Irá creciendo con los símbolos nuevos. */
@@ -44,6 +45,7 @@ export type SymbolShape =
   | 'led'
   | 'probe'
   | 'sensor'
+  | 'memory'
   | 'splitter'
   | 'pinInput'
   | 'pinOutput'
@@ -97,6 +99,7 @@ const BUILDERS: Readonly<Record<SymbolShape, ShapeBuilder>> = {
   led: ledShape,
   probe: probeShape,
   sensor: sensorShape,
+  memory: memoryShape,
   splitter: splitterShape,
   pinInput: pinInputShape,
   pinOutput: pinOutputShape,
