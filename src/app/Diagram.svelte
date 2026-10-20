@@ -1006,6 +1006,11 @@ let wireColor = $state<string | null>(null)
             >
               <PiecePreview piece={piece} />
               <span>{piece.label}</span>
+              {#if piece.kind === 'splitter'}
+                <small class="piece-sub">{piece.bitWidth}→{piece.pinCount} bits</small>
+              {:else if piece.kind === 'gate' && piece.gateType !== 'led'}
+                <small class="piece-sub">{piece.inputCount} entradas</small>
+              {/if}
             </button>
           {/each}
         </div>
@@ -1523,8 +1528,11 @@ let wireColor = $state<string | null>(null)
       border-color 100ms ease;
   }
 
-  .piece:hover:not(:disabled) {
-    background: var(--panel-bg-hover);
+  .piece small.piece-sub {
+    display: block;
+    font-size: 0.62rem;
+    color: var(--fg-muted);
+    margin-top: 0.1rem;
   }
 
   /* La pieza que se va a colocar se marca igual que la herramienta activa de la barra: es la
