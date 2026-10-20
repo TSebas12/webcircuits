@@ -1046,9 +1046,11 @@ let wireColor = $state<string | null>(null)
             </div>
           {/each}
         </div>
-        <p class="palette-hint">Doble clic en una instancia para editarla. La papelera borra la definición; selecciona una instancia y pulsa Supr para quitarla del lienzo.</p>
       {/if}
       <button type="button" class="sub-create" onclick={newSubcircuit} disabled={powered} title="Crear y entrar en un subcircuito">+ Subcircuito</button>
+      {#if otherCircuits.length > 0}
+        <p class="palette-hint">Doble clic en una instancia para editarla. La papelera borra la definición; selecciona una instancia y pulsa Supr para quitarla del lienzo.</p>
+      {/if}
     </div>
   </aside>
 
@@ -1412,7 +1414,7 @@ let wireColor = $state<string | null>(null)
      pueden solaparse: una empuja a la otra. La columna se desplaza por dentro si no cabe. */
   .left-rail {
     position: absolute;
-    top: 3.4rem;
+    top: 4rem;
     left: 0.6rem;
     bottom: 0.6rem;
     display: flex;
@@ -1955,7 +1957,7 @@ let wireColor = $state<string | null>(null)
   .hud {
     position: absolute;
     left: 13.5rem;
-    bottom: 2.6rem;
+    bottom: 3.2rem;
     display: flex;
     gap: 0.35rem;
     padding: 0.25rem 0.5rem;
