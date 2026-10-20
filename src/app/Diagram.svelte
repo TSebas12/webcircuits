@@ -861,7 +861,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
 
   {#if tool === 'wire' && !powered}
     <div class="wire-colors" role="toolbar" aria-label="Colores de cable">
-      {#each loadSettings().savedWireColors as color (color)}
+      {#each loadSettings().savedWireColors as color, index (index)}
         <button type="button" class="swatch" style="background:{color}" title="Aplicar color {color}" aria-label="Aplicar color {color}" onclick={() => editor?.colorSelection(color)}></button>
       {/each}
       <button type="button" class="clear-color" title="Quitar color forzado" onclick={() => editor?.colorSelection('')}>x</button>
