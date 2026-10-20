@@ -1509,8 +1509,8 @@ import Icon from './Icon.svelte'
   }
   .hud {
     position: absolute;
-    right: 0.6rem;
-    bottom: 8.4rem;
+    left: 0.6rem;
+    bottom: 0.6rem;
     display: flex;
     gap: 0.35rem;
     padding: 0.25rem 0.5rem;
