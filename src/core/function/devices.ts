@@ -152,27 +152,44 @@ export class FunctionLed extends Probe implements IFunctionVisual {
 /**
  * Una constante: saca siempre el mismo valor, que viene de la pieza.
  *
- * ⚠️ El original permite **cambiar** el valor en marcha (`Value` con `set`) y normaliza el
- * nuevo valor con `Constant.Normalize`. Aquí el valor es de solo lectura porque el modelo
- * guarda las piezas inmutables; editar una constante en marcha necesita un sitio donde
- * escribir (M2-05/M6). Mientras eso no exista, el valor es el que dice la pieza, que es el
- * que trae el fichero.
- *
- * ⚠️ Y todavía **no se puede llegar a ella**: una constante necesita saber dónde están sus
- * puntas, y eso lo da la forma de la pieza (`symbol.ts` → `buildJams`), que llega con M2-05.
- * Hasta entonces `applySymbol` no ve ninguna constante y esta función es inalcanzable. Se
- * deja portada porque es corta y porque el trozo que falta está a un paso.
+ * El valor se puede **cambiar en marcha**, como en el original (`FunctionConstant.Value`).
+ * Lo necesita la tabla de verdad: cada fila fuerza los pines de entrada y vuelve a evaluar
+ * sobre el mismo aplanado, en vez de reconstruir el circuito entero por fila. Al cambiarlo
+ * se marca la función como sucia para que `CircuitState.Evaluate` la vuelva a ejecutar.
  */
 export class FunctionConstant extends CircuitFunction implements IFunctionVisual {
   invalid = false
+  private currentValue: number
 
   constructor(
     circuitState: CircuitState,
-    private readonly value: number,
+    value: number,
     result: number[],
   ) {
     super(circuitState, null, result)
+    this.currentValue = FunctionConstant.normalize(value, result.length)
     // Tracer.Assert(result.length === bitWidth de la pieza)
+  }
+
+  /** El valor normalizado al ancho de la constante. */
+  get value(): number {
+    return this.currentValue
+  }
+
+  set value(value: number) {
+    const normalized = FunctionConstant.normalize(value, this.results.length)
+    if (normalized !== this.currentValue) {
+      this.currentValue = normalized
+      this.circuitState.markUpdated(this)
+      this.invalid = true
+    }
+  }
+
+  private static normalize(value: number, bitWidth: number): number {
+    const width = Math.max(1, Math.min(32, bitWidth))
+    const modulus = 2 ** width
+    const integer = Math.trunc(Number.isFinite(value) ? value : 0)
+    return ((integer % modulus) + modulus) % modulus
   }
 
   override get reportName(): string {
@@ -180,7 +197,7 @@ export class FunctionConstant extends CircuitFunction implements IFunctionVisual
   }
 
   override evaluate(): boolean {
-    return this.setResultInt(this.value)
+    return this.setResultInt(this.currentValue)
   }
 
   turnOn(): void {

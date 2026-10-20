@@ -47,7 +47,14 @@ import {
 import type { CircuitFunction } from '../function/circuit-function'
 import { FunctionButton, FunctionClock, FunctionConstant, FunctionLed } from '../function/devices'
 import type { IFunctionVisual } from '../function/interfaces'
-import { SymbolMap, SymbolMapKey, SymbolMapList, jamBitKey, type Result } from './symbol-map'
+import {
+  Parameter,
+  SymbolMap,
+  SymbolMapKey,
+  SymbolMapList,
+  jamBitKey,
+  type Result,
+} from './symbol-map'
 import { ConnectionSet } from './connection'
 import { CircuitState } from './circuit-state'
 import {
@@ -384,6 +391,19 @@ export class CircuitMap {
    * (por ejemplo, para pintar su valor): los cables no tienen estado, quien lo tiene son
    * los bits de los símbolos a los que toca.
    */
+  /**
+   * Los índices de estado que alimentan un punto de la rejilla.
+   *
+   * Es el mismo recorrido que `stateIndexes(wire)`, pero partiendo de un punto y sin exigir
+   * que sea la punta de un cable. Lo necesita la tabla de verdad para leer un pin de salida
+   * directamente, sin crear una probeta visible.
+   */
+  stateIndexesAtPoint(point: GridPoint, start = 0, count = 1): number[] {
+    const list: number[] = []
+    this.stateIndexesAt(list, point, false, start, count, new Set())
+    return list
+  }
+
   stateIndexes(wire: Wire): number[] {
     // Tracer.Assert(this.circuit == wire.LogicalCircuit)
     const conductor = this.conductorMap().tryGetValue(wire.p1)
@@ -614,6 +634,13 @@ export class CircuitMap {
           if (outer !== null) {
             this.parent.connectResult(connectionSet, list, result, outer, bitNumber, visited)
           }
+        } else if (depicted.element.pinType === 'output') {
+          // Un pin de salida de la hoja raíz es un **consumidor**: aunque no tenga función
+          // propia, la lógica que lo alimenta debe quedar viva. Sin esta marca, `cleanup`
+          // podaba toda la cadena por «no llegar a ninguna parte» y la tabla de verdad leía
+          // un cable vacío. Es lo mismo que hace el original al sustituir el pin por una
+          // probeta, pero sin crear una función que aquí no hace falta.
+          result.add(new Parameter(result, this, target, bitNumber))
         }
       } else if (depicted.kind === 'subcircuit') {
         const child = this.child(target.symbol)
