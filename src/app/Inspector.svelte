@@ -84,6 +84,11 @@
           oninput={(e) => update({ inputCount: Number((e.currentTarget as HTMLInputElement).value) })} />
       </div>
       <label class="row"><span>Invertido</span><input type="checkbox" checked={selected.invertedOutput} onchange={(e) => update({ invertedOutput: (e.currentTarget as HTMLInputElement).checked })} /></label>
+      <div class="row">
+        <span>Retardo</span>
+        <input type="number" min="0" max="1000" value={selected.delay ?? 0}
+          oninput={(e) => update({ delay: Number((e.currentTarget as HTMLInputElement).value) })} />
+      </div>
     {:else if selected.kind === 'button'}
       <div class="row">
         <span>Bits</span>

@@ -10,7 +10,7 @@
  */
 
 import { CircuitRunner } from './circuit-runner'
-import { EventQueue, type TimedEvent } from './event-queue'
+import { EventQueue } from './event-queue'
 
 export class TimedRunner {
   private time = 0
