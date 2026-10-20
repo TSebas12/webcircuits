@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CircuitError } from '../../../../src/core/circuit-error'
 import { CircuitProject } from '../../../../src/core/model/circuit'
 import { projectIndex } from '../../../../src/core/model/symbol'
 import { deserializeProject, serializeProject } from '../../../../src/core/persist/json'
@@ -205,6 +206,23 @@ describe('generación de tablas de verdad (M8)', () => {
       [0, 1],
       [1, 0],
     ])
+  })
+
+  it('avisa si el circuito oscila en vez de devolver filas falsas', () => {
+    const project = new CircuitProject('oscila')
+    const elements: StoredElement[] = [
+      pin('a', 'input', -10, 0, 'A'),
+      { ...gate('g', 'not', 0, 0, 1), invertedOutput: true },
+      pin('q', 'output', 10, 0, 'Q'),
+      wire('wa', -8, 1, 0, 2),
+      wire('loop', 3, 2, 0, 2),
+      wire('wq', 3, 2, 10, 1),
+    ]
+    for (const element of elements) {
+      project.current.diagram.importElement(element)
+    }
+
+    expect(() => generateTruthTable(project, project.current)).toThrow(CircuitError)
   })
 
   it('funciona sobre el proyecto serializado que recibe el worker', () => {
