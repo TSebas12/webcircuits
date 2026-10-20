@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { CircuitProject } from '../../../../src/core/model/circuit'
+import { projectIndex } from '../../../../src/core/model/symbol'
 import { deserializeProject, serializeProject } from '../../../../src/core/persist/json'
-import type { Gate, Pin, StoredElement, Wire } from '../../../../src/core/model/types'
+import type {
+  CircuitInstance,
+  Gate,
+  Pin,
+  StoredElement,
+  Wire,
+} from '../../../../src/core/model/types'
 import { generateTruthTable, truthTableToCsv } from '../../../../src/core/truthtable/generate'
 
 function pin(
@@ -141,6 +148,62 @@ describe('generación de tablas de verdad (M8)', () => {
       [1, 1],
       [2, 2],
       [3, 3],
+    ])
+  })
+
+  it('atraviesa un subcircuito y tabula su inversor', () => {
+    const project = new CircuitProject('jerarquia')
+    const child = project.createCircuit({ name: 'INV' })
+    const childElements: StoredElement[] = [
+      { ...pin('in', 'input', -4, 0, 'IN'), circuitId: child.id },
+      { ...gate('g', 'not', 0, 0, 1), invertedOutput: true, circuitId: child.id },
+      { ...pin('out', 'output', 5, 0, 'OUT'), circuitId: child.id },
+      { ...wire('wi', -2, 1, 0, 2), circuitId: child.id },
+      { ...wire('wo', 3, 2, 5, 1), circuitId: child.id },
+    ]
+    for (const element of childElements) {
+      child.diagram.importElement(element)
+    }
+
+    const instance: CircuitInstance = {
+      kind: 'circuit',
+      id: 'u',
+      circuitId: 'main',
+      layerId: 'principal',
+      position: { x: 0, y: 0 },
+      rotation: 'up',
+      targetCircuitId: child.id,
+    }
+    for (const element of [
+      pin('a', 'input', -10, 0, 'A'),
+      instance,
+      pin('q', 'output', 10, 0, 'Q'),
+    ] satisfies StoredElement[]) {
+      project.current.diagram.importElement(element)
+    }
+
+    const index = projectIndex({
+      id: project.name,
+      name: project.name,
+      circuits: project.circuitsList,
+      mainCircuitId: project.currentCircuitId,
+    })
+    const symbol = index.symbol(instance)
+    const inputJam = symbol.jams.find((jam) => jam.sheetPin?.name === 'IN')
+    const outputJam = symbol.jams.find((jam) => jam.sheetPin?.name === 'OUT')
+    expect(inputJam).toBeDefined()
+    expect(outputJam).toBeDefined()
+    project.current.diagram.importElement(
+      wire('wa', -8, 1, inputJam!.point.x, inputJam!.point.y),
+    )
+    project.current.diagram.importElement(
+      wire('wq', outputJam!.point.x, outputJam!.point.y, 10, 1),
+    )
+
+    const table = generateTruthTable(project, project.current)
+    expect(table.rows.map((row) => [...row.input, ...row.output])).toEqual([
+      [0, 1],
+      [1, 0],
     ])
   })
 
