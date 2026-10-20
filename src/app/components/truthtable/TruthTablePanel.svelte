@@ -1,11 +1,14 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte'
   import type { Editor } from '../../editor'
-  import {
-    generateTruthTable,
-    truthTableToCsv,
-    truthTableToHtml,
-  } from '../../../core/truthtable/generate'
+  import { truthTableToCsv, truthTableToHtml } from '../../../core/truthtable/generate'
+  import { serializeProject } from '../../../core/persist/json'
   import type { TruthTable } from '../../../core/truthtable/truth-state'
+
+  type WorkerResponse =
+    | { readonly type: 'progress'; readonly value: number }
+    | { readonly type: 'done'; readonly table: TruthTable }
+    | { readonly type: 'error'; readonly message: string }
 
   let { editor, onClose }: { editor: Editor; onClose: () => void } = $props()
 
@@ -14,15 +17,21 @@
   let maxRows = $state(4096)
   let table = $state<TruthTable | null>(null)
   let busy = $state(false)
-  let cancelled = false
   let error = $state<string | null>(null)
   let progress = $state(0)
   let copied = $state(false)
+  let worker: Worker | null = null
 
   const circuitName = $derived(editor.project.current.name)
 
+  function stopWorker(): void {
+    worker?.terminate()
+    worker = null
+    busy = false
+  }
+
   const close = (): void => {
-    cancelled = true
+    stopWorker()
     onClose()
   }
 
@@ -30,46 +39,69 @@
     if (event.key === 'Escape') close()
   }
 
+  onDestroy(() => {
+    worker?.terminate()
+    worker = null
+  })
+
   function generate(): void {
+    stopWorker()
     error = null
     table = null
     copied = false
     progress = 0
     busy = true
-    cancelled = false
-    const circuit = editor.project.current
     const limit = Math.max(1, Math.floor(Number(maxRows) || 1))
 
-    // Se deja pintar el estado «generando» antes del recorrido, que es síncrono.
-    setTimeout(() => {
-      try {
-        const result = generateTruthTable(editor.project, circuit, {
-          maxRows: limit,
-          filter,
-          invertFilter,
-          keepGoing: () => !cancelled,
-          onProgress: (value) => {
-            progress = value
-          },
-        })
-        table = result
-        if (result.rows.length === 0) {
+    try {
+      const thread = new Worker(new URL('./truth-table-worker.ts', import.meta.url), {
+        type: 'module',
+      })
+      worker = thread
+      thread.onmessage = (event: MessageEvent<WorkerResponse>) => {
+        const data = event.data
+        if (data.type === 'progress') {
+          progress = data.value
+          return
+        }
+        thread.terminate()
+        if (worker === thread) worker = null
+        busy = false
+        progress = 1
+        if (data.type === 'error') {
+          error = data.message
+          return
+        }
+        table = data.table
+        if (data.table.rows.length === 0) {
           error =
-            result.totalRows === 0
+            data.table.totalRows === 0
               ? 'El circuito necesita al menos un pin de entrada y uno de salida conectados.'
               : 'Ninguna fila cumple el filtro.'
         }
-      } catch (cause) {
-        error = cause instanceof Error ? cause.message : String(cause)
-      } finally {
-        busy = false
-        progress = 1
       }
-    }, 0)
+      thread.onerror = (event: ErrorEvent) => {
+        event.preventDefault()
+        thread.terminate()
+        if (worker === thread) worker = null
+        busy = false
+        error = event.message || 'El trabajador de la tabla de verdad falló.'
+      }
+      thread.postMessage({
+        project: serializeProject(editor.project),
+        maxRows: limit,
+        filter,
+        invertFilter,
+      })
+    } catch (cause) {
+      stopWorker()
+      error = cause instanceof Error ? cause.message : String(cause)
+    }
   }
 
   function cancel(): void {
-    cancelled = true
+    stopWorker()
+    progress = 0
   }
 
   function formatValue(value: number, bitWidth: number): string {
