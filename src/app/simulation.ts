@@ -21,7 +21,7 @@
  */
 
 import { CircuitRunner, halfPeriod } from '../core/simulate/circuit-runner'
-import { devicesSnapshot } from '../core/simulate/snapshot'
+import { deviceSegmentsSnapshot, devicesSnapshot } from '../core/simulate/snapshot'
 import { circuitIndex, type SymbolIndex } from '../core/model/symbol'
 import { FunctionButton } from '../core/function/devices'
 import { FunctionProbe } from '../core/function/probes'
@@ -100,6 +100,8 @@ export class Simulation {
   private pausedFlag = false
 
   private devices: ReadonlyMap<Id, DeviceState> = new Map()
+  /** Estado de cada segmento de los displays de 7 segmentos (M2-05). */
+  private segments: ReadonlyMap<Id, readonly DeviceState[]> = new Map()
   private lastError: string | null = null
 
   /** Modo con retardos (M7B-10). Por defecto desactivado (ideal). */
@@ -117,7 +119,17 @@ export class Simulation {
 
   /** Lo que hay que pintar ahora mismo. */
   get snapshot(): SimulationState {
-    return { devices: this.devices, nets: new Map<string, Signal>(), powered: this.poweredFlag }
+    return {
+      devices: this.devices,
+      segmentStates: this.segments,
+      nets: new Map<string, Signal>(),
+      powered: this.poweredFlag,
+    }
+  }
+
+  /** El estado de cada segmento de los displays de 7 segmentos, para el render. */
+  get segmentStates(): ReadonlyMap<Id, readonly DeviceState[]> {
+    return this.segments
   }
 
   /**
@@ -257,6 +269,7 @@ export class Simulation {
     const currentState = this.state
     if (currentIndex !== null && currentState !== null) {
       this.devices = devicesSnapshot(currentIndex, runner.circuitMap, currentState, this.elements)
+      this.segments = deviceSegmentsSnapshot(currentIndex, runner.circuitMap, currentState, this.elements)
       this.scheduleRefresh()
     }
     this.pausedFlag = previous
@@ -290,6 +303,7 @@ export class Simulation {
 
     if (!this.poweredFlag) {
       this.devices = allOff(elements)
+      this.segments = new Map()
       return this.snapshot
     }
 
@@ -302,6 +316,7 @@ export class Simulation {
     const state = this.state
     if (runner === null || state === null) {
       this.devices = allOff(elements)
+      this.segments = new Map()
       return this.snapshot
     }
 
@@ -312,9 +327,11 @@ export class Simulation {
     const currentState = this.state
     if (currentIndex === null || currentState === null) {
       this.devices = allOff(elements)
+      this.segments = new Map()
       return this.snapshot
     }
     this.devices = devicesSnapshot(currentIndex, runner.circuitMap, currentState, elements)
+    this.segments = deviceSegmentsSnapshot(currentIndex, runner.circuitMap, currentState, elements)
     return this.snapshot
   }
 
@@ -430,6 +447,7 @@ export class Simulation {
     this.state = null
     this.index = null
     this.signature = ''
+    this.segments = new Map()
     this.buttons.clear()
     this.inverted.clear()
     if (this.refreshFrame !== null) {
@@ -488,6 +506,7 @@ export class Simulation {
     }
 
     this.devices = devicesSnapshot(this.index!, runner.circuitMap, state, this.elements)
+    this.segments = deviceSegmentsSnapshot(this.index!, runner.circuitMap, state, this.elements)
     this.scheduleRefresh()
   }
 

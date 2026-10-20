@@ -80,7 +80,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   let isEmpty = $state(true)
   let dirty = $state(false)
   let recovered = $state(false)
-  /** Piezas del circuito que el lienzo todavía no sabe dibujar (pines, repartidores…). */
+  /** Elementos guardados que el lienzo no pinta (notas de texto y tipos desconocidos). */
   let unsupported = $state(0)
   /** Diagnóstico de capas: sin esto, ocultar o bloquear una capa parece «la app no responde». */
   let hiddenLayers = $state(0)
@@ -986,9 +986,9 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   {#if tool === 'wire' && !powered}
     <div class="wire-colors" role="toolbar" aria-label="Colores de cable">
       {#each loadSettings().savedWireColors as color, index (index)}
-        <button type="button" class="swatch" class:active={wireColor === color} style="background:{color}" title="Aplicar color {color}" aria-label="Aplicar color {color}" onclick={() => { wireColor = color; editor?.colorSelection(color) }}></button>
+        <button type="button" class="swatch" class:active={wireColor === color} aria-pressed={wireColor === color} style="background:{color}" title="Aplicar color {color}" aria-label="Aplicar color {color}" onclick={() => { wireColor = color; editor?.colorSelection(color) }}></button>
       {/each}
-      <button type="button" class="clear-color" class:active={wireColor === null} title="Quitar color forzado" onclick={() => { wireColor = null; editor?.colorSelection('') }}>x</button>
+      <button type="button" class="clear-color" class:active={wireColor === null} aria-pressed={wireColor === null} title="Quitar color forzado" onclick={() => { wireColor = null; editor?.colorSelection('') }}>x</button>
     </div>
   {/if}
 
@@ -1249,7 +1249,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     {/if}
     {#if unsupported > 0}
       <div class="info-badge" role="status">
-        {unsupported} {unsupported === 1 ? 'pieza' : 'piezas'} del circuito no se {unsupported === 1 ? 'dibuja' : 'dibujan'} todavía (memorias, sensores, matrices o sonido). Esta versión no {unsupported === 1 ? 'la' : 'las'} puede editar.
+        {unsupported} {unsupported === 1 ? 'elemento' : 'elementos'} del circuito no se {unsupported === 1 ? 'dibuja' : 'dibujan'} todavía (notas de texto o piezas desconocidas). Esta versión no {unsupported === 1 ? 'lo' : 'los'} puede editar.
         <button type="button" aria-label="Ocultar aviso" onclick={() => (unsupported = 0)}><Icon name="close" size={12} /></button>
       </div>
     {/if}
@@ -1602,6 +1602,8 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   .piece-cell.wide:not(.splitter) .piece {
     flex: 1 1 auto;
     display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
     gap: 0.35rem;
     align-items: center;
     min-width: 0;
@@ -1615,6 +1617,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
 
   .piece-label {
     min-width: 0;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1669,6 +1672,14 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   }
 
   .piece {
+    /* Todas las piezas de una celda se apilan igual: dibujo, nombre y detalle. Antes el
+       nombre largo se partía debajo del dibujo y las celdas parecían desalineadas. */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    min-height: 3.3rem;
     padding: 0.25rem 0.3rem;
     border: 1px solid transparent;
     border-radius: 0.35rem;
@@ -2040,13 +2051,14 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     cursor: pointer;
     padding: 0;
   }
-  .wire-colors .swatch.active {
-    outline: 2px solid var(--wc-selection);
-    outline-offset: 1px;
-  }
+  /* El color elegido tiene que verse aunque el propio color sea claro u oscuro: el anillo
+     va separado del borde por un halo del fondo, y el cuadrado crece un poco. */
+  .wire-colors .swatch.active,
   .wire-colors .clear-color.active {
     outline: 2px solid var(--wc-selection);
-    outline-offset: 1px;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 1px var(--panel-bg);
+    transform: scale(1.08);
   }
   .wire-colors .clear-color {
     min-width: 1.5rem;

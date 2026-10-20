@@ -368,15 +368,13 @@ function describe(
     }
 
     case 'memory':
-    case 'ledMatrix':
     case 'sound':
     case 'graphicsArray':
-      // Estas sí son primitivas, pero su forma todavía no está portada: llegan con M2-12.
-      // Se avisa en vez de inventarse un tamaño, porque un tamaño inventado movería los
-      // pines y el circuito simularía mal.
-      throw new Error(
-        `CircuitSymbol: la forma de «${element.kind}» todavía no está portada (M2-12)`,
-      )
+    case 'ledMatrix':
+      // Son primitivas y ya tienen geometría en `deviceLayout` (pines de dirección/datos de
+      // la memoria, entrada del altavoz…). Dejarlas fuera de aquí las volvía invisibles y,
+      // al encender, el circuito se caía con «forma todavía no portada».
+      return { depicted: { kind: 'device', element }, layout: deviceLayout(element) }
   }
 }
 
@@ -547,8 +545,8 @@ export function conductorMapOf(index: SymbolIndex, circuitId: Id): ConductorMap 
  * Un `SymbolSource` sobre un documento del modelo.
  *
  * Recorre lo que hay guardado en cada hoja y lo parte en símbolos y cables. Los elementos
- * que el editor todavía no sabe colocar (pines, subcircuitos) se aceptan igual: si están
- * en el documento, cuentan.
+ * que un archivo antiguo pueda traer y este editor todavía no ofrezca (notas de texto,
+ * tipos futuros) se aceptan igual: si están en el documento, cuentan.
  */
 export function projectSymbolSource(project: Project): SymbolSource {
   const circuits = new Map<Id, Circuit>()

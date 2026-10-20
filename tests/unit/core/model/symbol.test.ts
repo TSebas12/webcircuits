@@ -324,8 +324,8 @@ describe('símbolos primitivos', () => {
   })
 })
 
-describe('lo que todavía no está portado', () => {
-  it('la forma de un dispositivo sin portar avisa en vez de inventarse un tamaño', () => {
+describe('geometría de los dispositivos especiales', () => {
+  it('la memoria ya tiene forma, pines y tamaño', () => {
     const memory: Memory = {
       kind: 'memory',
       id: 'm1',
@@ -343,7 +343,11 @@ describe('lo que todavía no está portado', () => {
     const index = new SymbolIndex(projectSymbolSource(smallProject(memory)))
     index.addCircuit(mainCircuit(memory))
 
-    expect(() => index.symbol(memory)).toThrow(/no está portada/)
+    const symbol = index.symbol(memory)
+    expect(symbol.depicted.kind).toBe('device')
+    expect(symbol.layout.width).toBeGreaterThanOrEqual(3)
+    expect(symbol.layout.height).toBeGreaterThanOrEqual(4)
+    expect(symbol.layout.pins.length).toBeGreaterThan(0)
   })
 })
 

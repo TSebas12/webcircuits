@@ -28,6 +28,11 @@ export interface SceneOptions {
   readonly elements: readonly Element[]
   /** Estado de cada dispositivo. Lo que no esté, se pinta apagado. */
   readonly states: ReadonlyMap<Id, DeviceState>
+  /**
+   * Estado de cada segmento de los displays de 7 segmentos, por dispositivo.
+   * Lo que no esté se pinta apagado.
+   */
+  readonly segmentStates?: ReadonlyMap<Id, readonly DeviceState[]>
   /** Estado eléctrico de cada cable (M6-03). Lo que no esté, se pinta en reposo. */
   readonly wireStates?: ReadonlyMap<Id, WireSignal>
   /** Cómo se pintan los cables al encender (preferencia del usuario). */
@@ -108,6 +113,7 @@ export function buildScene(options: SceneOptions): RenderScene {
     const layer = options.layers?.get(element.layerId)
     const baseOpacity = layer?.opacity ?? 1
     const dim = options.dimOtherLayers === true && options.activeLayerId !== undefined && element.layerId !== options.activeLayerId ? 0.25 : 1
+    const segmentStates = options.segmentStates?.get(element.id)
     const device: DrawDevice = {
       kind: 'device',
       shape,
@@ -120,6 +126,7 @@ export function buildScene(options: SceneOptions): RenderScene {
       state: options.states.get(element.id) ?? 'off',
       layerOpacity: baseOpacity * dim,
       ...(label === undefined ? {} : { label }),
+      ...(segmentStates === undefined ? {} : { segmentStates }),
     }
     items.push(device)
   }

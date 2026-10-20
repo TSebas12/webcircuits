@@ -70,6 +70,11 @@ export interface DrawDevice {
   readonly hovered?: boolean
   readonly state: DeviceState
   /**
+   * Estado de cada segmento de un display de 7 segmentos, en el orden de sus pines.
+   * Solo lo llevan las piezas que tienen `segments` en su silueta.
+   */
+  readonly segmentStates?: readonly DeviceState[]
+  /**
    * Opacidad efectiva de la capa a la que pertenece (M5). El render la aplica como
    * `globalAlpha` al pintar el símbolo.
    */

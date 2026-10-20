@@ -1166,14 +1166,20 @@ export class Diagram {
 /**
  * ¿Este elemento guardado tiene silueta propia?
  *
- * Los cables también cuentan: son parte de lo que se dibuja. Lo que no entra son memorias,
- * matrices, sonido ni notas, que se conservan y simulan pero aún no se pintan.
+ * Los cables también cuentan: son parte de lo que se dibuja. Las notas de texto no: tienen
+ * su propio panel y no son un símbolo del circuito.
  */
 function isDrawableElement(item: StoredElement): item is Element {
   return item.kind === 'wire' || isDrawableDevice(item)
 }
 
-/** ¿Este elemento es un símbolo que sabemos dibujar? */
+/**
+ * ¿Este elemento es un símbolo que sabemos dibujar?
+ *
+ * Memoria, sonido y matrices ya tienen silueta (`render/symbols/`): si no estuvieran aquí,
+ * se podrían colocar desde la paleta y desaparecerían del lienzo. Es justo el tipo de
+ * desincronización que este filtro tiene que evitar.
+ */
 function isDrawableDevice(item: StoredElement): item is DrawableDevice {
   switch (item.kind) {
     case 'gate':
@@ -1184,6 +1190,10 @@ function isDrawableDevice(item: StoredElement): item is DrawableDevice {
     case 'sensor':
     case 'splitter':
     case 'circuit':
+    case 'memory':
+    case 'sound':
+    case 'graphicsArray':
+    case 'ledMatrix':
       return true
     default:
       return false

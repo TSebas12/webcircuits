@@ -271,9 +271,9 @@ describe('la vista del editor y los datos guardados', () => {
 
     expect(diagram.storedElements).toHaveLength(3)
     // `elements` es la vista dibujable: todo lo que tiene silueta, más los cables. La
-    // memoria sigue guardada y se simula, pero todavía no se pinta.
-    expect(diagram.elements.map((element) => element.kind)).toEqual(['gate', 'pin'])
-    expect(diagram.devices.map((device) => device.kind)).toEqual(['gate', 'pin'])
+    // memoria ya tiene forma propia, así que se guarda, se pinta y se simula.
+    expect(diagram.elements.map((element) => element.kind)).toEqual(['gate', 'pin', 'memory'])
+    expect(diagram.devices.map((device) => device.kind)).toEqual(['gate', 'pin', 'memory'])
   })
 
   it('los elementos creados llevan el `circuitId` del diagrama, no siempre el principal', () => {

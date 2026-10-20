@@ -2096,9 +2096,8 @@ export class Editor {
   }
 
   private evaluate(): void {
-    // La simulación ve **todos** los elementos, no solo los dibujables: una memoria o un
-    // sensor importados cuentan aunque el lienzo todavía no sepa pintarlos. Y no se filtra
-    // por capas: ocultar una capa es cosa de la vista, no del circuito.
+    // La simulación ve **todos** los elementos guardados, no solo los de la capa visible:
+    // ocultar una capa es cosa de la vista, no del circuito.
     this.sim = this.simulation.evaluate(this.diagram.storedElements)
   }
 
@@ -2180,6 +2179,7 @@ export class Editor {
       buildScene({
         elements: this.diagram.visibleElements,
         states: this.sim.devices,
+        segmentStates: this.sim.segmentStates,
         wireStates,
         selected: this.selected,
         hovered: this.hovered,

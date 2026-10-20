@@ -161,6 +161,27 @@ export function drawDevice(
     ctx.shadowColor = 'transparent'
   }
 
+  // Un display de 7 segmentos: cada segmento se enciende con su propia entrada. El estado
+  // que no llega (corriente apagada, segmento sin cablear) se pinta apagado, no invisible.
+  if (drawing.segments !== undefined) {
+    ctx.lineCap = 'round'
+    ctx.lineWidth = drawing.segmentWidth ?? STROKE
+    drawing.segments.forEach((segment, index) => {
+      const segmentLit = device.segmentStates?.[index] === 'one'
+      if (segmentLit) {
+        ctx.shadowColor = theme.stateOne
+        ctx.shadowBlur = GLOW_PX
+      }
+      ctx.strokeStyle = segmentLit ? theme.stateOne : theme.stateOff
+      ctx.stroke(segment)
+      if (segmentLit) {
+        ctx.shadowBlur = 0
+        ctx.shadowColor = 'transparent'
+      }
+    })
+    ctx.lineCap = 'butt'
+  }
+
   if (drawing.indicator !== undefined) {
     ctx.fillStyle = stateColor(theme, device.state)
     ctx.fill(drawing.indicator)

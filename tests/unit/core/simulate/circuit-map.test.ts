@@ -380,9 +380,9 @@ describe('mapa de simulación (portado de CircuitMap.cs)', () => {
     expect(led.get(0)).toBe(State.On0)
   })
 
-  it('lo que todavía no sabe simularse avisa en vez de simular mal', () => {
-    // La memoria existe en el modelo pero sus funciones llegan con M2-05: hasta entonces el
-    // mapa no la puede convertir en función y avisa en vez de simularla a medias.
+  it('la memoria ya se puede aplanar sin tumbar el circuito', () => {
+    // La memoria dejó de ser una pieza «sin portar»: tiene geometría y `defineMemory`.
+    // Esta prueba vigila que el mapa no vuelva a lanzar al encontrarla.
     const withMemory = circuit('main', 'Main', [
       {
         kind: 'memory',
@@ -400,10 +400,9 @@ describe('mapa de simulación (portado de CircuitMap.cs)', () => {
       },
     ])
     const index = projectIndex(project(withMemory))
+    const map = CircuitMap.create(index, index.circuit('main')!)
 
-    expect(() => CircuitMap.create(index, index.circuit('main')!).apply(0)).toThrow(
-      /todavía no está portada/,
-    )
+    expect(() => map.apply(0)).not.toThrow()
   })
 
   it('dos puntas de distinto ancho no se pueden juntar', () => {

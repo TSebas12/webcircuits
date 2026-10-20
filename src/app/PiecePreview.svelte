@@ -47,6 +47,7 @@
     const fill = styles.getPropertyValue('--wc-symbol-fill').trim() || LIGHT_THEME.tokens['gate.fill']
     const stroke = styles.getPropertyValue('--wc-symbol-stroke').trim() || LIGHT_THEME.tokens['gate.stroke']
 
+
     ctx.clearRect(0, 0, size, size)
     ctx.save()
     ctx.translate(offX, offY)
@@ -56,6 +57,22 @@
     ctx.fillStyle = fill
     ctx.fill(drawing.body)
     ctx.stroke(drawing.body)
+    // En la vista previa el display se enseña con todos los segmentos apagados: es su
+    // aspecto en reposo, y así se distingue del LED redondo de una sola entrada.
+    if (drawing.segments !== undefined) {
+      // Los segmentos apagados del tema son muy pálidos para un icono de 28 px; en la
+      // vista previa se dibujan con el color del trazo y algo de transparencia para que
+      // se lea como un display y no como una caja.
+      ctx.lineCap = 'round'
+      ctx.lineWidth = drawing.segmentWidth ?? 1 / scale
+      ctx.strokeStyle = stroke
+      ctx.globalAlpha = 0.55
+      for (const segment of drawing.segments) {
+        ctx.stroke(segment)
+      }
+      ctx.globalAlpha = 1
+      ctx.lineCap = 'butt'
+    }
     if (drawing.stroke !== undefined) ctx.stroke(drawing.stroke)
     if (drawing.bubble !== undefined) {
       ctx.fillStyle = fill

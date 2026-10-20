@@ -48,11 +48,40 @@ export function devicesSnapshot(
 }
 
 /**
+ * La foto de cada segmento de los displays de 7 segmentos, por identificador.
+ *
+ * Un display tiene ocho entradas (a-g + punto) y el render las necesita **separadas**:
+ * `devicesSnapshot` solo dice «algo está encendido», que es suficiente para un LED pero
+ * encendería los siete segmentos a la vez. Aquí se guarda el estado de cada pin, en el
+ * mismo orden en que los crea el modelo.
+ */
+export function deviceSegmentsSnapshot(
+  index: SymbolIndex,
+  map: CircuitMap,
+  state: CircuitState,
+  elements: readonly StoredElement[],
+): Map<Id, readonly DeviceState[]> {
+  const segments = new Map<Id, readonly DeviceState[]>()
+  for (const element of elements) {
+    if (element.kind !== 'gate' || element.gateType !== 'led' || element.inputCount !== 8) {
+      continue
+    }
+    const pins = map.symbolPinStateIndexes(index.symbol(element))
+    segments.set(
+      element.id,
+      pins.map((indexes) => deviceState(state, indexes)),
+    )
+  }
+  return segments
+}
+
+/**
  * El estado visual que corresponde a unos índices de estado.
  *
- * Un dispositivo de varios bits (un LED de 8, una constante) se pinta como encendido si
- * **alguno** de sus bits lo está; el render todavía no sabe dibujar valores de varios bits,
- * y eso es M3B. Si ninguno está encendido pero alguno tiene un cero, el dispositivo está en
+ * Un dispositivo de varios bits (una constante, una probeta) se pinta como encendido si
+ * **alguno** de sus bits lo está. El display de 7 segmentos no pasa por aquí: tiene su propia
+ * foto por segmento (`deviceSegmentsSnapshot`). Los valores de varios bits como texto siguen
+ * pendientes (M3B). Si ninguno está encendido pero alguno tiene un cero, el dispositivo está en
  * `zero` (apagado pero con señal); si no hay ningún índice —o todos son `Off`— está `off`.
  */
 function deviceState(state: CircuitState, indexes: readonly number[]): DeviceState {

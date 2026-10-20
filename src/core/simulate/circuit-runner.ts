@@ -29,7 +29,8 @@ import type { SymbolIndex } from '../model/symbol'
  * Cuántas muestras guarda cada probeta (original: `CircuitRunner.HistorySize`).
  *
  * Vale para dos cosas: es la capacidad que se le da al `CircuitState` al aplanar y es la
- * memoria del osciloscopio. Aquí solo se usa la primera; la segunda llega con M2-12.
+ * memoria del osciloscopio. Aquí solo se usa la primera; cada probeta guarda su propio
+ * historial en `FunctionProbe`.
  */
 export const HISTORY_SIZE = 100
 

@@ -85,7 +85,7 @@ export class Conductor {
  *
  * Portado de `LogicCircuit/ConductorMap.cs`. El constructor original recibía un
  * `LogicalCircuit` y leía sus cables; aquí se le pasa directamente la lista de
- * cables, para no depender del modelo completo (que llega en M2-05).
+ * cables, para que esta pieza no dependa de `CircuitProject`.
  */
 export class ConductorMap {
   private readonly map = new Map<string, Conductor>()

@@ -25,6 +25,11 @@ export interface SimulationState {
   /** Estado de cada dispositivo, por id. */
   readonly devices: ReadonlyMap<Id, DeviceState>
   /**
+   * Estado de cada segmento de los displays de 7 segmentos, por id.
+   * Es opcional porque solo lo rellena el motor real; los motores antiguos no lo tienen.
+   */
+  readonly segmentStates?: ReadonlyMap<Id, readonly DeviceState[]>
+  /**
    * Valor de cada nodo eléctrico, por clave de punto.
    *
    * ⚠️ Solo aparecen los nodos que alguien empuja: un nodo del que nadie escribe **no

@@ -6,9 +6,10 @@
  * existir en el panel sin que el editor sepa colocarla, ni al revés.
  *
  * ⚠️ **Solo entra lo que se puede dibujar y simular.** Una pieza que se coloca y luego no se ve,
- * o que revienta al dar corriente, es peor que no ofrecerla: el 7 segmentos, las memorias y
- * las matrices llegan con M2-05. Tampoco se ofrecen compuertas negadas que el motor no niega
- * (el LED, el reloj) porque el dibujo diría algo que el circuito no hace (ver `shapeForGate`).
+ * o que revienta al dar corriente, es peor que no ofrecerla. Por eso no están las matrices
+ * gráfica y de LED: su modelo y su persistencia existen, pero todavía no tienen pines ni
+ * función de simulación. Tampoco se ofrecen compuertas negadas que el motor no niega (el
+ * LED, el reloj) porque el dibujo diría algo que el circuito no hace (ver `shapeForGate`).
  *
  * El interruptor que se coloca es **fijo**, y no por capricho: con el ratón no se pueden pulsar
  * dos a la vez, así que uno momentáneo no serviría para probar una AND de dos entradas. El
@@ -333,20 +334,9 @@ export const PIECES = [
     title: 'Altavoz: suena mientras su entrada está a 1',
     group: 'io',
   },
-  {
-    kind: 'graphicsArray',
-    id: 'graphicsArray',
-    label: 'Matriz gráfica',
-    title: 'Matriz gráfica: memoria de píxeles direccionada',
-    group: 'io',
-  },
-  {
-    kind: 'ledMatrix',
-    id: 'ledMatrix',
-    label: 'Matriz LED',
-    title: 'Matriz de LED: muestra un valor de varios bits',
-    group: 'io',
-  },
+  // La matriz gráfica y la de LED aún no tienen pines ni función de simulación. Se guardan
+  // en el modelo (un `.CircuitProject` importado se conserva), pero no se ofrecen: una pieza
+  // que se coloca y no se puede cablear es peor que no enseñarla.
   {
     kind: 'button',
     id: 'button',
@@ -518,6 +508,11 @@ export function pieceLayout(piece: Piece, chosen: number): SymbolLayout {
 export function pieceShape(piece: Piece): SymbolShape | null {
   switch (piece.kind) {
     case 'gate':
+      // El display es una compuerta «led» de 8 entradas en el modelo, pero su silueta no
+      // es el círculo de un LED: sin esta excepción la paleta enseñaba un LED normal.
+      if (piece.gateType === 'led' && piece.inputCount === 8) {
+        return 'sevenSegment'
+      }
       return shapeForGate(piece.gateType, piece.invertedOutput)
     case 'button':
       return 'button'

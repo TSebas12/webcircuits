@@ -203,9 +203,9 @@ export type PlacedElement =
 /**
  * Los símbolos que el editor sabe **dibujar y colocar** hoy.
  *
- * Es a propósito más estrecho que `PlacedElement`: una memoria importada debe conservarse y
- * simularse, pero no ofrecerse en la paleta ni responder al clic como si se viera. El día
- * que tenga silueta, se añade aquí y aparece en todas partes a la vez.
+ * Incluye memoria, altavoz y las matrices: ya tienen silueta en `render/symbols/`. Las
+ * matrices no se ofrecen en la paleta porque todavía no tienen pines ni función, pero un
+ * archivo importado que las contenga se conserva, se pinta y no tumba la simulación.
  */
 export type DrawableDevice =
   | Gate

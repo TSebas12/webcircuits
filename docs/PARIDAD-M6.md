@@ -80,6 +80,9 @@ las compuertas y en el texto sobre el acento, y 3:1 entre cable y lienzo.
 ## Color por cable
 
 - El inspector del cable permite fijar un color solo para ese cable (`wire.color`).
+- En **modo cableado** (W) la barra superior ofrece la paleta rápida: cinco colores y
+  «quitar color». El elegido se marca con un anillo y un halo, para que se vea aunque el
+  color sea claro u oscuro.
 - Se guarda en el **JSON nativo** y entra en el historial (deshacer lo revierte).
 - **No** se exporta al `.CircuitProject` XML del original: su formato no tiene ese campo.
   Es una extensión web, igual que las capas.
@@ -106,11 +109,11 @@ Los comentarios se ignoran para no confundir un `#ff0000` explicativo con un col
 
 ## Límites conocidos
 
-- `gate.text` y `gate.error` están en el catálogo y se pueden editar, pero **todavía no se
-  consumen**: no hay etiquetas de texto en el canvas ni un estado de error por dispositivo.
-  Quedan listos para cuando lleguen.
+- `gate.text` **sí se consume**: es el color de las etiquetas del canvas (pines, constantes,
+  subcircuitos, notación de sensores y RAM/ROM de las memorias). `gate.error` sigue en el
+  catálogo sin uso: no hay un estado de error por dispositivo.
 - La **densidad** de la rejilla es automática (LOD): el token controla el color, no cuántos
   puntos se dibujan. La visibilidad sigue en Preferencias.
-- La tipografía se aplica al cromo. El canvas aún no dibuja etiquetas, así que
-  `font.sans`/`font.baseSize` no tienen texto de símbolo que cambiar.
+- La tipografía se aplica al cromo. Las etiquetas del canvas usan `system-ui` directamente,
+  así que `font.sans`/`font.baseSize` todavía no cambian el texto de los símbolos.
 - El color propio de un cable no viaja al XML del original (ver arriba).

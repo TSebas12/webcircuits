@@ -582,6 +582,27 @@ export class CircuitMap {
   }
 
   /**
+   * Los índices de estado de **cada punta**, en orden de pin y sin deduplicar.
+   *
+   * `symbolStateIndexes` devuelve un conjunto, que basta para pintar un LED de un bit pero
+   * no para un display de 7 segmentos: allí cada segmento necesita saber qué bit lo
+   * alimenta, aunque dos segmentos compartan el mismo cable.
+   */
+  symbolPinStateIndexes(symbol: CircuitSymbol): number[][] {
+    const symbolMap = this.root.rootResults?.get(new SymbolMapKey(this, symbol).key)
+    if (symbolMap === undefined) {
+      return []
+    }
+    return jamsByPinOrder(symbol).map((jam) =>
+      symbolMap
+        .allParameters(jam)
+        .slice()
+        .sort((a, b) => a.bitNumber - b.bitNumber)
+        .map((parameter) => parameter.result.stateIndex),
+    )
+  }
+
+  /**
    * Recorre los resultados y anota de dónde lee cada entrada (original:
    * `CircuitMap.Connect`, el estático).
    *
@@ -710,8 +731,8 @@ export class CircuitMap {
       for (const constant of this.constants?.values() ?? []) {
         constant.turnOff()
       }
-      // TODO(M2-05): las memorias (`memories`) se apagan aquí, para que una RAM no se lleve
-      // su contenido de una sesión a la siguiente.
+      // TODO(M11): persistir y apagar las memorias entre sesiones. Hoy cada encendido crea
+      // una RAM nueva, así que su contenido no se lleva de una ejecución a la siguiente.
       this.turnedOn = false
     }
     for (const child of this.childMaps?.values() ?? []) {
@@ -840,9 +861,8 @@ function isGraphicsArray(symbolMap: SymbolMap): boolean {
  * Comprueba lo que el circuito no puede hacer (original: `CircuitMap.Validate`).
  *
  * De momento solo hay un caso: dos memorias que guardan sus datos entre ejecuciones no
- * pueden arrancar con los mismos datos, porque entonces no se sabe cuál manda. La
- * comprobación está portada pero **no puede saltar todavía**: las memorias no saben
- * colocarse ni tienen `OnStart` en el modelo (M2-05).
+ * pueden arrancar con los mismos datos, porque entonces no se sabe cuál manda. Las memorias
+ * ya se colocan y tienen `OnStart`, así que la comprobación puede saltar.
  */
 function validate(list: SymbolMapList): void {
   const persisted = new Set<CircuitSymbol>()
@@ -862,9 +882,10 @@ function validate(list: SymbolMapList): void {
 /**
  * Crea la función de un símbolo primitivo (original: `CircuitMap.Apply`).
  *
- * Ya están portadas las compuertas, el tri-estado, el reloj, el LED, el interruptor, la
- * constante y la probeta. Memoria, sensor, sonido y matriz siguen avisando en vez de
- * simular mal: llegan con M2-05/M2-12.
+ * Ya están portadas las compuertas, el tri-estado, el reloj, el LED (de 1 bit y de 7
+ * segmentos), el interruptor, la constante, la probeta, el sensor, la memoria y el altavoz.
+ * Las matrices gráfica y de LED siguen sin pines ni función: se dejan inertes para no
+ * tumbar un circuito importado, y no se ofrecen en la paleta.
  */
 function applySymbol(
   circuitState: CircuitState,
@@ -923,8 +944,24 @@ function applySymbol(
     return
   }
 
+  // El altavoz es un indicador: mira su entrada igual que un LED y no propaga nada.
+  if (depicted.kind === 'device' && depicted.element.kind === 'sound') {
+    defineSound(circuitState, symbolMap)
+    return
+  }
+
+  // Las matrices gráfica y de LED todavía no tienen pines ni función en el modelo. Se dejan
+  // inertes para que un circuito importado que las contenga se pueda encender; no se ofrecen
+  // en la paleta hasta que se puedan cablear y dibujar de verdad.
+  if (
+    depicted.kind === 'device' &&
+    (depicted.element.kind === 'graphicsArray' || depicted.element.kind === 'ledMatrix')
+  ) {
+    return
+  }
+
   const what = depicted.kind === 'device' ? `«${depicted.element.kind}»` : `«${depicted.kind}»`
-  throw new CircuitError(`La simulación de ${what} todavía no está portada (M2-05/M2-12).`)
+  throw new CircuitError(`La simulación de ${what} todavía no está portada.`)
 }
 
 /**
@@ -973,6 +1010,26 @@ function defineLed(circuitState: CircuitState, symbolMap: SymbolMap): CircuitFun
     return null
   }
   const function_ = new FunctionLed(circuitState, parameters)
+  symbolMap.circuitMap.updateDisplays(symbolMap, function_)
+  return function_
+}
+
+/**
+ * Un altavoz (original: `CircuitMap.DefineSound`).
+ *
+ * Como el LED, no calcula: solo mira su única entrada. El navegador todavía no reproduce
+ * audio (eso es M11), pero el estado sí se sigue y la pieza se enciende en el lienzo.
+ */
+function defineSound(circuitState: CircuitState, symbolMap: SymbolMap): CircuitFunction | null {
+  const jam = jamsByPinOrder(symbolMap.circuitSymbol)[0]
+  if (jam === undefined) {
+    return null
+  }
+  const parameter = symbolMap.parameter(jam, 0)
+  if (parameter === null) {
+    return null
+  }
+  const function_ = new FunctionLed(circuitState, parameter.result.stateIndex)
   symbolMap.circuitMap.updateDisplays(symbolMap, function_)
   return function_
 }

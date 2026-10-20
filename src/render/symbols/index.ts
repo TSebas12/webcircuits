@@ -86,6 +86,15 @@ export interface SymbolDrawing {
   readonly indicator?: Path2D
   readonly stroke?: Path2D
   readonly bubble?: Path2D
+  /**
+   * Segmentos de un indicador (el display de 7 segmentos), en el orden de sus pines.
+   *
+   * Se guardan aparte del cuerpo porque el render los pinta **uno a uno**: cada uno recibe
+   * el color de su entrada (`DrawDevice.segmentStates`) en vez del relleno de la caja.
+   */
+  readonly segments?: readonly Path2D[]
+  /** Grosor de los segmentos, en unidades de rejilla. */
+  readonly segmentWidth?: number
 }
 
 /** Construye la silueta de una forma con un tamaño dado. */

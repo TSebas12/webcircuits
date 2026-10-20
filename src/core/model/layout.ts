@@ -464,9 +464,9 @@ export function circuitSymbolLayout(pins: readonly PinSpec[]): SymbolLayout {
 /**
  * Una forma vacía: 2×2 y sin pines.
  *
- * Es el respaldo para los dispositivos que el editor todavía no sabe dibujar (memorias,
- * sensores, notas…). Así las cuentas de caja y de clic no revientan con ellos, aunque no se
- * pinten; el día que tengan símbolo propio, se cambia aquí y aparece en todas partes.
+ * Es el respaldo para una punta o un subcircuito cuya geometría no se puede resolver (por
+ * ejemplo, al girar sin el proyecto a mano) y para cualquier tipo futuro. Así las cuentas de
+ * caja y de clic no revientan; los dispositivos con símbolo propio tienen su caso arriba.
  */
 const EMPTY_LAYOUT: SymbolLayout = {
   width: MIN_SYMBOL_SIZE,

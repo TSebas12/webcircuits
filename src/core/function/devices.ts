@@ -3,8 +3,8 @@
  * constante.
  *
  * Portado de `Function/FunctionClock.cs`, `Function/FunctionButton.cs`,
- * `Function/FunctionLed.cs` y `Function/FunctionConstant.cs`. Los tres primeros ya tienen
- * forma y se pueden colocar; la constante espera a M2-05.
+ * `Function/FunctionLed.cs` y `Function/FunctionConstant.cs`. Los cuatro tienen forma y se
+ * colocan desde la paleta; el mismo `FunctionLed` hace de indicador del altavoz.
  *
  * ⚠️ **Cómo se dibujan.** En el original estas funciones *son* también la vista: guardan el
  * `Shape`/`Border` de WPF y lo pintan (`Redraw`). Aquí no hay WPF: el lienzo se pinta desde

@@ -15,5 +15,11 @@ export function soundShape(width: number, height: number): SymbolDrawing {
   body.lineTo(w - 0.15, h - 0.05)
   body.lineTo(0.15 + w * 0.35, h - 0.15)
   body.closePath()
-  return { body, bodyFill: 'symbol' }
+
+  // El original no cambia de aspecto al sonar; aquí no hay audio todavía, así que un punto
+  // de estado evita que la pieza parezca muerta cuando recibe un 1.
+  const indicator = new Path2D()
+  indicator.arc(w - 0.45, 0.45, 0.14, 0, Math.PI * 2)
+
+  return { body, bodyFill: 'symbol', indicator }
 }
