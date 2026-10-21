@@ -64,9 +64,12 @@
 <div class="shell">
   <header>
     <span class="brand">WebCircuits</span>
-    <span class="hint">elige una pieza y haz clic · cablea arrastrando o con dos clics en los pines · rueda para acercar</span>
+    <span class="hint"
+      >elige una pieza y haz clic · cablea arrastrando o con dos clics en los pines · rueda para
+      acercar</span
+    >
     <span class="spacer"></span>
-    <span class="version">v{version} · M6</span>
+    <span class="version">v{version}</span>
     <button
       class="theme"
       type="button"
@@ -110,11 +113,24 @@
     color: var(--fg-muted);
   }
 
+  .hint {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .spacer {
     flex: 1 1 auto;
   }
 
+  .brand,
+  .version {
+    flex: 0 0 auto;
+  }
+
   .theme {
+    flex: 0 0 auto;
     min-width: 6.5rem;
     padding: 0.3rem 0.7rem;
     border: 1px solid var(--border);
@@ -136,5 +152,22 @@
   .theme:focus-visible {
     outline: 2px solid var(--wc-selection);
     outline-offset: 2px;
+  }
+
+  @media (max-width: 700px) {
+    .hint,
+    .version {
+      display: none;
+    }
+
+    header {
+      gap: 0.5rem;
+      padding: 0.5rem 0.6rem;
+    }
+
+    .theme {
+      min-width: 0;
+      margin-left: auto;
+    }
   }
 </style>

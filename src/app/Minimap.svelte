@@ -30,7 +30,10 @@
 
     const elements = editor.diagram.elements
     const resolveCircuit = (id: string) => editor?.project.circuit(id)
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity
     for (const el of elements) {
       if (el.kind === 'wire') {
         minX = Math.min(minX, el.p1.x, el.p2.x)
@@ -46,10 +49,16 @@
       }
     }
     if (!isFinite(minX)) {
-      minX = 0; minY = 0; maxX = 1; maxY = 1
+      minX = 0
+      minY = 0
+      maxX = 1
+      maxY = 1
     }
     const pad = 1
-    minX -= pad; minY -= pad; maxX += pad; maxY += pad
+    minX -= pad
+    minY -= pad
+    maxX += pad
+    maxY += pad
     const grid = GRID_SIZE
     const scale = Math.min(cssW / ((maxX - minX) * grid), cssH / ((maxY - minY) * grid))
     const toX = (gx: number): number => (gx - minX) * grid * scale
@@ -71,7 +80,12 @@
         ctx.globalAlpha = 0.45
       } else {
         const box = deviceBounds(el, resolveCircuit)
-        ctx.fillRect(toX(box.x0), toY(box.y0), Math.max(1, (box.x1 - box.x0) * grid * scale), Math.max(1, (box.y1 - box.y0) * grid * scale))
+        ctx.fillRect(
+          toX(box.x0),
+          toY(box.y0),
+          Math.max(1, (box.x1 - box.x0) * grid * scale),
+          Math.max(1, (box.y1 - box.y0) * grid * scale),
+        )
       }
     }
     ctx.globalAlpha = 1
@@ -103,7 +117,7 @@
   .minimap {
     position: absolute;
     right: 0.6rem;
-    bottom: 2.2rem;
+    bottom: 3.2rem;
     width: 120px;
     height: 90px;
     border: 1px solid var(--border);
@@ -113,7 +127,17 @@
     pointer-events: none;
   }
 
-  @media (max-width: 768px) {
-    .minimap { display: none }
+  @media (max-width: 1200px) {
+    /* La barra de simulación pasa a dos filas: el minimapa sube para no montarse encima. */
+    .minimap {
+      bottom: 5.2rem;
+    }
+  }
+
+  @media (max-width: 900px) {
+    /* Con tres filas de controles ya no hay hueco: se oculta y queda el encuadre (F). */
+    .minimap {
+      display: none;
+    }
   }
 </style>

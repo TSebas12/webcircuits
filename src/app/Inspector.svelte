@@ -19,8 +19,45 @@
     clock: 'Reloj',
   }
 
+  /** Cómo se llama cada tipo de elemento en la interfaz. */
+  const KIND_LABELS: Readonly<Record<string, string>> = {
+    gate: 'Compuerta',
+    button: 'Interruptor',
+    pin: 'Pin de la hoja',
+    constant: 'Constante',
+    probe: 'Sonda',
+    sensor: 'Sensor',
+    memory: 'Memoria',
+    splitter: 'Repartidor',
+    circuit: 'Subcircuito',
+    wire: 'Cable',
+  }
+
+  /** El nombre concreto de una compuerta: «Compuerta AND», «LED», «7 segmentos»… */
+  const kindLabel = (element: Element): string => {
+    if (element.kind !== 'gate') {
+      return KIND_LABELS[element.kind] ?? element.kind
+    }
+    const gates: Readonly<Record<string, string>> = {
+      and: 'AND',
+      or: 'OR',
+      xor: 'XOR',
+      not: 'NOT',
+      clock: 'Reloj',
+      triState1: 'Tri-estado ↓',
+      triState2: 'Tri-estado ↑',
+    }
+    if (element.gateType === 'led') {
+      return element.inputCount === 8 ? '7 segmentos' : 'LED'
+    }
+    return `Compuerta ${gates[element.gateType] ?? element.gateType}`
+  }
+
   const refresh = () => {
-    if (editor === null) { selected = null; return }
+    if (editor === null) {
+      selected = null
+      return
+    }
     const id = editor.selectedId
     selected = (id ? (editor.diagram.get(id) ?? null) : null) as Element | null
   }
@@ -59,87 +96,180 @@
 
 {#if (editor?.selectedCount ?? 0) > 1}
   <aside class="inspector" aria-label="Propiedades">
-    <h3>Propiedades ({editor?.selectedCount})</h3>
-    <div class="row"><span>Selección múltiple</span></div>
-    <div class="row">
+    <header class="inspector-head">
+      <h3>Propiedades ({editor?.selectedCount})</h3>
+      <p class="kind">Selección múltiple</p>
+    </header>
+    <label class="field">
       <span>Bits</span>
-      <input type="number" min="1" max="32"
-        oninput={(e) => editor?.updateSelection({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
+      <input
+        type="number"
+        min="1"
+        max="32"
+        oninput={(e) =>
+          editor?.updateSelection({
+            bitWidth: Number((e.currentTarget as HTMLInputElement).value),
+          })}
+      />
+    </label>
+    <div class="actions">
+      <button
+        type="button"
+        onclick={() => {
+          editor?.updateSelection({})
+          refresh()
+        }}>Aplicar a todos</button
+      >
     </div>
-    <button type="button" onclick={() => { editor?.updateSelection({}); refresh() }}>Aplicar</button>
   </aside>
 {:else if selected}
   <aside class="inspector" aria-label="Propiedades">
-    <h3>Propiedades</h3>
-    <div class="row"><span>Tipo</span><span class="value">{selected.kind}</span></div>
+    <header class="inspector-head">
+      <h3>Propiedades</h3>
+      <p class="kind">{kindLabel(selected)}</p>
+    </header>
+
     {#if selected.kind === 'gate'}
-      <div class="row">
+      <p class="section-title">General</p>
+      <label class="field">
         <span>Bits</span>
-        <input type="number" min="1" max="32" value={selected.bitWidth ?? 1}
-          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
-      </div>
-      <div class="row">
+        <input
+          type="number"
+          min="1"
+          max="32"
+          value={selected.bitWidth ?? 1}
+          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })}
+        />
+      </label>
+      <p class="section-title">Compuerta</p>
+      <label class="field">
         <span>Entradas</span>
-        <input type="number" min="1" max="32" value={selected.inputCount}
-          oninput={(e) => update({ inputCount: Number((e.currentTarget as HTMLInputElement).value) })} />
-      </div>
-      <label class="row"><span>Invertido</span><input type="checkbox" checked={selected.invertedOutput} onchange={(e) => update({ invertedOutput: (e.currentTarget as HTMLInputElement).checked })} /></label>
-      <div class="row">
-        <span>Retardo</span>
-        <input type="number" min="0" max="1000" value={selected.delay ?? 0}
-          oninput={(e) => update({ delay: Number((e.currentTarget as HTMLInputElement).value) })} />
-      </div>
+        <input
+          type="number"
+          min="1"
+          max="32"
+          value={selected.inputCount}
+          oninput={(e) =>
+            update({ inputCount: Number((e.currentTarget as HTMLInputElement).value) })}
+        />
+      </label>
+      <label class="field toggle">
+        <span>Salida invertida</span>
+        <input
+          type="checkbox"
+          checked={selected.invertedOutput}
+          onchange={(e) =>
+            update({ invertedOutput: (e.currentTarget as HTMLInputElement).checked })}
+        />
+      </label>
+      <label class="field">
+        <span>Retardo (ms)</span>
+        <input
+          type="number"
+          min="0"
+          max="1000"
+          value={selected.delay ?? 0}
+          oninput={(e) => update({ delay: Number((e.currentTarget as HTMLInputElement).value) })}
+        />
+      </label>
     {:else if selected.kind === 'button'}
-      <div class="row">
+      <p class="section-title">Interruptor</p>
+      <label class="field">
         <span>Bits</span>
-        <input type="number" min="1" max="32" value={selected.bitWidth ?? 1}
-          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
-      </div>
-      <label class="row"><span>Fijo</span><input type="checkbox" checked={selected.isToggle} onchange={(e) => update({ isToggle: (e.currentTarget as HTMLInputElement).checked })} /></label>
-      <label class="row"><span>Invertido</span><input type="checkbox" checked={selected.inverted} onchange={(e) => update({ inverted: (e.currentTarget as HTMLInputElement).checked })} /></label>
+        <input
+          type="number"
+          min="1"
+          max="32"
+          value={selected.bitWidth ?? 1}
+          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })}
+        />
+      </label>
+      <label class="field toggle">
+        <span>Fijo</span>
+        <input
+          type="checkbox"
+          checked={selected.isToggle}
+          onchange={(e) => update({ isToggle: (e.currentTarget as HTMLInputElement).checked })}
+        />
+      </label>
+      <label class="field toggle">
+        <span>Invertido</span>
+        <input
+          type="checkbox"
+          checked={selected.inverted}
+          onchange={(e) => update({ inverted: (e.currentTarget as HTMLInputElement).checked })}
+        />
+      </label>
     {:else if selected.kind === 'pin'}
-      <div class="row"><span>Dirección</span><span class="value">{selected.pinType === 'input' ? 'entrada' : 'salida'}</span></div>
-      <div class="row"><span>Lado</span><span class="value">{selected.side}</span></div>
-      <div class="row">
-        <span>Bits</span>
-        <input type="number" min="1" max="32" value={selected.bitWidth}
-          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
+      <p class="section-title">Pin</p>
+      <div class="field">
+        <span>Dirección</span><span class="value"
+          >{selected.pinType === 'input' ? 'Entrada' : 'Salida'}</span
+        >
       </div>
-      {#if selected.name !== ''}<div class="row"><span>Nombre</span><span class="value">{selected.name}</span></div>{/if}
+      <div class="field"><span>Lado</span><span class="value">{selected.side}</span></div>
+      <label class="field">
+        <span>Bits</span>
+        <input
+          type="number"
+          min="1"
+          max="32"
+          value={selected.bitWidth}
+          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })}
+        />
+      </label>
+      {#if selected.name !== ''}<div class="field">
+          <span>Nombre</span><span class="value">{selected.name}</span>
+        </div>{/if}
     {:else if selected.kind === 'constant'}
-      <div class="row">
+      <p class="section-title">Constante</p>
+      <label class="field">
         <span>Valor</span>
-        <input type="number" value={selected.value}
-          oninput={(e) => update({ value: Number((e.currentTarget as HTMLInputElement).value) })} />
-      </div>
-      <div class="row">
+        <input
+          type="number"
+          value={selected.value}
+          oninput={(e) => update({ value: Number((e.currentTarget as HTMLInputElement).value) })}
+        />
+      </label>
+      <label class="field">
         <span>Bits</span>
-        <input type="number" min="1" max="32" value={selected.bitWidth}
-          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
-      </div>
+        <input
+          type="number"
+          min="1"
+          max="32"
+          value={selected.bitWidth}
+          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })}
+        />
+      </label>
     {:else if selected.kind === 'probe'}
-      <div class="row">
+      <p class="section-title">Sonda</p>
+      <label class="field">
         <span>Entrada</span>
         <select
           value={selected.pinSide}
-          onchange={(e) => update({ pinSide: (e.currentTarget as HTMLSelectElement).value as PinSide })}
+          onchange={(e) =>
+            update({ pinSide: (e.currentTarget as HTMLSelectElement).value as PinSide })}
         >
-          <option value="left">izquierda</option>
-          <option value="top">arriba</option>
-          <option value="right">derecha</option>
-          <option value="bottom">abajo</option>
+          <option value="left">Izquierda</option>
+          <option value="top">Arriba</option>
+          <option value="right">Derecha</option>
+          <option value="bottom">Abajo</option>
         </select>
-      </div>
-      <div class="row">
+      </label>
+      <label class="field">
         <span>Nombre</span>
         <input
           value={selected.name === selected.id ? '' : selected.name}
           placeholder="Sonda"
-          oninput={(e) => update({ name: (e.currentTarget as HTMLInputElement).value.trim() || selected?.id || '' })}
+          oninput={(e) =>
+            update({
+              name: (e.currentTarget as HTMLInputElement).value.trim() || selected?.id || '',
+            })}
         />
-      </div>
+      </label>
     {:else if selected.kind === 'sensor'}
-      <div class="row">
+      <p class="section-title">Sensor</p>
+      <label class="field">
         <span>Tipo</span>
         <select
           value={selected.sensorType}
@@ -149,88 +279,163 @@
             <option value={type}>{SENSOR_LABELS[type] ?? type}</option>
           {/each}
         </select>
-      </div>
-      <div class="row">
+      </label>
+      <label class="field">
         <span>Bits</span>
-        <input type="number" min="1" max="32" value={selected.bitWidth}
-          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
-      </div>
-      <div class="row">
+        <input
+          type="number"
+          min="1"
+          max="32"
+          value={selected.bitWidth}
+          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })}
+        />
+      </label>
+      <label class="field">
         <span>Salida</span>
         <select
           value={selected.pinSide}
-          onchange={(e) => update({ pinSide: (e.currentTarget as HTMLSelectElement).value as PinSide })}
+          onchange={(e) =>
+            update({ pinSide: (e.currentTarget as HTMLSelectElement).value as PinSide })}
         >
-          <option value="left">izquierda</option>
-          <option value="top">arriba</option>
-          <option value="right">derecha</option>
-          <option value="bottom">abajo</option>
+          <option value="left">Izquierda</option>
+          <option value="top">Arriba</option>
+          <option value="right">Derecha</option>
+          <option value="bottom">Abajo</option>
         </select>
-      </div>
-      <div class="row">
+      </label>
+      <label class="field">
         <span>Notación</span>
         <input
           value={selected.notation}
-          placeholder="opcional"
+          placeholder="Opcional"
           oninput={(e) => update({ notation: (e.currentTarget as HTMLInputElement).value })}
         />
-      </div>
+      </label>
       {#if selected.sensorType === 'series' || selected.sensorType === 'loop' || selected.sensorType === 'random' || selected.sensorType === 'manual'}
-        <div class="row">
+        <label class="field">
           <span>Datos</span>
           <input
             value={selected.data}
             placeholder={selected.sensorType === 'random' ? 'A:14' : '0:0'}
             oninput={(e) => update({ data: (e.currentTarget as HTMLInputElement).value })}
           />
-        </div>
+        </label>
       {/if}
     {:else if selected.kind === 'memory'}
-      <div class="row">
+      <p class="section-title">Memoria</p>
+      <label class="field">
         <span>Bits de dirección</span>
-        <input type="number" min="1" max="32" value={selected.addressBitWidth}
-          oninput={(e) => update({ addressBitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
-      </div>
-      <div class="row">
+        <input
+          type="number"
+          min="1"
+          max="32"
+          value={selected.addressBitWidth}
+          oninput={(e) =>
+            update({ addressBitWidth: Number((e.currentTarget as HTMLInputElement).value) })}
+        />
+      </label>
+      <label class="field">
         <span>Bits de datos</span>
-        <input type="number" min="1" max="32" value={selected.dataBitWidth}
-          oninput={(e) => update({ dataBitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
-      </div>
-      <div class="row">
+        <input
+          type="number"
+          min="1"
+          max="32"
+          value={selected.dataBitWidth}
+          oninput={(e) =>
+            update({ dataBitWidth: Number((e.currentTarget as HTMLInputElement).value) })}
+        />
+      </label>
+      <label class="field">
         <span>Tipo</span>
         <select
           value={selected.isRom ? 'rom' : 'ram'}
-          onchange={(e) => update({ isRom: (e.currentTarget as HTMLSelectElement).value === 'rom' })}
+          onchange={(e) =>
+            update({ isRom: (e.currentTarget as HTMLSelectElement).value === 'rom' })}
         >
           <option value="ram">RAM</option>
           <option value="rom">ROM</option>
         </select>
-      </div>
+      </label>
     {:else if selected.kind === 'splitter'}
-      <div class="row">
-        <span>Bits</span>
-        <input type="number" min="1" max="32" value={selected.bitWidth}
-          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })} />
-      </div>
-      <div class="row">
+      <p class="section-title">Repartidor</p>
+      <label class="field">
+        <span>Bits totales</span>
+        <input
+          type="number"
+          min="1"
+          max="32"
+          value={selected.bitWidth}
+          oninput={(e) => update({ bitWidth: Number((e.currentTarget as HTMLInputElement).value) })}
+        />
+      </label>
+      <label class="field">
         <span>Salidas</span>
-        <input type="number" min="1" max="32" value={selected.pinCount}
-          oninput={(e) => update({ pinCount: Number((e.currentTarget as HTMLInputElement).value) })} />
-      </div>
-      <label class="row"><span>Sentido horario</span><input type="checkbox" checked={selected.clockwise} onchange={(e) => update({ clockwise: (e.currentTarget as HTMLInputElement).checked })} /></label>
+        <input
+          type="number"
+          min="1"
+          max="32"
+          value={selected.pinCount}
+          oninput={(e) => update({ pinCount: Number((e.currentTarget as HTMLInputElement).value) })}
+        />
+      </label>
+      <label class="field toggle">
+        <span>Sentido horario</span>
+        <input
+          type="checkbox"
+          checked={selected.clockwise}
+          onchange={(e) => update({ clockwise: (e.currentTarget as HTMLInputElement).checked })}
+        />
+      </label>
     {:else if selected.kind === 'circuit'}
-      <div class="row"><span>Circuito</span><span class="value">{editor?.project.circuit(selected.targetCircuitId)?.name ?? '?'}</span></div>
+      <p class="section-title">Subcircuito</p>
+      <div class="field">
+        <span>Circuito</span><span class="value"
+          >{editor?.project.circuit(selected.targetCircuitId)?.name ?? '?'}</span
+        >
+      </div>
     {/if}
-    {#if selected.kind !== 'wire'}
-      <button type="button" onclick={() => { editor?.rotateSelection(true); refresh() }}>Rotar 90°</button>
+
+    {#if 'position' in selected}
+      <p class="section-title">Posición</p>
+      <label class="field">
+        <span>X</span>
+        <input
+          type="number"
+          value={(selected as { position: { x: number; y: number } }).position.x}
+          oninput={(e) =>
+            update({
+              position: {
+                x: Number((e.currentTarget as HTMLInputElement).value),
+                y: (selected as { position: { x: number; y: number } }).position.y,
+              },
+            })}
+        />
+      </label>
+      <label class="field">
+        <span>Y</span>
+        <input
+          type="number"
+          value={(selected as { position: { x: number; y: number } }).position.y}
+          oninput={(e) =>
+            update({
+              position: {
+                x: (selected as { position: { x: number; y: number } }).position.x,
+                y: Number((e.currentTarget as HTMLInputElement).value),
+              },
+            })}
+        />
+      </label>
     {/if}
-    {#if selected.kind === 'circuit'}
-      <button type="button" onclick={openSelected}>Abrir subcircuito</button>
-    {/if}
+
     {#if selected.kind === 'wire'}
-      <div class="row"><span>De</span><span class="value">{selected.p1.x},{selected.p1.y}</span></div>
-      <div class="row"><span>A</span><span class="value">{selected.p2.x},{selected.p2.y}</span></div>
-      <label class="row color-row">
+      <p class="section-title">Cable</p>
+      <div class="field">
+        <span>De</span><span class="value">{selected.p1.x},{selected.p1.y}</span>
+      </div>
+      <div class="field">
+        <span>A</span><span class="value">{selected.p2.x},{selected.p2.y}</span>
+      </div>
+      <label class="field color-field">
         <span>Color</span>
         <input
           type="color"
@@ -245,25 +450,29 @@
       {#if selected.color !== undefined}
         <button
           type="button"
+          class="theme-color"
           onclick={() => {
             editor?.setSelectedWireColor(null)
             refresh()
-          }}
-        >Color del tema</button>
+          }}>Usar el color del tema</button
+        >
       {/if}
     {/if}
-    {#if 'position' in selected}
-      <div class="row">
-        <span>X</span>
-        <input type="number" value={(selected as { position: { x: number; y: number } }).position.x}
-          oninput={(e) => update({ position: { x: Number((e.currentTarget as HTMLInputElement).value), y: (selected as { position: { x: number; y: number } }).position.y } })} />
-      </div>
-      <div class="row">
-        <span>Y</span>
-        <input type="number" value={(selected as { position: { x: number; y: number } }).position.y}
-          oninput={(e) => update({ position: { x: (selected as { position: { x: number; y: number } }).position.x, y: Number((e.currentTarget as HTMLInputElement).value) } })} />
-      </div>
-    {/if}
+
+    <div class="actions">
+      {#if selected.kind !== 'wire'}
+        <button
+          type="button"
+          onclick={() => {
+            editor?.rotateSelection(true)
+            refresh()
+          }}>Rotar 90°</button
+        >
+      {/if}
+      {#if selected.kind === 'circuit'}
+        <button type="button" onclick={openSelected}>Abrir subcircuito</button>
+      {/if}
+    </div>
   </aside>
 {/if}
 
@@ -271,55 +480,131 @@
   .inspector {
     position: absolute;
     right: 0.6rem;
-    top: 6rem;
-    width: 16rem;
-    padding: 0.8rem;
+    /* Debajo del aviso de modo y de la barra: así no comparten esquina ni se tapan. */
+    top: 9.6rem;
+    width: 18rem;
+    max-height: calc(100% - 16.1rem);
+    overflow-y: auto;
+    padding: 0.85rem;
     border: 1px solid var(--border);
     border-radius: 0.6rem;
     background: color-mix(in srgb, var(--panel-bg) 94%, transparent);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
     font-size: 0.82rem;
     z-index: 8;
     backdrop-filter: blur(6px);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .inspector-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid var(--border);
   }
   .inspector h3 {
-    margin: 0 0 0.6rem;
-    font-size: 1rem;
+    margin: 0;
+    font-size: 0.98rem;
     font-weight: 700;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 0.4rem;
   }
-  .row {
+  .kind {
+    margin: 0;
+    overflow: hidden;
+    color: var(--fg-muted);
+    font-size: 0.7rem;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .section-title {
+    margin: 0.65rem 0 0.15rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    color: var(--fg-muted);
+    font-size: 0.63rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .section-title:first-of-type {
+    margin-top: 0.3rem;
+    padding-top: 0;
+    border-top: 0;
+  }
+  /* Todas las filas miden lo mismo: antes las casillas de verificación ocupaban 20 px y los
+     campos 28 px, así que la columna parecía hecha con piezas de otro sitio. */
+  .field {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin: 0.35rem 0;
-    gap: 0.5rem;
+    justify-content: space-between;
+    gap: 0.55rem;
+    min-height: 2.05rem;
+    margin: 0.15rem 0;
   }
-  .row span:first-child { font-weight: 600; color: var(--fg-muted) }
-  .value { font-weight: 500; color: var(--fg) }
-  .row input, .row select {
-    flex: 1 1 auto;
-    min-width: 4rem;
-    padding: 0.2rem 0.4rem;
+  .field > span:first-child {
+    min-width: 0;
+    color: var(--fg-muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+  }
+  .field.toggle {
+    cursor: pointer;
+  }
+  .field input:not([type='checkbox']):not([type='color']),
+  .field select {
+    flex: 0 0 9rem;
+    width: 9rem;
+    height: 1.9rem;
+    min-width: 0;
+    padding: 0.15rem 0.4rem;
     border: 1px solid var(--border);
     border-radius: 0.3rem;
     background: var(--bg);
     color: var(--fg);
     font: inherit;
     font-size: 0.8rem;
+    box-sizing: border-box;
   }
-  .color-row input {
-    width: 2.2rem;
-    height: 1.4rem;
+  .field input[type='checkbox'] {
+    flex: 0 0 auto;
+    width: 1.05rem;
+    height: 1.05rem;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .value {
+    flex: 0 1 auto;
+    overflow: hidden;
+    color: var(--fg);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .color-field input[type='color'] {
+    flex: 0 0 2.8rem;
+    width: 2.8rem;
+    height: 1.9rem;
     padding: 0;
     border: 1px solid var(--border);
-    border-radius: 0.2rem;
+    border-radius: 0.25rem;
     background: transparent;
     cursor: pointer;
   }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.65rem;
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--border);
+  }
   .inspector button {
-    margin-top: 0.4rem;
+    margin: 0;
     padding: 0.3rem 0.6rem;
     border: 1px solid var(--border);
     border-radius: 0.3rem;
@@ -327,7 +612,12 @@
     color: var(--fg);
     cursor: pointer;
     font: inherit;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
   }
-  .inspector button:hover { background: var(--panel-bg-hover) }
+  .inspector button:hover {
+    background: var(--panel-bg-hover);
+  }
+  .theme-color {
+    width: 100%;
+  }
 </style>

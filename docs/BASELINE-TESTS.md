@@ -52,6 +52,20 @@ no confundir nuestros bugs futuros con bugs que ya existían.
 > **empeora** el resultado (**13 fallos**), porque desactiva ICU y rompe los tests de
 > localización. **No usar.**
 
+### Re-medición (2026-10-21)
+
+Se volvió a ejecutar la suite completa durante la revisión de los módulos. Resultado:
+**174 ✅ / 5 ❌** en **6 min 11 s** (frente a los ~35 s de la medición original).
+
+| Test | Causa |
+|---|---|
+| `HdlTestTruthTables`, `HdlTestLocale`, `FunctionTest` | Los **3 mismos fallos de cultura** de la medición original |
+| `CircuitMapApplyPerfTest1`, `CircuitMapApplyPerfTest2` | **Umbral de rendimiento**: el equipo estaba ejecutando a la vez la suite de Vitest y Chrome; el mapa se crea y aplica bien, pero tarda más de lo que el test exige. No es un fallo funcional |
+
+> **Cómo leerlo:** los 3 fallos de cultura son de los tests, no del simulador. Los 2 de
+> rendimiento son **dependientes de la carga de la máquina** y no aparecen cuando la suite
+> corre sola. Para comparar rendimiento hay que usar la medición de M12, no este umbral.
+
 ---
 
 ## Cómo reproducir la medición

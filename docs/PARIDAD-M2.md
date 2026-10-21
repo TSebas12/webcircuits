@@ -4,8 +4,8 @@ Verificación del comportamiento de WebCircuits frente al oráculo C# (`LogicCir
 pin `1077664f` · v2.26.09.10) en circuitos combinacionales y de un nivel. Los resultados
 de WebCircuits salen de `tests/unit/integration/cycle.test.ts` (7 circuitos) y de los
 tests de `core/function`, `core/simulate` y `core/model`. Los del oráculo, de
-`LogicCircuit.UnitTest` (176 ✅ / 3 ❌ por cultura es-ES, baseline en
-`docs/BASELINE-TESTS.md`).
+`LogicCircuit.UnitTest` (176 ✅ / 3 ❌ por cultura es-ES; **174/5** en la re-medición con
+carga, detalle en `docs/BASELINE-TESTS.md`).
 
 ## Tabla de resultados
 

@@ -8,14 +8,14 @@
   import SettingsPanel from './SettingsPanel.svelte'
   import ThemeEditor from './ThemeEditor.svelte'
   import CommandPalette from './CommandPalette.svelte'
-import Modal from './Modal.svelte'
-import ExamplePicker from './ExamplePicker.svelte'
-import TruthTablePanel from './components/truthtable/TruthTablePanel.svelte'
-import TestSocketPanel from './components/test-socket/TestSocketPanel.svelte'
-import OscilloscopePanel from './components/oscilloscope/OscilloscopePanel.svelte'
-import TextPrompt from './components/TextPrompt.svelte'
-import Icon from './Icon.svelte'
-import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
+  import Modal from './Modal.svelte'
+  import ExamplePicker from './ExamplePicker.svelte'
+  import TruthTablePanel from './components/truthtable/TruthTablePanel.svelte'
+  import TestSocketPanel from './components/test-socket/TestSocketPanel.svelte'
+  import OscilloscopePanel from './components/oscilloscope/OscilloscopePanel.svelte'
+  import TextPrompt from './components/TextPrompt.svelte'
+  import Icon from './Icon.svelte'
+  import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   import { deserializeProject, serializeProject } from '../core/persist/json'
   import { exportCircuitProject, importCircuitProject } from '../core/persist/circuitproject'
   import { loadSettings, SETTINGS_EVENT } from './settings'
@@ -30,6 +30,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     PIECE_GROUPS,
     PIECES,
     splitterDefaults,
+    type Piece,
     type SplitterPiece,
     type SplitterSettings,
   } from './palette'
@@ -94,7 +95,9 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   let showTruthTable = $state(false)
   let showTestSockets = $state(false)
   let showOscilloscope = $state(false)
-  let scopeChannels = $state<readonly { readonly label: string; readonly samples: readonly number[] }[]>([])
+  let scopeChannels = $state<
+    readonly { readonly label: string; readonly samples: readonly number[] }[]
+  >([])
   let showThemeEditor = $state(false)
   let showCommandPalette = $state(false)
   let showConfirmClear = $state(false)
@@ -140,7 +143,9 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   let markers = $state<CircuitMarker[]>([])
   let annotateMode = $state(false)
   let markerMode = $state(false)
-  let overlayPrompt = $state<{ kind: 'note' | 'marker'; world: { x: number; y: number } } | null>(null)
+  let overlayPrompt = $state<{ kind: 'note' | 'marker'; world: { x: number; y: number } } | null>(
+    null,
+  )
   let zoomPct = $state(100)
 
   /**
@@ -250,7 +255,9 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
       },
     })
     editor = instance
-    const unsubView = instance.subscribeView(() => { viewVersion++ })
+    const unsubView = instance.subscribeView(() => {
+      viewVersion++
+    })
 
     /**
      * Lo que la paleta tapa por la izquierda.
@@ -262,7 +269,10 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     const railInset = (): number => {
       const rail = document.querySelector<HTMLElement>('.left-rail')
       if (rail === null) return 0
-      return Math.max(0, rail.getBoundingClientRect().right - canvas.getBoundingClientRect().left + 12)
+      return Math.max(
+        0,
+        rail.getBoundingClientRect().right - canvas.getBoundingClientRect().left + 12,
+      )
     }
 
     instance.mount(canvas, { insets: { left: railInset() } })
@@ -443,7 +453,8 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     hiddenLayers = diagram.layersList.filter((layer) => !layer.visible).length
     visibleCount = diagram.visibleElements.length
     activeLayerLocked = diagram.isLayerLocked(diagram.activeLayerId)
-    activeLayerName = diagram.layersList.find((layer) => layer.id === diagram.activeLayerId)?.name ?? ''
+    activeLayerName =
+      diagram.layersList.find((layer) => layer.id === diagram.activeLayerId)?.name ?? ''
   }
 
   /** Vuelve a mostrar todas las capas (sale de un «aislar» o de una ocultación). */
@@ -466,7 +477,9 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     if (editor === null) return
     try {
       const project =
-        name.endsWith('.CircuitProject') || name.endsWith('.xml') || text.trimStart().startsWith('<')
+        name.endsWith('.CircuitProject') ||
+        name.endsWith('.xml') ||
+        text.trimStart().startsWith('<')
           ? importCircuitProject(text)
           : deserializeProject(text)
       editor.loadProject(project)
@@ -502,7 +515,10 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   /** Guarda el proyecto como JSON. Marca el documento como guardado. */
   const saveFile = async (): Promise<void> => {
     if (editor === null) return
-    const handle = await files.save(serializeProject(editor.project), `${editor.project.name || 'circuito'}.json`)
+    const handle = await files.save(
+      serializeProject(editor.project),
+      `${editor.project.name || 'circuito'}.json`,
+    )
     // Si el usuario canceló el diálogo, no se ha guardado nada: no se marca como guardado.
     if (handle === null) return
     editor.markSaved()
@@ -512,7 +528,10 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   /** Exporta el proyecto al `.CircuitProject` (XML) del original. */
   const exportXml = async (): Promise<void> => {
     if (editor === null) return
-    await files.save(exportCircuitProject(editor.project), `${editor.project.name || 'circuito'}.CircuitProject`)
+    await files.save(
+      exportCircuitProject(editor.project),
+      `${editor.project.name || 'circuito'}.CircuitProject`,
+    )
   }
 
   const chooseTool = (id: Tool): void => {
@@ -554,13 +573,31 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   }
 
   /** Cambia un dato del reparto de un bus de la paleta (salidas, bits por pin o lado). */
-  const changeSplitter = (
-    piece: SplitterPiece,
-    patch: Partial<SplitterSettings>,
-  ): void => {
+  const changeSplitter = (piece: SplitterPiece, patch: Partial<SplitterSettings>): void => {
     const base = splitterSettings[piece.id] ?? splitterDefaults(piece)
     const next = editor?.setPaletteSplitter(piece, patch) ?? { ...base, ...patch }
     splitterSettings[piece.id] = next
+  }
+
+  /**
+   * El detalle que se lee bajo el nombre de una pieza.
+   *
+   * Se calcula en un solo sitio para que todas las piezas hablen el mismo idioma: antes una
+   * compuerta decía «1 entradas», el reloj «0 entradas» y el LED no decía nada. Las que ya
+   * enseñan sus ajustes debajo no repiten el dato; el repartidor sí, porque resume los bits
+   * totales que va a llevar el bus.
+   */
+  const pieceDetail = (piece: Piece, split: SplitterSettings | null): string | null => {
+    if (piece.kind === 'splitter') {
+      return split === null ? null : `${split.pinCount * split.bitsPerPin} bits`
+    }
+    if (piece.kind !== 'gate' || piece.inputCount === 'variable') {
+      return null
+    }
+    if (piece.inputCount === 0) {
+      return 'Sin entradas'
+    }
+    return `${piece.inputCount} ${piece.inputCount === 1 ? 'entrada' : 'entradas'}`
   }
 
   const togglePower = (): void => {
@@ -675,8 +712,6 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     editor.fitToContent()
   }
 
-
-
   const removeSelected = (): void => {
     editor?.removeSelected()
   }
@@ -730,7 +765,9 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   class="diagram"
   role="application"
   aria-label="Lienzo del circuito"
-  ondragover={(e) => { e.preventDefault() }}
+  ondragover={(e) => {
+    e.preventDefault()
+  }}
   ondrop={handleDrop}
 >
   <canvas
@@ -758,11 +795,41 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
             },
           })
         }
-        items.push({ label: 'Rotar 90°', shortcut: 'R', action: () => { editor?.select(hit.element.id); editor?.rotateSelection(true) } })
-        items.push({ label: 'Duplicar', shortcut: 'Ctrl+D', action: () => { editor?.select(hit.element.id); editor?.duplicate() } })
-        items.push({ label: 'Borrar', shortcut: 'Del', danger: true, action: () => { editor?.select(hit.element.id); editor?.removeSelected() } })
+        items.push({
+          label: 'Rotar 90°',
+          shortcut: 'R',
+          action: () => {
+            editor?.select(hit.element.id)
+            editor?.rotateSelection(true)
+          },
+        })
+        items.push({
+          label: 'Duplicar',
+          shortcut: 'Ctrl+D',
+          action: () => {
+            editor?.select(hit.element.id)
+            editor?.duplicate()
+          },
+        })
+        items.push({
+          label: 'Borrar',
+          shortcut: 'Del',
+          danger: true,
+          action: () => {
+            editor?.select(hit.element.id)
+            editor?.removeSelected()
+          },
+        })
       } else if (hit?.kind === 'wire') {
-        items.push({ label: 'Borrar cable', shortcut: 'Del', danger: true, action: () => { editor?.select(hit.element.id); editor?.removeSelected() } })
+        items.push({
+          label: 'Borrar cable',
+          shortcut: 'Del',
+          danger: true,
+          action: () => {
+            editor?.select(hit.element.id)
+            editor?.removeSelected()
+          },
+        })
       } else {
         items.push({ label: 'Pegar', shortcut: 'Ctrl+V', action: () => editor?.paste() })
         items.push({ label: 'Encuadrar', action: () => editor?.fitToContent() })
@@ -800,8 +867,8 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
           title={powered ? 'Apaga la corriente para editar' : 'Borrar nota'}
           aria-label="Borrar nota"
           disabled={powered}
-          onclick={() => removeAnnotation(note.id)}
-        ><Icon name="close" size={11} /></button>
+          onclick={() => removeAnnotation(note.id)}><Icon name="close" size={11} /></button
+        >
       </div>
     {/each}
 
@@ -815,8 +882,8 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
           title={powered ? 'Apaga la corriente para editar' : `Borrar marcador «${mark.label}»`}
           aria-label="Borrar marcador {mark.label}"
           disabled={powered}
-          onclick={() => removeMarker(mark.id)}
-        ><Icon name="close" size={11} /></button>
+          onclick={() => removeMarker(mark.id)}><Icon name="close" size={11} /></button
+        >
       </div>
     {/each}
   {/key}
@@ -825,7 +892,9 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     <TextPrompt
       title={overlayPrompt.kind === 'note' ? 'Nueva nota' : 'Nuevo marcador'}
       label={overlayPrompt.kind === 'note' ? 'Texto de la nota' : 'Texto del marcador'}
-      placeholder={overlayPrompt.kind === 'note' ? 'Explica qué hace esta parte' : 'Nombre del punto'}
+      placeholder={overlayPrompt.kind === 'note'
+        ? 'Explica qué hace esta parte'
+        : 'Nombre del punto'}
       confirmLabel="Añadir"
       onCancel={() => (overlayPrompt = null)}
       onConfirm={(text) => {
@@ -848,9 +917,28 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   {/if}
 
   <div class="toolbar" role="toolbar" aria-label="Herramientas del circuito">
-    <button type="button" class="tool" onclick={openFile} title="Abrir un circuito (Ctrl+O)" aria-label="Abrir"><Icon name="open" /></button>
-    <button type="button" class="tool" onclick={saveFile} title="Guardar el circuito (Ctrl+S)" aria-label="Guardar" disabled={!dirty}><Icon name="save" /></button>
-    <button type="button" class="tool" onclick={exportXml} title="Exportar al formato del original (.CircuitProject)" aria-label="Exportar XML"><Icon name="export" /></button>
+    <button
+      type="button"
+      class="tool"
+      onclick={openFile}
+      title="Abrir un circuito (Ctrl+O)"
+      aria-label="Abrir"><Icon name="open" /></button
+    >
+    <button
+      type="button"
+      class="tool"
+      onclick={saveFile}
+      title="Guardar el circuito (Ctrl+S)"
+      aria-label="Guardar"
+      disabled={!dirty}><Icon name="save" /></button
+    >
+    <button
+      type="button"
+      class="tool"
+      onclick={exportXml}
+      title="Exportar al formato del original (.CircuitProject)"
+      aria-label="Exportar XML"><Icon name="export" /></button
+    >
 
     <span class="divider"></span>
 
@@ -901,7 +989,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
       type="button"
       class="tool"
       onclick={() => (showTruthTable = true)}
-      title="Tabla de verdad (M8)"
+      title="Tabla de verdad"
       aria-label="Tabla de verdad"
     >
       <Icon name="table" />
@@ -986,9 +1074,31 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   {#if tool === 'wire' && !powered}
     <div class="wire-colors" role="toolbar" aria-label="Colores de cable">
       {#each loadSettings().savedWireColors as color, index (index)}
-        <button type="button" class="swatch" class:active={wireColor === color} aria-pressed={wireColor === color} style="background:{color}" title="Aplicar color {color}" aria-label="Aplicar color {color}" onclick={() => { wireColor = color; editor?.colorSelection(color) }}></button>
+        <button
+          type="button"
+          class="swatch"
+          class:active={wireColor === color}
+          aria-pressed={wireColor === color}
+          style="background:{color}"
+          title="Aplicar color {color}"
+          aria-label="Aplicar color {color}"
+          onclick={() => {
+            wireColor = color
+            editor?.colorSelection(color)
+          }}
+        ></button>
       {/each}
-      <button type="button" class="clear-color" class:active={wireColor === null} aria-pressed={wireColor === null} title="Quitar color forzado" onclick={() => { wireColor = null; editor?.colorSelection('') }}>x</button>
+      <button
+        type="button"
+        class="clear-color"
+        class:active={wireColor === null}
+        aria-pressed={wireColor === null}
+        title="Quitar color forzado"
+        onclick={() => {
+          wireColor = null
+          editor?.colorSelection('')
+        }}>x</button
+      >
     </div>
   {/if}
 
@@ -1001,201 +1111,238 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
       <LayersPanel {editor} onClose={() => (showLayers = false)} />
     {/if}
     <aside class="palette" class:disabled={powered} aria-label="Piezas para colocar">
-    <div class="palette-head">
-      <span class="palette-title">Piezas</span>
-    </div>
-
-    {#each PIECE_SECTIONS as section (section.id)}
-      <div class="palette-group">
-        <span class="group-title">{section.title}</span>
-        <div class="pieces">
-          {#each section.pieces as piece (piece.id)}
-            {@const hasInputs = piece.kind === 'gate' && piece.inputCount === 'variable'}
-            {@const split =
-              piece.kind === 'splitter'
-                ? (splitterSettings[piece.id] ?? splitterDefaults(piece))
-                : null}
-            <div
-              class="piece-cell"
-              class:wide={hasInputs || piece.kind === 'splitter'}
-              class:splitter={piece.kind === 'splitter'}
-            >
-              <button
-                type="button"
-                class="piece"
-                class:active={tool === piece.id}
-                title={powered
-                  ? 'Con la corriente puesta no se edita: apágala para colocar'
-                  : piece.title}
-                aria-pressed={tool === piece.id}
-                disabled={powered}
-                onclick={() => chooseTool(piece.id)}
-              >
-                <PiecePreview piece={piece} />
-                <span class="piece-label">{piece.label}</span>
-                {#if piece.kind === 'splitter' && split !== null}
-                  <small class="piece-sub">{split.pinCount} × {split.bitsPerPin} bits</small>
-                {:else if piece.kind === 'gate' && piece.gateType !== 'led' && typeof piece.inputCount === 'number'}
-                  <small class="piece-sub">{piece.inputCount} entradas</small>
-                {/if}
-              </button>
-
-              {#if hasInputs}
-                <select
-                  class="piece-select"
-                  title="Número de entradas de esta compuerta"
-                  aria-label="Entradas de {piece.label}"
-                  value={gateInputs[piece.id] ?? MIN_PIECE_INPUTS}
-                  disabled={powered}
-                  onchange={(event) =>
-                    changeGateInputs(piece.id, Number((event.currentTarget as HTMLSelectElement).value))}
-                >
-                  {#each GATE_INPUT_OPTIONS as count (count)}
-                    <option value={count}>{count}</option>
-                  {/each}
-                </select>
-              {:else if piece.kind === 'splitter' && split !== null}
-                <div class="splitter-options">
-                  <label>
-                    <span>Salidas</span>
-                    <select
-                      value={split.pinCount}
-                      disabled={powered}
-                      onchange={(event) =>
-                        changeSplitter(piece, {
-                          pinCount: Number((event.currentTarget as HTMLSelectElement).value),
-                        })}
-                    >
-                      {#each SPLITTER_PIN_OPTIONS as count (count)}
-                        <option value={count}>{count}</option>
-                      {/each}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Bits/pin</span>
-                    <select
-                      value={split.bitsPerPin}
-                      disabled={powered}
-                      onchange={(event) =>
-                        changeSplitter(piece, {
-                          bitsPerPin: Number((event.currentTarget as HTMLSelectElement).value),
-                        })}
-                    >
-                      {#each SPLITTER_BIT_OPTIONS as bits (bits)}
-                        <option value={bits}>{bits}</option>
-                      {/each}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Bus</span>
-                    <select
-                      value={split.clockwise ? 'left' : 'right'}
-                      disabled={powered}
-                      onchange={(event) =>
-                        changeSplitter(piece, {
-                          clockwise: (event.currentTarget as HTMLSelectElement).value === 'left',
-                        })}
-                    >
-                      <option value="left">Izq.</option>
-                      <option value="right">Der.</option>
-                    </select>
-                  </label>
-                </div>
-              {/if}
-            </div>
-          {/each}
-        </div>
+      <div class="palette-head">
+        <span class="palette-title">Piezas</span>
       </div>
-    {/each}
 
-    <!-- Los subcircuitos no están en el catálogo estático: existen en el proyecto y cambian
-         mientras se edita. Por eso su grupo se pinta aparte y se alimenta de `circuits`. -->
-    <div class="palette-group">
-      <span class="group-title">Subcircuitos</span>
-      {#if currentCircuitId !== 'main'}
-        <div class="sub-row sub-current">
-          <span class="sub-preview" aria-hidden="true">SUB</span>
-          <span class="sub-name">{circuits.find((circuit) => circuit.id === currentCircuitId)?.name ?? 'Subcircuito'}</span>
-          <span class="sub-editing">en edición</span>
-          <button
-            type="button"
-            class="sub-del"
-            title="Borrar este subcircuito"
-            aria-label="Borrar el subcircuito actual"
-            disabled={powered}
-            onclick={() => requestDeleteSubcircuit(currentCircuitId)}
-          ><Icon name="trash" size={13} /></button>
-        </div>
-      {/if}
-      {#if otherCircuits.length === 0}
-        <p class="palette-hint">
-          Crea uno con «+ Subcircuito», añade pines dentro y vuelve aquí para colocarlo como
-          una pieza.
-        </p>
-      {:else}
-        <div class="pieces">
-          {#each otherCircuits as circuit (circuit.id)}
-            <div class="sub-row">
-              <button
-                type="button"
-                class="piece sub-piece"
-                class:active={tool === 'subcircuit' && placeCircuitId === circuit.id}
-                title={powered
-                  ? 'Con la corriente puesta no se edita: apágala para colocar'
-                  : `Colocar «${circuit.name}» como una pieza`}
-                aria-pressed={tool === 'subcircuit' && placeCircuitId === circuit.id}
-                disabled={powered}
-                onclick={() => chooseSubcircuit(circuit.id)}
+      {#each PIECE_SECTIONS as section (section.id)}
+        <div class="palette-group">
+          <span class="group-title">{section.title}</span>
+          <div class="pieces">
+            {#each section.pieces as piece (piece.id)}
+              {@const hasInputs = piece.kind === 'gate' && piece.inputCount === 'variable'}
+              {@const split =
+                piece.kind === 'splitter'
+                  ? (splitterSettings[piece.id] ?? splitterDefaults(piece))
+                  : null}
+              {@const detail = pieceDetail(piece, split)}
+              <div
+                class="piece-cell"
+                class:has-options={hasInputs || split !== null}
+                class:splitter={piece.kind === 'splitter'}
               >
-                <span class="sub-preview" aria-hidden="true">SUB</span>
-                <span class="sub-name">{circuit.name}</span>
-              </button>
-              <button
-                type="button"
-                class="sub-del"
-                title="Borrar el subcircuito «{circuit.name}»"
-                aria-label="Borrar el subcircuito {circuit.name}"
-                disabled={powered}
-                onclick={() => requestDeleteSubcircuit(circuit.id)}
-              ><Icon name="trash" size={13} /></button>
-            </div>
-          {/each}
-        </div>
-      {/if}
-      <button type="button" class="sub-create" onclick={newSubcircuit} disabled={powered} title="Crear y entrar en un subcircuito">+ Subcircuito</button>
-      {#if otherCircuits.length > 0}
-        <p class="palette-hint">Doble clic en una instancia para editarla. La papelera borra la definición; selecciona una instancia y pulsa Supr para quitarla del lienzo.</p>
-      {/if}
-    </div>
-  </aside>
+                <button
+                  type="button"
+                  class="piece"
+                  class:active={tool === piece.id}
+                  title={powered
+                    ? 'Con la corriente puesta no se edita: apágala para colocar'
+                    : piece.title}
+                  aria-pressed={tool === piece.id}
+                  disabled={powered}
+                  onclick={() => chooseTool(piece.id)}
+                >
+                  <PiecePreview {piece} />
+                  <span class="piece-text">
+                    <span class="piece-label">{piece.label}</span>
+                    {#if detail !== null}
+                      <small class="piece-sub">{detail}</small>
+                    {/if}
+                  </span>
+                </button>
 
-  <div class="breadcrumb" aria-label="Ruta de circuitos">
-    {#each breadcrumb as crumb, i (crumb.id)}
-      <span class="crumb" title={crumb.name}>{crumb.id === 'main' ? 'Principal' : crumb.name}</span>
-      {#if i < breadcrumb.length - 1}<span class="sep">›</span>{/if}
-    {/each}
-    {#if circuitPath.length > 1}
-      <button type="button" class="crumb-btn" onclick={goUp} disabled={powered} title="Subir un nivel"><Icon name="up" size={12} /> Subir</button>
-      <button
-        type="button"
-        class="crumb-btn danger"
-        onclick={() => requestDeleteSubcircuit(currentCircuitId)}
-        disabled={powered}
-        title="Borrar este subcircuito y sus instancias"
-      ><Icon name="trash" size={12} /> Borrar</button>
-    {/if}
+                {#if hasInputs}
+                  <div class="piece-options gate-options">
+                    <label class="option">
+                      <span>Entradas</span>
+                      <select
+                        class="piece-select"
+                        title="Número de entradas de esta compuerta"
+                        aria-label="Entradas de {piece.label}"
+                        value={gateInputs[piece.id] ?? MIN_PIECE_INPUTS}
+                        disabled={powered}
+                        onchange={(event) =>
+                          changeGateInputs(
+                            piece.id,
+                            Number((event.currentTarget as HTMLSelectElement).value),
+                          )}
+                      >
+                        {#each GATE_INPUT_OPTIONS as count (count)}
+                          <option value={count}>{count}</option>
+                        {/each}
+                      </select>
+                    </label>
+                  </div>
+                {:else if split !== null}
+                  <div class="piece-options splitter-options">
+                    <label class="option">
+                      <span>Salidas</span>
+                      <select
+                        value={split.pinCount}
+                        disabled={powered}
+                        onchange={(event) =>
+                          changeSplitter(piece as SplitterPiece, {
+                            pinCount: Number((event.currentTarget as HTMLSelectElement).value),
+                          })}
+                      >
+                        {#each SPLITTER_PIN_OPTIONS as count (count)}
+                          <option value={count}>{count}</option>
+                        {/each}
+                      </select>
+                    </label>
+                    <label class="option">
+                      <span>Bits/pin</span>
+                      <select
+                        value={split.bitsPerPin}
+                        disabled={powered}
+                        onchange={(event) =>
+                          changeSplitter(piece as SplitterPiece, {
+                            bitsPerPin: Number((event.currentTarget as HTMLSelectElement).value),
+                          })}
+                      >
+                        {#each SPLITTER_BIT_OPTIONS as bits (bits)}
+                          <option value={bits}>{bits}</option>
+                        {/each}
+                      </select>
+                    </label>
+                    <label class="option">
+                      <span>Lado del bus</span>
+                      <select
+                        value={split.clockwise ? 'left' : 'right'}
+                        disabled={powered}
+                        onchange={(event) =>
+                          changeSplitter(piece as SplitterPiece, {
+                            clockwise: (event.currentTarget as HTMLSelectElement).value === 'left',
+                          })}
+                      >
+                        <option value="left">Izquierda</option>
+                        <option value="right">Derecha</option>
+                      </select>
+                    </label>
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/each}
+
+      <!-- Los subcircuitos no están en el catálogo estático: existen en el proyecto y cambian
+         mientras se edita. Por eso su grupo se pinta aparte y se alimenta de `circuits`. -->
+      <div class="palette-group">
+        <span class="group-title">Subcircuitos</span>
+        {#if currentCircuitId !== 'main'}
+          <div class="sub-row sub-current">
+            <span class="sub-preview" aria-hidden="true">SUB</span>
+            <span class="sub-name"
+              >{circuits.find((circuit) => circuit.id === currentCircuitId)?.name ??
+                'Subcircuito'}</span
+            >
+            <span class="sub-editing">en edición</span>
+            <button
+              type="button"
+              class="sub-del"
+              title="Borrar este subcircuito"
+              aria-label="Borrar el subcircuito actual"
+              disabled={powered}
+              onclick={() => requestDeleteSubcircuit(currentCircuitId)}
+              ><Icon name="trash" size={13} /></button
+            >
+          </div>
+        {/if}
+        {#if otherCircuits.length === 0}
+          <p class="palette-hint">
+            Crea uno con «+ Subcircuito», añade pines dentro y vuelve aquí para colocarlo como una
+            pieza.
+          </p>
+        {:else}
+          <div class="pieces">
+            {#each otherCircuits as circuit (circuit.id)}
+              <div class="sub-row">
+                <button
+                  type="button"
+                  class="piece sub-piece"
+                  class:active={tool === 'subcircuit' && placeCircuitId === circuit.id}
+                  title={powered
+                    ? 'Con la corriente puesta no se edita: apágala para colocar'
+                    : `Colocar «${circuit.name}» como una pieza`}
+                  aria-pressed={tool === 'subcircuit' && placeCircuitId === circuit.id}
+                  disabled={powered}
+                  onclick={() => chooseSubcircuit(circuit.id)}
+                >
+                  <span class="sub-preview" aria-hidden="true">SUB</span>
+                  <span class="sub-name">{circuit.name}</span>
+                </button>
+                <button
+                  type="button"
+                  class="sub-del"
+                  title="Borrar el subcircuito «{circuit.name}»"
+                  aria-label="Borrar el subcircuito {circuit.name}"
+                  disabled={powered}
+                  onclick={() => requestDeleteSubcircuit(circuit.id)}
+                  ><Icon name="trash" size={13} /></button
+                >
+              </div>
+            {/each}
+          </div>
+        {/if}
+        <button
+          type="button"
+          class="sub-create"
+          onclick={newSubcircuit}
+          disabled={powered}
+          title="Crear y entrar en un subcircuito">+ Subcircuito</button
+        >
+        {#if otherCircuits.length > 0}
+          <p class="palette-hint">
+            Doble clic en una instancia para editarla. La papelera borra la definición; selecciona
+            una instancia y pulsa Supr para quitarla del lienzo.
+          </p>
+        {/if}
+      </div>
+    </aside>
+
+    <div class="breadcrumb" aria-label="Ruta de circuitos">
+      {#each breadcrumb as crumb, i (crumb.id)}
+        <span class="crumb" title={crumb.name}
+          >{crumb.id === 'main' ? 'Principal' : crumb.name}</span
+        >
+        {#if i < breadcrumb.length - 1}<span class="sep">›</span>{/if}
+      {/each}
+      {#if circuitPath.length > 1}
+        <button
+          type="button"
+          class="crumb-btn"
+          onclick={goUp}
+          disabled={powered}
+          title="Subir un nivel"><Icon name="up" size={12} /> Subir</button
+        >
+        <button
+          type="button"
+          class="crumb-btn danger"
+          onclick={() => requestDeleteSubcircuit(currentCircuitId)}
+          disabled={powered}
+          title="Borrar este subcircuito y sus instancias"
+          ><Icon name="trash" size={12} /> Borrar</button
+        >
+      {/if}
     </div>
   </div>
 
   {#if isEmpty && !powered}
     <div class="empty-state" aria-live="polite">
-      <p class="empty-title">{currentCircuitId === 'main' ? 'Lienzo vacío' : 'Subcircuito vacío'}</p>
+      <p class="empty-title">
+        {currentCircuitId === 'main' ? 'Lienzo vacío' : 'Subcircuito vacío'}
+      </p>
       {#if currentCircuitId === 'main'}
-        <p class="hint">Elige una pieza de la paleta y haz clic; después cablea arrastrando desde un pin o con dos clics.</p>
+        <p class="hint">
+          Elige una pieza de la paleta y haz clic; después cablea arrastrando desde un pin o con dos
+          clics.
+        </p>
       {:else}
         <p class="hint">
-          Añade pines de entrada y salida en «Pines de la hoja» para definir la interfaz.
-          Después sube con «↑ Subir» y colócalo como una pieza desde «Subcircuitos».
+          Añade pines de entrada y salida en «Pines de la hoja» para definir la interfaz. Después
+          sube con «↑ Subir» y colócalo como una pieza desde «Subcircuitos».
         </p>
       {/if}
       <div class="empty-actions">
@@ -1203,7 +1350,8 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
         <button type="button" onclick={loadExample}>Ejemplo</button>
       </div>
       <p class="empty-shortcuts">
-        <kbd>S</kbd> seleccionar · <kbd>E</kbd> borrar · <kbd>R</kbd> rotar · <kbd>P</kbd> corriente · <kbd>Ctrl+K</kbd> comandos · <kbd>Ctrl+O</kbd> abrir
+        <kbd>S</kbd> seleccionar · <kbd>E</kbd> borrar · <kbd>R</kbd> rotar · <kbd>P</kbd> corriente
+        · <kbd>Ctrl+K</kbd> comandos · <kbd>Ctrl+O</kbd> abrir
       </p>
     </div>
   {/if}
@@ -1244,13 +1392,23 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     {#if recovered}
       <div class="info-badge" role="status">
         Sesión recuperada del autoguardado.
-        <button type="button" aria-label="Ocultar aviso" onclick={() => (recovered = false)}><Icon name="close" size={12} /></button>
+        <button type="button" aria-label="Ocultar aviso" onclick={() => (recovered = false)}
+          ><Icon name="close" size={12} /></button
+        >
       </div>
     {/if}
     {#if unsupported > 0}
       <div class="info-badge" role="status">
-        {unsupported} {unsupported === 1 ? 'elemento' : 'elementos'} del circuito no se {unsupported === 1 ? 'dibuja' : 'dibujan'} todavía (notas de texto o piezas desconocidas). Esta versión no {unsupported === 1 ? 'lo' : 'los'} puede editar.
-        <button type="button" aria-label="Ocultar aviso" onclick={() => (unsupported = 0)}><Icon name="close" size={12} /></button>
+        {unsupported}
+        {unsupported === 1 ? 'elemento' : 'elementos'} del circuito no se {unsupported === 1
+          ? 'dibuja'
+          : 'dibujan'} todavía (notas de texto o piezas desconocidas). Esta versión no {unsupported ===
+        1
+          ? 'lo'
+          : 'los'} puede editar.
+        <button type="button" aria-label="Ocultar aviso" onclick={() => (unsupported = 0)}
+          ><Icon name="close" size={12} /></button
+        >
       </div>
     {/if}
     {#if openError !== null}
@@ -1265,14 +1423,19 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   </div>
 
   {#if contextMenu}
-    <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => (contextMenu = null)} />
+    <ContextMenu
+      x={contextMenu.x}
+      y={contextMenu.y}
+      items={contextMenu.items}
+      onClose={() => (contextMenu = null)}
+    />
   {/if}
 
   {#if hasSelection && editor}
     <Inspector {editor} />
   {/if}
 
-  {#if editor && !isEmpty}
+  {#if editor && !isEmpty && !hasSelection}
     <Minimap {editor} />
   {/if}
 
@@ -1363,41 +1526,67 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     />
   {/if}
 
-  <div class="hud" aria-hidden="true">
-    {#if dirty}<span class="dirty">● sin guardar</span><span class="sep">·</span>{/if}
-    <span>{fps.toFixed(0)} FPS</span>
-    <span class="sep">·</span>
-    <span>{paintMs.toFixed(2)} ms</span>
-    <span class="sep">·</span>
-    <span>{zoomPct} %</span>
-  </div>
-
   <div class="sim-controls" aria-label="Controles de simulación">
+    <div class="sim-hud" aria-label="Rendimiento y zoom">
+      {#if dirty}<span class="dirty">● sin guardar</span><span class="sep">·</span>{/if}
+      <span>{fps.toFixed(0)} FPS</span>
+      <span class="sep">·</span>
+      <span>{paintMs.toFixed(2)} ms</span>
+      <span class="sep">·</span>
+      <span>{zoomPct} %</span>
+    </div>
+    <span class="sim-sep" aria-hidden="true"></span>
     <div class="sim-group" role="group" aria-label="Reloj de simulación">
       <button type="button" title="Pausar o reanudar la simulación" onclick={toggleSimulationPause}>
         <Icon name={simPaused ? 'play' : 'pause'} size={13} />
         {simPaused ? 'Reanudar' : 'Pausar'}
       </button>
-      <button type="button" title="Avanzar un tick de la simulación" onclick={() => editor?.stepSimulation()}>
+      <button
+        type="button"
+        title="Avanzar un tick de la simulación"
+        onclick={() => editor?.stepSimulation()}
+      >
         <Icon name="step" size={13} />
         Paso
       </button>
     </div>
     <span class="sim-sep" aria-hidden="true"></span>
     <div class="sim-group" role="group" aria-label="Anotaciones y paneles">
-      <button type="button" title="Añadir una nota de texto" onclick={() => { annotateMode = true; markerMode = false }}>
+      <button
+        type="button"
+        title="Añadir una nota de texto"
+        onclick={() => {
+          annotateMode = true
+          markerMode = false
+        }}
+      >
         <Icon name="note" size={13} />
         Nota
       </button>
-      <button type="button" title="Añadir un marcador" onclick={() => { markerMode = true; annotateMode = false }}>
+      <button
+        type="button"
+        title="Añadir un marcador"
+        onclick={() => {
+          markerMode = true
+          annotateMode = false
+        }}
+      >
         <Icon name="marker" size={13} />
         Marcador
       </button>
-      <button type="button" title="Pines de entrada y salida del circuito" onclick={() => (showTestSockets = true)}>
+      <button
+        type="button"
+        title="Pines de entrada y salida del circuito"
+        onclick={() => (showTestSockets = true)}
+      >
         <Icon name="socket" size={13} />
         Sockets
       </button>
-      <button type="button" title="Ver el historial de las sondas colocadas" onclick={openOscilloscope}>
+      <button
+        type="button"
+        title="Ver el historial de las sondas colocadas"
+        onclick={openOscilloscope}
+      >
         <Icon name="scope" size={13} />
         Osciloscopio
       </button>
@@ -1420,6 +1609,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
 
 <style>
   .diagram {
+    --rail-w: 15rem;
     position: relative;
     flex: 1 1 auto;
     min-height: 0;
@@ -1458,15 +1648,34 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     position: absolute;
     top: 0.6rem;
     left: 0.6rem;
+    right: 0.6rem;
     display: flex;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 0.25rem;
+    max-width: calc(100% - 1.2rem);
     padding: 0.3rem;
     border: 1px solid var(--border);
     border-radius: 0.55rem;
     background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
     backdrop-filter: blur(6px);
     box-shadow: 0 4px 14px rgb(0 0 0 / 8%);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  /* La barra no se parte en dos filas: así el breadcrumb y la paleta conservan su sitio. Si
+     la ventana es tan estrecha que no cabe, se desplaza en horizontal en vez de solaparse
+     con el aviso de modo. */
+  .toolbar::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .toolbar::-webkit-scrollbar-thumb {
+    border-radius: 4px;
+    background: var(--border);
   }
 
   .toolbar button {
@@ -1535,7 +1744,7 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    width: 12.5rem;
+    width: var(--rail-w);
     max-width: calc(100% - 1.2rem);
   }
 
@@ -1552,14 +1761,22 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     color: var(--fg);
     font-size: 0.78rem;
     user-select: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
   }
 
   .palette-head {
+    position: sticky;
+    top: -0.4rem;
+    z-index: 3;
     display: flex;
     gap: 0.3rem;
     align-items: center;
     justify-content: space-between;
-    padding: 0 0.15rem 0.35rem;
+    margin: -0.4rem -0.4rem 0;
+    padding: 0.4rem 0.55rem 0.35rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    background: color-mix(in srgb, var(--panel-bg) 97%, transparent);
   }
 
   .palette-title {
@@ -1571,48 +1788,40 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   }
 
   .palette-group + .palette-group {
-    margin-top: 0.4rem;
+    margin-top: 0.45rem;
   }
 
+  /* La cabecera de grupo se queda pegada arriba al desplazar: en una lista larga se deja de
+     saber si una pieza es una compuerta o un bus. */
   .group-title {
+    position: sticky;
+    /* Justo debajo de la cabecera «PIEZAS», que también es sticky. Si coincide, la tapa. */
+    top: 1.7rem;
+    z-index: 2;
     display: block;
-    padding: 0 0.15rem 0.2rem;
+    padding: 0.25rem 0.15rem 0.2rem;
+    background: color-mix(in srgb, var(--panel-bg) 97%, transparent);
     color: var(--fg-muted);
     font-size: 0.66rem;
   }
 
   .pieces {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.2rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.28rem;
   }
 
-  /* Una pieza con ajustes ocupa la fila entera: así el selector cabe sin apretar el nombre. */
   .piece-cell {
-    min-width: 0;
-  }
-
-  .piece-cell.wide {
-    grid-column: 1 / -1;
     display: flex;
-    gap: 0.25rem;
-    align-items: stretch;
-  }
-
-  .piece-cell.wide:not(.splitter) .piece {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: 0.35rem;
-    align-items: center;
+    flex-direction: column;
+    gap: 0.18rem;
     min-width: 0;
-    text-align: left;
+    padding: 0.12rem;
+    border-radius: 0.4rem;
   }
 
   .piece-cell.splitter {
-    flex-direction: column;
-    gap: 0.2rem;
+    grid-column: 1 / -1;
   }
 
   .piece-label {
@@ -1623,29 +1832,34 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     white-space: nowrap;
   }
 
-  .piece-select {
-    flex: 0 0 auto;
-    width: 3.1rem;
-    padding: 0.1rem 0.15rem;
-    border: 1px solid var(--border);
-    border-radius: 0.3rem;
-    background: var(--panel-bg);
-    color: var(--fg);
-    font: inherit;
-    font-size: 0.72rem;
-    text-align: center;
+  .piece-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.05rem;
+    min-width: 0;
+    max-width: 100%;
   }
 
-  /* El repartidor pide los mismos tres datos que el diálogo del original: en cuántos cables
-     se parte, cuántos bits lleva cada uno y de qué lado queda el bus combinado. */
-  .splitter-options {
+  .piece-cell.splitter .piece-text {
+    align-items: flex-start;
+  }
+
+  /* Los ajustes van siempre **debajo** del botón de la pieza y con la misma estructura:
+     etiqueta pequeña encima del control. Antes las compuertas tenían un selector estirado a
+     la derecha y los repartidores tres controles abajo, y la paleta parecía dos paletas. */
+  .piece-options {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.2rem;
-    padding: 0 0.1rem;
+    gap: 0.22rem;
+    padding: 0 0.1rem 0.08rem;
   }
 
-  .splitter-options label {
+  .piece-options.gate-options {
+    grid-template-columns: 1fr;
+  }
+
+  .option {
     display: flex;
     flex-direction: column;
     gap: 0.1rem;
@@ -1654,10 +1868,19 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     font-size: 0.6rem;
   }
 
-  .splitter-options select {
+  .option > span {
+    padding-left: 0.1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .option select,
+  .piece-select {
     width: 100%;
     min-width: 0;
-    padding: 0.1rem;
+    height: 1.55rem;
+    padding: 0.1rem 0.15rem;
     border: 1px solid var(--border);
     border-radius: 0.3rem;
     background: var(--panel-bg);
@@ -1666,8 +1889,8 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     font-size: 0.7rem;
   }
 
-  .palette.disabled .piece-select,
-  .palette.disabled .splitter-options select {
+  .palette.disabled .option select,
+  .palette.disabled .piece-select {
     opacity: 0.45;
   }
 
@@ -1694,11 +1917,23 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
       border-color 100ms ease;
   }
 
+  .piece-cell.splitter .piece {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.45rem;
+    min-height: 2.9rem;
+    text-align: left;
+  }
+
+  .piece:hover:not(:disabled) {
+    background: var(--panel-bg-hover);
+  }
+
   .piece small.piece-sub {
     display: block;
     font-size: 0.62rem;
+    line-height: 1.15;
     color: var(--fg-muted);
-    margin-top: 0.1rem;
   }
 
   /* La pieza que se va a colocar se marca igual que la herramienta activa de la barra: es la
@@ -1845,15 +2080,20 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
      de modo, el de error y el de borrador no se pisen entre ellos. */
   .status-stack {
     position: absolute;
-    top: 0.6rem;
+    /* Debajo de la barra de herramientas: antes compartía su misma esquina y, en cuanto la
+       ventana bajaba de ~1100 px, el aviso se pintaba encima de los botones. */
+    top: 4.15rem;
     right: 0.6rem;
-    z-index: 3;
+    z-index: 9;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: 0.4rem;
     max-width: min(32rem, calc(100% - 2rem));
-    pointer-events: none;
+    max-height: min(6rem, calc(100% - 10rem));
+    overflow-y: auto;
+    pointer-events: auto;
+    scrollbar-width: thin;
   }
 
   /* Está siempre puesta, en los dos modos, porque las dos confusiones son simétricas: «¿por
@@ -1986,12 +2226,16 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   /* ── Estado vacío ───────────────────────────────────────────────────── */
   .empty-state {
     position: absolute;
-    inset: 0;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--rail-w) + 1.2rem);
+    right: 0.6rem;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
+    padding: 0 1rem;
     pointer-events: none;
     color: var(--fg-muted);
     text-align: center;
@@ -2014,25 +2258,71 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     font: inherit;
     font-size: 0.78rem;
   }
-  .empty-state .empty-title { font-size: 1.1rem; font-weight: 600; color: var(--fg) }
-  .empty-state .empty-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; pointer-events: auto }
-  .empty-state .empty-actions button { padding: 0.4rem 0.8rem; border: 1px solid var(--border); border-radius: 0.35rem; background: var(--panel-bg); color: var(--fg); cursor: pointer }
-  .empty-state .empty-shortcuts { font-size: 0.72rem; margin-top: 0.8rem }
+  .empty-state .empty-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .empty-state .empty-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    pointer-events: auto;
+  }
+  .empty-state .empty-actions button {
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background: var(--panel-bg);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .empty-state .empty-shortcuts {
+    font-size: 0.72rem;
+    margin-top: 0.8rem;
+  }
 
   /* ── Medidas ────────────────────────────────────────────────────────── */
 
+  @media (max-width: 1100px) {
+    .diagram {
+      --rail-w: 13.5rem;
+    }
+  }
+
   @media (max-width: 768px) {
-    .left-rail { width: 10rem }
-    .palette { font-size: 0.75rem }
-    .toolbar { flex-wrap: wrap; gap: 0.2rem }
-    .sim-controls, .hud { left: 11rem }
-    .sim-controls { max-width: calc(100% - 19rem) }
+    .diagram {
+      --rail-w: 11.5rem;
+    }
+    .palette {
+      font-size: 0.75rem;
+    }
+    .toolbar {
+      gap: 0.2rem;
+    }
+  }
+
+  @media (max-width: 980px) {
+    /* La barra inferior se aprieta antes de partirse en tres filas en portátiles pequeños. */
+    .sim-controls {
+      gap: 0.2rem;
+      padding: 0.2rem 0.35rem;
+      font-size: 0.68rem;
+    }
+
+    .sim-speed input {
+      width: 4rem;
+    }
+
+    .sim-freq {
+      min-width: 3.2rem;
+    }
   }
 
   .wire-colors {
     position: absolute;
-    top: 3.4rem;
-    left: 14rem;
+    top: 3.45rem;
+    left: calc(var(--rail-w) + 1.2rem);
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -2075,13 +2365,13 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     position: absolute;
     /* A la derecha de la columna de piezas: el panel se desplaza hasta abajo y estos
        controles no deben taparlo. */
-    left: 13.5rem;
+    left: calc(var(--rail-w) + 1.2rem);
+    right: 0.6rem;
     bottom: 0.6rem;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.35rem;
-    max-width: calc(100% - 21.5rem);
     padding: 0.25rem 0.5rem;
     border: 1px solid var(--border);
     border-radius: 0.4rem;
@@ -2089,6 +2379,21 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
     font: 0.72rem/1.6 var(--font-mono);
     color: var(--fg-muted);
     z-index: 4;
+  }
+
+  /* El rendimiento y el zoom viven dentro de la propia barra: antes eran otra caja flotante
+     justo encima y, en ventanas medianas, se solapaban con los controles. */
+  .sim-hud {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding-right: 0.1rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .sim-hud .dirty {
+    color: var(--wc-state-one);
   }
 
   .sim-group {
@@ -2199,22 +2504,6 @@ import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   .overlay-del:disabled {
     cursor: default;
     opacity: 0.25;
-  }
-  .hud {
-    position: absolute;
-    left: 13.5rem;
-    bottom: 2.8rem;
-    display: flex;
-    gap: 0.35rem;
-    padding: 0.25rem 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 0.4rem;
-    background: color-mix(in srgb, var(--panel-bg) 85%, transparent);
-    font: 0.72rem/1.6 var(--font-mono);
-    color: var(--fg-muted);
-    user-select: none;
-    pointer-events: none;
-    font-variant-numeric: tabular-nums;
   }
 
   .probe {

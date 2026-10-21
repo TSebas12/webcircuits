@@ -44,6 +44,10 @@ Lo que todavía **no** funciona, y en qué hito llega:
 - Los **retardos de propagación** tienen módulos y pruebas (M7B), pero aún no están
   integrados en el `CircuitRunner`; la integración y el rendimiento llegan con M12
 
+**Calidad (2026-10-21):** `npm run check` sin errores ni avisos, `lint` limpio, **581 tests**
+verdes y `build` correcto. El oráculo C# queda en **174/179**: 3 fallos de cultura y 2 de
+rendimiento bajo carga, explicados en `docs/BASELINE-TESTS.md`.
+
 ## Probar
 
 Requiere **Node.js 22+** (probado con 22.18.0) y **npm 10+**.

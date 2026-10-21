@@ -12,8 +12,10 @@
 
 El original trae **179 tests** que definen qué comportamiento es obligatorio.
 
-Estado medido en esta máquina (cultura **es-ES**): **176 ✅ / 3 ❌**.
-Los 3 fallos son por la cultura del sistema, **no por bugs** (detalle en `BASELINE-TESTS.md`).
+Estado medido en esta máquina (cultura **es-ES**): **176 ✅ / 3 ❌** en la medición
+original. En la re-medición del **2026-10-21** salieron **174 ✅ / 5 ❌**: los mismos 3
+fallos de cultura más 2 tests de rendimiento que se pasan del umbral con la máquina
+cargada. Ninguno es un bug del simulador (detalle en `BASELINE-TESTS.md`).
 
 ⚠️ Por eso, al portar, hay que **fijar el idioma explícitamente** en lugar de
 depender del sistema operativo.
