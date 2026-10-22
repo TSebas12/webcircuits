@@ -130,6 +130,21 @@ function clickAt(canvas: HTMLCanvasElement, worldX: number, worldY: number): voi
   canvas.dispatchEvent(pointer('pointerup', at))
 }
 
+/** Un clic con Ctrl/Cmd: añade o quita de la selección sin arrastrar. */
+function ctrlClickAt(canvas: HTMLCanvasElement, worldX: number, worldY: number): void {
+  const at = screenOf(worldX, worldY)
+  const down = new MouseEvent('pointerdown', {
+    clientX: at.x,
+    clientY: at.y,
+    button: 0,
+    ctrlKey: true,
+    bubbles: true,
+  })
+  Object.defineProperty(down, 'pointerId', { value: 1 })
+  canvas.dispatchEvent(down)
+  canvas.dispatchEvent(pointer('pointerup', at))
+}
+
 function dragFromTo(
   canvas: HTMLCanvasElement,
   from: { x: number; y: number },
@@ -1277,6 +1292,68 @@ describe('gestión de subcircuitos', () => {
     expect(editor.deleteSubcircuit(sub)).toBe(true)
     expect(editor.currentCircuitId).toBe('main')
     expect(editor.circuitPath).toEqual(['main'])
+
+    dispose()
+  })
+})
+
+describe('agrupar cables en bus (M3B-01)', () => {
+  it('selecciona varios cables con Ctrl+clic y los convierte en un bus', () => {
+    const { editor, canvas, dispose } = mount()
+    const a = editor.diagram.addWire({ x: 0, y: 2 }, { x: 10, y: 2 })
+    const b = editor.diagram.addWire({ x: 0, y: 4 }, { x: 10, y: 4 })
+
+    clickAt(canvas, 5, 2)
+    expect(editor.selectedCount).toBe(1)
+    ctrlClickAt(canvas, 5, 4)
+    expect(editor.selectedCount).toBe(2)
+    expect(editor.canGroupSelection).toBe(true)
+
+    expect(editor.groupSelection()).toBe(true)
+    expect(editor.diagram.busGroups).toHaveLength(1)
+    expect(editor.diagram.busGroups[0]?.wireIds).toEqual([a.id, b.id])
+    // Los cables siguen existiendo: el bus es una vista plegada.
+    expect(editor.diagram.storedElements).toHaveLength(2)
+    expect(editor.selectedBusGroup).not.toBeNull()
+
+    dispose()
+  })
+
+  it('un clic en la línea del bus selecciona todos sus cables y desagrupa', () => {
+    const { editor, dispose } = mount()
+    const a = editor.diagram.addWire({ x: 0, y: 2 }, { x: 10, y: 2 })
+    const b = editor.diagram.addWire({ x: 0, y: 6 }, { x: 10, y: 6 })
+    editor.selectMany([a.id, b.id])
+    expect(editor.groupSelection()).toBe(true)
+    editor.select(null)
+
+    const at = screenOf(5, 4)
+    const hit = editor.hitAt(at.x, at.y)
+    expect(hit?.kind).toBe('bus')
+    if (hit?.kind !== 'bus') {
+      dispose()
+      return
+    }
+    expect(hit.group.wireIds).toEqual([a.id, b.id])
+
+    editor.selectMany(hit.group.wireIds)
+    expect(editor.canUngroupSelection).toBe(true)
+    expect(editor.ungroupSelection()).toBe(true)
+    expect(editor.diagram.busGroups).toHaveLength(0)
+    expect(editor.diagram.get(a.id)?.kind).toBe('wire')
+
+    dispose()
+  })
+
+  it('no agrupa cables que no son paralelos', () => {
+    const { editor, dispose } = mount()
+    const a = editor.diagram.addWire({ x: 0, y: 2 }, { x: 10, y: 2 })
+    const b = editor.diagram.addWire({ x: 10, y: 2 }, { x: 10, y: 8 })
+    editor.selectMany([a.id, b.id])
+
+    expect(editor.canGroupSelection).toBe(false)
+    expect(editor.groupSelection()).toBe(false)
+    expect(editor.diagram.busGroups).toHaveLength(0)
 
     dispose()
   })

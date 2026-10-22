@@ -143,6 +143,27 @@ export interface Wire extends ElementBase {
 }
 
 /**
+ * Un bus **visual**: varios cables de un bit que se enseñan como una sola línea gruesa.
+ *
+ * No sustituye a los cables: siguen en el diagrama y son los que simulan. El grupo solo decide
+ * cómo se ven y qué bit ocupa cada uno. `wireIds` va **en orden de bit**: el primero es el bit 0
+ * y el último el más alto. Así el reparto es automático y estable, sin guardar un número por
+ * cable.
+ *
+ * Es una anotación del documento, no un `StoredElement`: la simulación no tiene que aprender
+ * a ignorarlo y el formato `.CircuitProject` del original puede seguir exportándose sin él.
+ */
+export interface BusGroup extends ElementBase {
+  readonly kind: 'busGroup'
+  /** Cables agrupados, en orden de bit (índice 0 = bit 0). */
+  readonly wireIds: readonly Id[]
+  /** Si es false, se ven los cables individuales (M3B-04). */
+  readonly collapsed: boolean
+  /** Nombre visible del bus (M3B-03). */
+  readonly name: string
+}
+
+/**
  * Un pin de la propia hoja: la conexión del circuito con el exterior.
  * No confundir con los pines de un dispositivo, que se **deducen** de su forma
  * (ver `layout.ts`).

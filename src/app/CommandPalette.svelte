@@ -11,6 +11,8 @@
   let inputEl = $state<HTMLInputElement | null>(null)
 
   const baseCommands = [
+    { label: 'Agrupar cables en bus', action: () => editor?.groupSelection() },
+    { label: 'Desagrupar bus', action: () => editor?.ungroupSelection() },
     { label: 'Rotar selección', action: () => editor?.rotateSelection(true) },
     { label: 'Duplicar', action: () => editor?.duplicate() },
     { label: 'Borrar selección', action: () => editor?.removeSelected() },

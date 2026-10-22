@@ -78,6 +78,8 @@
   /** Los dos modos los gobierna la corriente. Arranca apagada, como el original. */
   let powered = $state(false)
   let hasSelection = $state(false)
+  let canGroup = $state(false)
+  let canUngroup = $state(false)
   let isEmpty = $state(true)
   let dirty = $state(false)
   let recovered = $state(false)
@@ -200,6 +202,8 @@
       },
       onSelectionChange: (id) => {
         hasSelection = id !== null
+        canGroup = instance.canGroupSelection
+        canUngroup = instance.canUngroupSelection
       },
       onPoweredChange: (value) => {
         powered = value
@@ -716,6 +720,16 @@
     editor?.removeSelected()
   }
 
+  /** Un solo botón para las dos caras del gesto: agrupar cables o deshacer el bus. */
+  const toggleBusGroup = (): void => {
+    if (editor === null) return
+    if (editor.canUngroupSelection) {
+      editor.ungroupSelection()
+    } else {
+      editor.groupSelection()
+    }
+  }
+
   const newSubcircuit = (): void => {
     if (editor === null) return
     const id = editor.createSubcircuit()
@@ -821,6 +835,16 @@
           },
         })
       } else if (hit?.kind === 'wire') {
+        // Pulsar con el botón derecho sobre un cable que ya forma parte de la selección no
+        // debe tirar el resto: así se puede agrupar sin volver a seleccionar.
+        if (!editor.isSelected(hit.element.id)) {
+          editor.select(hit.element.id)
+        }
+        if (editor.canUngroupSelection) {
+          items.push({ label: 'Desagrupar bus', action: () => editor?.ungroupSelection() })
+        } else if (editor.canGroupSelection) {
+          items.push({ label: 'Agrupar en bus', action: () => editor?.groupSelection() })
+        }
         items.push({
           label: 'Borrar cable',
           shortcut: 'Del',
@@ -830,7 +854,28 @@
             editor?.removeSelected()
           },
         })
+      } else if (hit?.kind === 'bus') {
+        const group = hit.group
+        const current = editor
+        if (!group.wireIds.every((id) => current.isSelected(id))) {
+          current.selectMany(group.wireIds)
+        }
+        items.push({ label: 'Desagrupar bus', action: () => editor?.ungroupSelection() })
+        items.push({
+          label: 'Borrar bus',
+          shortcut: 'Del',
+          danger: true,
+          action: () => {
+            editor?.selectMany(group.wireIds)
+            editor?.removeSelected()
+          },
+        })
       } else {
+        if (editor.canUngroupSelection) {
+          items.push({ label: 'Desagrupar bus', action: () => editor?.ungroupSelection() })
+        } else if (editor.canGroupSelection) {
+          items.push({ label: 'Agrupar en bus', action: () => editor?.groupSelection() })
+        }
         items.push({ label: 'Pegar', shortcut: 'Ctrl+V', action: () => editor?.paste() })
         items.push({ label: 'Encuadrar', action: () => editor?.fitToContent() })
         items.push({ label: 'Vaciar lienzo', danger: true, action: () => clearAll() })
@@ -1051,6 +1096,16 @@
       title="Borra lo seleccionado y sus cables (Supr)"
     >
       Borrar
+    </button>
+    <button
+      type="button"
+      onclick={toggleBusGroup}
+      disabled={powered || (!canGroup && !canUngroup)}
+      title={canUngroup
+        ? 'Vuelve a mostrar los cables del bus seleccionado'
+        : 'Agrupa los cables seleccionados en un bus (Ctrl+clic para elegir varios)'}
+    >
+      {canUngroup ? 'Desagrupar' : 'Agrupar bus'}
     </button>
     <button type="button" onclick={clearAll} disabled={powered} title="Vacía el circuito">
       Vaciar

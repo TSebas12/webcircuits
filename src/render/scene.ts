@@ -58,6 +58,13 @@ export interface SceneOptions {
   readonly resolveCircuit?: CircuitResolver
   /** Puntitos de pin que hay que destacar (mientras se cablea). */
   readonly pinDots?: readonly DrawPinDot[]
+  /**
+   * Tramos sintéticos de los buses plegados (M3B-01).
+   *
+   * No salen de un `Wire`: el editor ya calculó la línea y los codos. Se pintan con los cables,
+   * antes de los símbolos, para que una pieza siempre tape el bus que le entra por debajo.
+   */
+  readonly buses?: readonly DrawWire[]
   /** Cables que se están dibujando ahora mismo. Van los últimos, encima de todo. */
   readonly sketch?: readonly DrawWire[]
 }
@@ -94,6 +101,11 @@ export function buildScene(options: SceneOptions): RenderScene {
         layerOpacity: baseOpacity * dim,
       })
     }
+  }
+
+  // Los buses plegados se pintan en el mismo plano que los cables: debajo de los símbolos.
+  for (const bus of options.buses ?? []) {
+    items.push({ ...bus, kind: 'wire' })
   }
 
   for (const element of options.elements) {

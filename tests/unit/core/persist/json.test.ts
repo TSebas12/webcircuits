@@ -83,6 +83,22 @@ describe('json persist (M4-05/06)', () => {
     expect(loaded.circuit(instance.targetCircuitId)).toBeDefined()
   })
 
+  it('conserva los buses visuales (M3B-01)', () => {
+    const p = new CircuitProject('buses')
+    const d = p.current.diagram
+    const a = d.addWire({ x: 0, y: 2 }, { x: 10, y: 2 })
+    const b = d.addWire({ x: 0, y: 4 }, { x: 10, y: 4 })
+    d.addBusGroup([a.id, b.id], { name: 'Datos' })
+
+    const p2 = deserializeProject(serializeProject(p))
+    expect(p2.current.diagram.busGroups).toHaveLength(1)
+    expect(p2.current.diagram.busGroups[0]).toMatchObject({
+      name: 'Datos',
+      wireIds: [a.id, b.id],
+      collapsed: true,
+    })
+  })
+
   it('conserva el color propio de un cable (M6-14)', () => {
     const p = new CircuitProject('colores')
     const wire = p.current.diagram.addWire({ x: 0, y: 0 }, { x: 4, y: 0 })

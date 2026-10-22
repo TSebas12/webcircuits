@@ -23,7 +23,7 @@
 import { deviceBounds, deviceLayout, pinPosition, type CircuitResolver } from './layout'
 import type { CircuitAnnotation, CircuitMarker } from './overlay'
 import { defaultSensorData, isSensorType } from './sensor'
-import type { Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GraphicsArray, GridPoint, GridRect, Id, Layer, LedMatrix, Memory, MemoryOnStart, Pin, PinSide, PinType, PlacedElement, Probe, Rotation, Sensor, Sound, Splitter, StoredElement, Wire } from './types'
+import type { BusGroup, Button, CircuitInstance, Constant, DrawableDevice, Element, Gate, GateType, GraphicsArray, GridPoint, GridRect, Id, Layer, LedMatrix, Memory, MemoryOnStart, Pin, PinSide, PinType, PlacedElement, Probe, Rotation, Sensor, Sound, Splitter, StoredElement, Wire } from './types'
 import { DEFAULT_LAYER_ID, MAX_BIT_WIDTH } from './types'
 
 /** El circuito de la hoja principal. El original lo llama `LogicalCircuit`. */
@@ -53,6 +53,7 @@ interface Snapshot {
   readonly layers: readonly Layer[]
   readonly annotations: readonly CircuitAnnotation[]
   readonly markers: readonly CircuitMarker[]
+  readonly busGroups: readonly BusGroup[]
 }
 
 /** El documento: los elementos colocados, sus capas y nada más. */
@@ -62,6 +63,8 @@ export class Diagram {
   /** Notas y marcas visuales: no son piezas, pero viajan y se deshacen con el documento. */
   private annotationList: CircuitAnnotation[] = []
   private markerList: CircuitMarker[] = []
+  /** Grupos de cables que se ven como un bus (M3B-01). No son piezas ni entran al motor. */
+  private busGroupList: BusGroup[] = []
   /** Capa donde caen los elementos nuevos. No se guarda: es estado de edición. */
   private activeLayer: Id = DEFAULT_LAYER_ID
   private dimOthers = false
@@ -131,6 +134,168 @@ export class Diagram {
   /** Los marcadores visuales del circuito. */
   get markers(): CircuitMarker[] {
     return [...this.markerList]
+  }
+
+  /** Los buses visuales del circuito (M3B-01). */
+  get busGroups(): BusGroup[] {
+    return [...this.busGroupList]
+  }
+
+  /** El bus que contiene ese cable, si lo hay. */
+  busGroupForWire(wireId: Id): BusGroup | undefined {
+    return this.busGroupList.find((group) => group.wireIds.includes(wireId))
+  }
+
+  busGroup(id: Id): BusGroup | undefined {
+    return this.busGroupList.find((group) => group.id === id)
+  }
+
+  /**
+   * Crea un bus visual a partir de cables ya existentes.
+   *
+   * El orden de `wireIds` **es** el orden de bits; lo decide `bus-group.ts` antes de llamar
+   * aquí. Se valida otra vez porque un fichero o una llamada futura pueden traer cualquier
+   * cosa: un grupo con dos cables ya agrupados rompería el dibujo sin avisar.
+   */
+  addBusGroup(
+    wireIds: readonly Id[],
+    options: { readonly name?: string; readonly collapsed?: boolean } = {},
+  ): BusGroup | null {
+    if (wireIds.length < 2 || wireIds.length > MAX_BIT_WIDTH) {
+      return null
+    }
+    if (new Set(wireIds).size !== wireIds.length) {
+      return null
+    }
+
+    const wires: Wire[] = []
+    for (const id of wireIds) {
+      const element = this.items.get(id)
+      if (element === undefined || element.kind !== 'wire') {
+        return null
+      }
+      if (this.busGroupForWire(id) !== undefined) {
+        return null
+      }
+      wires.push(element)
+    }
+
+    const layerId = wires[0]?.layerId
+    if (layerId === undefined || wires.some((wire) => wire.layerId !== layerId)) {
+      return null
+    }
+
+    return this.change(() => {
+      const group: BusGroup = {
+        kind: 'busGroup',
+        id: this.nextId('bus'),
+        circuitId: this.circuitId,
+        layerId,
+        wireIds: [...wireIds],
+        collapsed: options.collapsed !== false,
+        name: options.name ?? `Bus ${wireIds.length}`,
+      }
+      this.busGroupList.push(group)
+      this.changed()
+      return group
+    })
+  }
+
+  /** Deshace un bus sin tocar sus cables: al desaparecer el grupo vuelven a verse sueltos. */
+  removeBusGroup(id: Id): boolean {
+    if (!this.busGroupList.some((group) => group.id === id)) {
+      return false
+    }
+    this.change(() => {
+      this.busGroupList = this.busGroupList.filter((group) => group.id !== id)
+      this.changed()
+    })
+    return true
+  }
+
+  /** Cambia nombre o plegado de un bus (lo usarán M3B-03 y M3B-04). */
+  updateBusGroup(id: Id, patch: { readonly name?: string; readonly collapsed?: boolean }): boolean {
+    const group = this.busGroupList.find((item) => item.id === id)
+    if (group === undefined) {
+      return false
+    }
+    this.change(() => {
+      this.busGroupList = this.busGroupList.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              ...(patch.name !== undefined ? { name: patch.name } : {}),
+              ...(patch.collapsed !== undefined ? { collapsed: patch.collapsed } : {}),
+            }
+          : item,
+      )
+      this.changed()
+    })
+    return true
+  }
+
+  /**
+   * Reemplaza los buses al cargar un fichero.
+   *
+   * Se filtran los grupos rotos (cables que ya no existen, de otra capa o repetidos) en vez de
+   * cargarlos a medias: un bus con un miembro de menos se dibujaría con el ancho equivocado.
+   */
+  setBusGroups(groups: readonly BusGroup[]): void {
+    const occupied = new Set<Id>()
+    const usedIds = new Set<Id>()
+    const next: BusGroup[] = []
+
+    for (const raw of groups) {
+      const wireIds = Array.isArray(raw.wireIds) ? [...raw.wireIds] : []
+      if (wireIds.length < 2 || wireIds.length > MAX_BIT_WIDTH) {
+        continue
+      }
+      if (new Set(wireIds).size !== wireIds.length) {
+        continue
+      }
+      if (wireIds.some((id) => occupied.has(id))) {
+        continue
+      }
+      const members: Wire[] = []
+      for (const id of wireIds) {
+        const element = this.items.get(id)
+        if (element === undefined || element.kind !== 'wire') {
+          members.length = 0
+          break
+        }
+        members.push(element)
+      }
+      if (members.length !== wireIds.length) {
+        continue
+      }
+      const layerId = members[0]?.layerId
+      if (layerId === undefined || members.some((wire) => wire.layerId !== layerId)) {
+        continue
+      }
+
+      const requested = typeof raw.id === 'string' && raw.id !== '' ? raw.id : undefined
+      if (requested !== undefined && usedIds.has(requested)) {
+        continue
+      }
+      const id = requested ?? this.nextId('bus')
+      this.reserveId(id)
+      usedIds.add(id)
+      next.push({
+        kind: 'busGroup',
+        id,
+        circuitId: this.circuitId,
+        layerId,
+        wireIds: [...wireIds],
+        collapsed: raw.collapsed !== false,
+        name: typeof raw.name === 'string' && raw.name !== '' ? raw.name : `Bus ${wireIds.length}`,
+      })
+      for (const wireId of wireIds) {
+        occupied.add(wireId)
+      }
+    }
+
+    this.busGroupList = next
+    this.changed()
   }
 
   addAnnotation(position: GridPoint, text: string): CircuitAnnotation {
@@ -305,6 +470,7 @@ export class Diagram {
       layers: [...this.layers],
       annotations: [...this.annotationList],
       markers: [...this.markerList],
+      busGroups: [...this.busGroupList],
     }
   }
 
@@ -323,6 +489,7 @@ export class Diagram {
     this.layers = [...snapshot.layers]
     this.annotationList = [...snapshot.annotations]
     this.markerList = [...snapshot.markers]
+    this.busGroupList = [...snapshot.busGroups]
     this.changed()
   }
 
@@ -745,6 +912,10 @@ export class Diagram {
         this.items.set(id, { ...el, layerId: DEFAULT_LAYER_ID })
       }
     }
+    // Un bus de una capa que ya no existe se va con sus cables a la principal.
+    this.busGroupList = this.busGroupList.map((group) =>
+      ids.has(group.layerId) ? group : { ...group, layerId: DEFAULT_LAYER_ID },
+    )
     this.layers = next
     if (!next.some((layer) => layer.id === this.activeLayer)) {
       this.activeLayer = DEFAULT_LAYER_ID
@@ -805,6 +976,10 @@ export class Diagram {
           this.items.set(eid, { ...el, layerId: DEFAULT_LAYER_ID })
         }
       }
+      // Los buses de la capa borrada siguen a sus cables.
+      this.busGroupList = this.busGroupList.map((group) =>
+        group.layerId === id ? { ...group, layerId: DEFAULT_LAYER_ID } : group,
+      )
       this.changed()
     })
     return true
@@ -853,11 +1028,39 @@ export class Diagram {
     }
     this.change(() => {
       this.layers = [...this.layers, newLayer]
+      const idMap = new Map<Id, Id>()
       for (const el of this.items.values()) {
         if (el.layerId === id) {
           const copy = { ...el, id: this.nextId(el.kind), layerId: newLayer.id }
           this.items.set(copy.id, copy)
+          idMap.set(el.id, copy.id)
         }
+      }
+      // Un bus copiado tiene que apuntar a los cables **copiados**, no a los de la capa
+      // original, o los dos grupos se pelearían por los mismos miembros.
+      for (const group of this.busGroupList) {
+        if (group.layerId !== id) {
+          continue
+        }
+        const wireIds: Id[] = []
+        let complete = true
+        for (const wireId of group.wireIds) {
+          const copied = idMap.get(wireId)
+          if (copied === undefined) {
+            complete = false
+            break
+          }
+          wireIds.push(copied)
+        }
+        if (!complete) {
+          continue
+        }
+        this.busGroupList.push({
+          ...group,
+          id: this.nextId('bus'),
+          layerId: newLayer.id,
+          wireIds,
+        })
       }
       this.changed()
     })
@@ -876,6 +1079,9 @@ export class Diagram {
           this.items.set(eid, { ...el, layerId: intoId })
         }
       }
+      this.busGroupList = this.busGroupList.map((group) =>
+        group.layerId === fromId ? { ...group, layerId: intoId } : group,
+      )
       this.layers = this.layers.filter((l) => l.id !== fromId)
       this.changed()
     })
@@ -951,7 +1157,22 @@ export class Diagram {
     const el = this.items.get(elementId)
     if (el === undefined) return
     this.change(() => {
-      this.items.set(elementId, { ...el, layerId })
+      const group = el.kind === 'wire' ? this.busGroupForWire(elementId) : undefined
+      if (group === undefined) {
+        this.items.set(elementId, { ...el, layerId })
+      } else {
+        // Un bus es una sola cosa visual: mover uno de sus cables de capa arrastra el grupo
+        // entero. Si no, el bus se quedaría con miembros repartidos por dos capas.
+        for (const wireId of group.wireIds) {
+          const wire = this.items.get(wireId)
+          if (wire !== undefined) {
+            this.items.set(wireId, { ...wire, layerId })
+          }
+        }
+        this.busGroupList = this.busGroupList.map((item) =>
+          item.id === group.id ? { ...item, layerId } : item,
+        )
+      }
       this.changed()
     })
   }
@@ -1108,18 +1329,23 @@ export class Diagram {
 
   remove(id: Id): void {
     this.change(() => {
-      if (this.items.delete(id)) {
-        this.changed()
+      if (!this.items.delete(id)) {
+        return
       }
+      // Si se va un cable del bus, el grupo se disuelve: quedarse con un miembro de menos
+      // cambiaría el ancho del bus a espaldas del usuario.
+      this.busGroupList = this.busGroupList.filter((group) => !group.wireIds.includes(id))
+      this.changed()
     })
   }
 
   clear(): void {
-    if (this.items.size === 0) {
+    if (this.items.size === 0 && this.busGroupList.length === 0) {
       return
     }
     this.change(() => {
       this.items.clear()
+      this.busGroupList = []
       this.changed()
     })
   }
@@ -1206,7 +1432,8 @@ function sameSnapshot(a: Snapshot, b: Snapshot): boolean {
     sameRefs(a.elements, b.elements) &&
     sameRefs(a.layers, b.layers) &&
     sameRefs(a.annotations, b.annotations) &&
-    sameRefs(a.markers, b.markers)
+    sameRefs(a.markers, b.markers) &&
+    sameRefs(a.busGroups, b.busGroups)
   )
 }
 

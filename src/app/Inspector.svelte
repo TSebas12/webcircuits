@@ -6,6 +6,10 @@
   import { LIGHT_THEME } from '../core/theme/presets'
   let { editor }: { editor: Editor | null } = $props()
   let selected = $state<Element | null>(null)
+  /** Copias reactivas de lo que el editor no puede avisar por sí solo (no es un store). */
+  let selectedCount = $state(0)
+  let busGroupWidth = $state(0)
+  let canGroup = $state(false)
 
   /** Cómo se llama cada tipo de sensor en la interfaz. */
   const SENSOR_LABELS: Readonly<Record<string, string>> = {
@@ -56,10 +60,16 @@
   const refresh = () => {
     if (editor === null) {
       selected = null
+      selectedCount = 0
+      busGroupWidth = 0
+      canGroup = false
       return
     }
     const id = editor.selectedId
     selected = (id ? (editor.diagram.get(id) ?? null) : null) as Element | null
+    selectedCount = editor.selectedCount
+    busGroupWidth = editor.selectedBusGroup?.wireIds.length ?? 0
+    canGroup = editor.canGroupSelection
   }
 
   const update = (patch: Partial<StoredElement>): void => {
@@ -94,33 +104,57 @@
   })
 </script>
 
-{#if (editor?.selectedCount ?? 0) > 1}
+{#if selectedCount > 1}
   <aside class="inspector" aria-label="Propiedades">
     <header class="inspector-head">
-      <h3>Propiedades ({editor?.selectedCount})</h3>
+      <h3>Propiedades ({selectedCount})</h3>
       <p class="kind">Selección múltiple</p>
     </header>
-    <label class="field">
-      <span>Bits</span>
-      <input
-        type="number"
-        min="1"
-        max="32"
-        oninput={(e) =>
-          editor?.updateSelection({
-            bitWidth: Number((e.currentTarget as HTMLInputElement).value),
-          })}
-      />
-    </label>
-    <div class="actions">
-      <button
-        type="button"
-        onclick={() => {
-          editor?.updateSelection({})
-          refresh()
-        }}>Aplicar a todos</button
-      >
-    </div>
+    {#if busGroupWidth > 0}
+      <p class="hint">
+        Bus de {busGroupWidth} bits. Los cables siguen ahí, solo plegados.
+      </p>
+      <div class="actions">
+        <button
+          type="button"
+          onclick={() => {
+            editor?.ungroupSelection()
+            refresh()
+          }}>Desagrupar bus</button
+        >
+      </div>
+    {:else}
+      <label class="field">
+        <span>Bits</span>
+        <input
+          type="number"
+          min="1"
+          max="32"
+          oninput={(e) =>
+            editor?.updateSelection({
+              bitWidth: Number((e.currentTarget as HTMLInputElement).value),
+            })}
+        />
+      </label>
+      <div class="actions">
+        <button
+          type="button"
+          onclick={() => {
+            editor?.updateSelection({})
+            refresh()
+          }}>Aplicar a todos</button
+        >
+        {#if canGroup}
+          <button
+            type="button"
+            onclick={() => {
+              editor?.groupSelection()
+              refresh()
+            }}>Agrupar en bus</button
+          >
+        {/if}
+      </div>
+    {/if}
   </aside>
 {:else if selected}
   <aside class="inspector" aria-label="Propiedades">
@@ -532,6 +566,12 @@
     margin-top: 0.3rem;
     padding-top: 0;
     border-top: 0;
+  }
+  .hint {
+    margin: 0.35rem 0 0;
+    color: var(--fg-muted);
+    font-size: 0.74rem;
+    line-height: 1.35;
   }
   /* Todas las filas miden lo mismo: antes las casillas de verificación ocupaban 20 px y los
      campos 28 px, así que la columna parecía hecha con piezas de otro sitio. */

@@ -7,9 +7,10 @@ Reescritura web de [LogicCircuit](https://www.logiccircuit.org) (C#/WPF), con **
 
 <!-- Cuando haya una captura decente: ![WebCircuits](docs/captura.png) -->
 
-> **En construcción.** 167 de 258 pasos hechos (65 %). La app ya sirve para dibujar,
-> guardar y simular circuitos de varios niveles, con capas, temas y tablas de verdad;
-> quedan los buses cómodos, la síntesis, la exportación y el pulido. Ver [Estado](#estado).
+> **En construcción.** 168 de 258 pasos hechos (65 %). La app ya sirve para dibujar,
+> guardar y simular circuitos de varios niveles, con capas, temas, buses visuales y tablas
+> de verdad; quedan los buses cómodos, la síntesis, la exportación y el pulido. Ver
+> [Estado](#estado).
 
 ## Estado
 
@@ -25,6 +26,8 @@ Lo que ya funciona:
 - Seleccionar, arrastrar, copiar/pegar, borrar y deshacer/rehacer, con ajuste a la rejilla
 - Cableado arrastrando desde un pin (`Esc` cancela), con **buses multi-bit**, uniones,
   colores por cable y modo cableado (W)
+- **Buses visuales**: seleccionar varios cables con `Ctrl`/`Cmd`+clic y agruparlos, con
+  asignación automática de bits; el bus se pliega en una línea y se puede desagrupar
 - Motor con compuertas, reloj, memoria (lectura/escritura por flanco), sensores, sondas,
   interruptores y **subcircuitos jerárquicos**
 - Guardar y abrir `.CircuitProject` (XML) y JSON nativo, con archivos recientes
@@ -39,12 +42,13 @@ Lo que todavía **no** funciona, y en qué hito llega:
   tienen pines ni función de simulación; no se ofrecen en la paleta (M3/M11)
 - La **nota de texto** se conserva al abrir un archivo, pero el lienzo no la pinta
 - El **altavoz** es solo un indicador visual; el audio real llega con M11
-- **Buses cómodos** (M3B), biblioteca de subcircuitos (M4C), síntesis desde tabla de
-  verdad (M8B), export Verilog (M9), scripting Python (M10) y modo didáctico (M11B)
+- **Buses cómodos** (M3B-02..09: rutado, etiquetas, plegado configurable, inspector y
+  splitters), biblioteca de subcircuitos (M4C), síntesis desde tabla de verdad (M8B),
+  export Verilog (M9), scripting Python (M10) y modo didáctico (M11B)
 - Los **retardos de propagación** tienen módulos y pruebas (M7B), pero aún no están
   integrados en el `CircuitRunner`; la integración y el rendimiento llegan con M12
 
-**Calidad (2026-10-22):** `npm run check` sin errores ni avisos, `lint` limpio, **584 tests**
+**Calidad (2026-10-22):** `npm run check` sin errores ni avisos, `lint` limpio, **600 tests**
 verdes y `build` correcto. El oráculo C# queda en **174/179**: 3 fallos de cultura y 2 de
 rendimiento bajo carga, explicados en `docs/BASELINE-TESTS.md`.
 

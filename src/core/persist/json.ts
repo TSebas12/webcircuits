@@ -7,7 +7,7 @@ import { CircuitProject } from '../model/circuit'
 import { MAIN_CIRCUIT_ID } from '../model/diagram'
 import { DEFAULT_LAYER_ID } from '../model/types'
 import type { CircuitAnnotation, CircuitMarker } from '../model/overlay'
-import type { GridPoint, Layer, MemoryOnStart, PinSide, PinType, StoredElement } from '../model/types'
+import type { BusGroup, GridPoint, Layer, MemoryOnStart, PinSide, PinType, StoredElement } from '../model/types'
 
 export const FORMAT_NAME = 'webcircuits'
 export const FORMAT_VERSION = 1
@@ -39,6 +39,8 @@ export interface SerializedCircuit {
   readonly layers?: readonly Layer[]
   readonly annotations?: readonly SerializedAnnotation[]
   readonly markers?: readonly SerializedMarker[]
+  /** Buses visuales (M3B-01). Es opcional: los ficheros anteriores no los tienen. */
+  readonly busGroups?: readonly BusGroup[]
 }
 
 export type SerializedElement = Record<string, unknown> & { readonly kind: string }
@@ -118,11 +120,20 @@ function serializeElement(el: StoredElement): SerializedElement {
 function serializeCircuit(c: Circuit): SerializedCircuit {
   const annotations = c.diagram.annotations
   const markers = c.diagram.markers
+  const busGroups = c.diagram.busGroups
   return {
     id: c.id,
     name: c.name,
     elements: c.elements.map(serializeElement),
     layers: [...c.diagram.layersList],
+    ...(busGroups.length > 0
+      ? {
+          busGroups: busGroups.map((group) => ({
+            ...group,
+            wireIds: [...group.wireIds],
+          })),
+        }
+      : {}),
     ...(annotations.length > 0
       ? {
           annotations: annotations.map((note) => ({
@@ -377,6 +388,15 @@ export function deserializeProject(json: string): CircuitProject {
         circuit.diagram.importElement(mapped)
       }
     }
+    // Los buses van después de los cables: `setBusGroups` comprueba que todos los miembros
+    // existan antes de aceptar el grupo.
+    circuit.diagram.setBusGroups(
+      (sc.busGroups ?? []).map((group) => ({
+        ...group,
+        circuitId: circuit.id,
+        wireIds: [...group.wireIds],
+      })),
+    )
   }
 
   if (data.currentCircuitId) {

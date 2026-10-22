@@ -67,10 +67,12 @@ import { connectionCounts, pointKey } from '../core/simulate/nets'
 import { Simulation, type ProbeChannel } from './simulation'
 import type { SimulationState } from '../core/simulate/engine'
 import type {
+  BusGroup,
   Button,
   Circuit,
   CircuitInstance,
   DrawableDevice,
+  Element,
   GridPoint,
   Id,
   PlacedElement,
@@ -80,8 +82,15 @@ import type {
 import { Camera, MAX_ZOOM } from '../render/camera'
 import { Canvas2DRenderer } from '../render/canvas2d'
 import { GRID_SIZE } from '../render/geometry'
-import { hitTest } from '../render/hit-test'
+import { hitTest, type Hit } from '../render/hit-test'
 import type { DrawPinDot, DrawWire, RendererStats, WireSignal } from '../render/ir-renderer'
+import {
+  busGeometry,
+  busGroupAtFolded,
+  planBusGroup,
+  type BusGroupHit,
+  type FoldedBus,
+} from './editor/bus-group'
 import { buildScene } from '../render/scene'
 import { readTheme, watchTheme } from '../render/theme-bridge'
 import { parseHex } from '../core/theme/contrast'
@@ -112,6 +121,9 @@ import {
  * colocación, porque es un **modo** y no una acción suelta.
  */
 export type Tool = 'select' | 'erase' | 'wire' | 'subcircuit' | PlaceTool
+
+/** Lo que puede devolver `Editor.hitAt`: una pieza, un pin, un cable o un bus plegado. */
+export type EditorHit = Hit | BusGroupHit
 
 /** A partir de cuántas unidades de rejilla un clic se convierte en un arrastre. */
 const DRAG_THRESHOLD = 0.45
@@ -241,6 +253,18 @@ interface ButtonPress {
 interface PanState {
   lastX: number
   lastY: number
+}
+
+/**
+ * Lo que el editor necesita saber de una foto del documento para dibujar y acertar clics.
+ *
+ * Se calcula **una vez por gesto**: los buses plegados, los cables que tapan y los elementos
+ * que se pueden tocar. Antes cada consulta recorría el documento entero otra vez.
+ */
+interface SceneIndex {
+  readonly elements: readonly Element[]
+  readonly folded: FoldedBus[]
+  readonly hidden: ReadonlySet<Id>
 }
 
 export class Editor {
@@ -397,12 +421,173 @@ export class Editor {
     return this.selected.size
   }
 
+  /** ¿Ese elemento está en la selección? Lo usa el menú contextual para no romperla. */
+  isSelected(id: Id): boolean {
+    return this.selected.has(id)
+  }
+
+  /**
+   * El bus cuyos cables están seleccionados **todos**, si lo hay.
+   *
+   * Un bus se selecciona como un objeto: al pulsar la línea se meten sus cables en la
+   * selección. Así el resto del editor (borrar, mover de capa, inspector) sigue trabajando con
+   * cables normales y no hay que inventar un segundo tipo de selección.
+   */
+  get selectedBusGroup(): BusGroup | null {
+    for (const group of this.diagram.busGroups) {
+      if (group.wireIds.length !== this.selected.size) {
+        continue
+      }
+      if (group.wireIds.every((id) => this.selected.has(id))) {
+        return group
+      }
+    }
+    return null
+  }
+
+  /** ¿Se puede convertir la selección en un bus? */
+  get canGroupSelection(): boolean {
+    if (this.simulation.powered || this.selected.size < 2) {
+      return false
+    }
+    const wires: Wire[] = []
+    for (const id of this.selected) {
+      const element = this.diagram.get(id)
+      if (
+        element === undefined ||
+        element.kind !== 'wire' ||
+        this.diagram.isLayerLocked(element.layerId) ||
+        this.diagram.busGroupForWire(id) !== undefined
+      ) {
+        return false
+      }
+      wires.push(element)
+    }
+    return planBusGroup(wires).ok
+  }
+
+  /** ¿La selección es exactamente un bus ya creado? */
+  get canUngroupSelection(): boolean {
+    return !this.simulation.powered && this.selectedBusGroup !== null
+  }
+
   /** Qué hay bajo el cursor (para menú contextual). */
-  hitAt(clientX: number, clientY: number): ReturnType<typeof hitTest> {
+  hitAt(clientX: number, clientY: number): EditorHit | null {
     const rect = this.canvas?.getBoundingClientRect()
     if (rect === undefined) return null
     const world = this.camera.toWorld(clientX - rect.left, clientY - rect.top)
-    return hitTest(this.diagram.visibleElements, world, this.resolveCircuit)
+    const index = this.sceneIndex()
+    const hit = hitTest(index.elements, world, this.resolveCircuit)
+    if (hit !== null) {
+      return hit
+    }
+    const group = this.busGroupAtPoint(world, index.folded)
+    return group === null ? null : { kind: 'bus', group }
+  }
+
+  /**
+   * Prepara de una pasada lo que necesitan el dibujo y el hit-test.
+   *
+   * Los buses plegados se resuelven aquí, no en cada consulta: mover el ratón no puede recorrer
+   * el documento cinco veces para decidir si hay una línea debajo.
+   */
+  private sceneIndex(visible: readonly Element[] = this.diagram.visibleElements): SceneIndex {
+    const wires = new Map<Id, Wire>()
+    for (const element of visible) {
+      if (element.kind === 'wire') {
+        wires.set(element.id, element)
+      }
+    }
+
+    const folded: FoldedBus[] = []
+    const hidden = new Set<Id>()
+    for (const group of this.diagram.busGroups) {
+      if (!group.collapsed) {
+        continue
+      }
+      const members: Wire[] = []
+      let complete = true
+      for (const id of group.wireIds) {
+        const wire = wires.get(id)
+        if (wire === undefined) {
+          complete = false
+          break
+        }
+        members.push(wire)
+      }
+      if (!complete) {
+        continue
+      }
+      const geometry = busGeometry(group, members)
+      if (geometry === null) {
+        continue
+      }
+      folded.push({ group, geometry })
+      for (const id of group.wireIds) {
+        hidden.add(id)
+      }
+    }
+
+    const elements =
+      hidden.size === 0
+        ? visible
+        : visible.filter((element) => element.kind !== 'wire' || !hidden.has(element.id))
+
+    return { elements, folded, hidden }
+  }
+
+  /** El bus plegado bajo un punto del mundo, si lo hay. */
+  private busGroupAtPoint(world: GridPoint, folded: readonly FoldedBus[]): BusGroup | null {
+    return busGroupAtFolded(folded, world)
+  }
+
+  /** Los tramos que hay que pintar para un grupo de buses plegados. */
+  private busDrawItems(folded: readonly FoldedBus[]): DrawWire[] {
+    const layers = new Map(this.diagram.layersList.map((layer) => [layer.id, layer]))
+    const items: DrawWire[] = []
+
+    for (const { group, geometry } of folded) {
+      const selected = group.wireIds.every((id) => this.selected.has(id))
+      const hovered = this.hovered === group.id
+      const layer = layers.get(group.layerId)
+      const baseOpacity = layer?.opacity ?? 1
+      const dim =
+        this.diagram.dimOtherLayers && this.diagram.activeLayerId !== group.layerId ? 0.25 : 1
+      const layerOpacity = baseOpacity * dim
+
+      items.push({
+        kind: 'wire',
+        p1: geometry.spine.p1,
+        p2: geometry.spine.p2,
+        selected,
+        hovered,
+        signal: 'idle',
+        bus: true,
+        layerOpacity,
+      })
+      // Los codos no llevan tiradores: si fueran «cables seleccionados» llenarían el bus de
+      // cuadraditos. Se les pone el color a mano y se dejan como parte de la línea.
+      const stubColor = selected
+        ? this.theme.wireSelected
+        : hovered
+          ? this.theme.hover
+          : this.theme.wireBus
+      for (const stub of geometry.stubs) {
+        items.push({
+          kind: 'wire',
+          p1: stub.p1,
+          p2: stub.p2,
+          selected: false,
+          hovered: false,
+          signal: 'idle',
+          bus: false,
+          color: stubColor,
+          layerOpacity,
+        })
+      }
+    }
+
+    return items
   }
 
   /** El valor de un cable para la sonda (1/0), o `null` si no se puede saber. */
@@ -782,6 +967,54 @@ export class Editor {
     this.diagram.clear()
     this.simulation.reset()
     this.select(null)
+  }
+
+  /**
+   * Convierte los cables seleccionados en un bus (M3B-01).
+   *
+   * El orden de bits lo decide `planBusGroup` por geometría y queda guardado en `wireIds`. Los
+   * cables **no** se borran: el bus es una vista plegada de ellos, así que la simulación sigue
+   * funcionando igual y desagrupar es instantáneo.
+   */
+  groupSelection(): boolean {
+    if (!this.canGroupSelection) {
+      return false
+    }
+    const wires: Wire[] = []
+    for (const id of this.selected) {
+      const element = this.diagram.get(id)
+      if (element !== undefined && element.kind === 'wire') {
+        wires.push(element)
+      }
+    }
+    const result = planBusGroup(wires)
+    if (!result.ok) {
+      return false
+    }
+    const group = this.diagram.addBusGroup(result.plan.wireIds, {
+      name: result.plan.name,
+      collapsed: true,
+    })
+    if (group === null) {
+      return false
+    }
+    this.callbacks.onSelectionChange?.(this.selectedId)
+    this.refresh()
+    return true
+  }
+
+  /** Deshace el bus seleccionado: sus cables vuelven a verse sueltos. */
+  ungroupSelection(): boolean {
+    const group = this.selectedBusGroup
+    if (group === null || this.simulation.powered) {
+      return false
+    }
+    if (!this.diagram.removeBusGroup(group.id)) {
+      return false
+    }
+    this.callbacks.onSelectionChange?.(this.selectedId)
+    this.refresh()
+    return true
   }
 
   /** Mueve lo seleccionado a otra capa, en una sola acción de deshacer. */
@@ -1346,7 +1579,12 @@ export class Editor {
 
     const world = this.worldAt(event)
     const grid = this.gridAt(event)
-    const hit = hitTest(this.diagram.visibleElements, world, this.resolveCircuit)
+    const index = this.sceneIndex()
+    const hit = hitTest(index.elements, world, this.resolveCircuit)
+    // Un bus plegado no es un cable del modelo: si no hay pin ni símbolo delante, se acierta
+    // su línea sintética.
+    const bus = hit === null ? this.busGroupAtPoint(world, index.folded) : null
+    const additive = event.ctrlKey || event.metaKey
 
     // Modo ejecución: la corriente está puesta, así que el circuito se está probando y no
     // se edita. Es lo que hace el original (`Editor.InEditMode => !Power`: cada manejador del
@@ -1377,10 +1615,27 @@ export class Editor {
     if (hit !== null && hit.kind === 'wire' && this.diagram.isLayerLocked(hit.element.layerId)) {
       return
     }
+    if (bus !== null && this.diagram.isLayerLocked(bus.layerId)) {
+      return
+    }
 
     // El borrador: un clic se lleva lo que toque. Sobre el vacío no hay nada que borrar, así
     // que ahí el arrastre sigue moviendo la vista (y el clic, quitando la selección).
     if (this.tool === 'erase') {
+      if (bus !== null) {
+        // Borrar la línea de un bus se lleva sus cables: es lo que el usuario ve desaparecer.
+        this.diagram.beginChange()
+        try {
+          for (const id of [...bus.wireIds]) {
+            this.removeElement(id)
+          }
+        } finally {
+          this.diagram.endChange()
+        }
+        this.forgetSelectionIfGone()
+        this.refresh()
+        return
+      }
       if (hit !== null) {
         this.removeElement(hit.element.id)
         this.forgetSelectionIfGone()
@@ -1403,6 +1658,19 @@ export class Editor {
       return
     }
 
+    // Ctrl/Cmd + clic añade o quita de la selección. Va antes de mover y de cablear para que
+    // el gesto sea siempre «seleccionar varios», nunca un arrastre involuntario.
+    if (this.tool === 'select' && additive) {
+      if (bus !== null) {
+        this.toggleBusSelection(bus)
+        return
+      }
+      if (hit !== null) {
+        this.toggleSelected(hit.element.id)
+        return
+      }
+    }
+
     // Con una herramienta de colocación, el clic coloca… salvo que caiga sobre un símbolo,
     // y entonces se interactúa con él. Si no, la herramienta se queda pegada y pulsar un
     // interruptor recién puesto no haría nada, que es justo lo que pasaba.
@@ -1415,6 +1683,10 @@ export class Editor {
     if (this.tool === 'wire' && hit !== null && hit.kind === 'device') {
       this.select(hit.element.id)
       this.refresh()
+      return
+    }
+    if (this.tool === 'wire' && bus !== null) {
+      this.selectMany(bus.wireIds)
       return
     }
 
@@ -1473,6 +1745,11 @@ export class Editor {
       return
     }
 
+    if (bus !== null) {
+      this.selectMany(bus.wireIds)
+      return
+    }
+
     // Selección por área (M2-19): Shift + arrastrar.
     if (event.shiftKey) {
       this.capturePointer(canvas, event.pointerId)
@@ -1517,9 +1794,11 @@ export class Editor {
       // Al pasar por encima de un pin, el cursor deja de ser la mano: ahí se cablea,
       // no se mueve. Así se distingue el gesto antes de apretar.
       const world = this.worldAt(event)
-      const hit = hitTest(this.diagram.visibleElements, world, this.resolveCircuit)
+      const index = this.sceneIndex()
+      const hit = hitTest(index.elements, world, this.resolveCircuit)
+      const bus = hit === null ? this.busGroupAtPoint(world, index.folded) : null
       // Resalte de hover (M6-06): solo se repinta cuando cambia, no en cada movimiento.
-      const hovered = hit === null ? null : hit.element.id
+      const hovered = hit?.element.id ?? bus?.id ?? null
       if (this.hovered !== hovered) {
         this.hovered = hovered
         this.refresh()
@@ -1539,6 +1818,8 @@ export class Editor {
           // Sobre una pieza se arrastra: la flecha de mover lo dice, en vez de la mano de
           // desplazar la vista. Antes las dos eran `grab` y no se sabía qué iba a pasar.
           this.canvas.style.cursor = 'move'
+        } else if (bus !== null) {
+          this.canvas.style.cursor = 'pointer'
         } else {
           this.canvas.style.cursor = ''
         }
@@ -1673,12 +1954,37 @@ export class Editor {
       const y0 = Math.min(rect.start.y, rect.current.y)
       const y1 = Math.max(rect.start.y, rect.current.y)
       this.select(null)
-      for (const element of this.diagram.visibleElements) {
-        if (element.kind === 'wire') continue
+      const inside = (point: GridPoint): boolean =>
+        point.x >= x0 && point.x <= x1 && point.y >= y0 && point.y <= y1
+      const index = this.sceneIndex()
+      for (const element of index.elements) {
         if (this.diagram.isLayerLocked(element.layerId)) continue
+        if (element.kind === 'wire') {
+          const middle = {
+            x: (element.p1.x + element.p2.x) / 2,
+            y: (element.p1.y + element.p2.y) / 2,
+          }
+          if (inside(element.p1) || inside(element.p2) || inside(middle)) {
+            this.selected.add(element.id)
+          }
+          continue
+        }
         const p = element.position
-        if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) {
+        if (inside(p)) {
           this.selected.add(element.id)
+        }
+      }
+      // Un bus plegado se selecciona entero si su línea cae dentro del área, aunque sus cables
+      // individuales estén ocultos.
+      for (const { group, geometry } of index.folded) {
+        const middle = {
+          x: (geometry.spine.p1.x + geometry.spine.p2.x) / 2,
+          y: (geometry.spine.p1.y + geometry.spine.p2.y) / 2,
+        }
+        if (inside(geometry.spine.p1) || inside(geometry.spine.p2) || inside(middle)) {
+          for (const id of group.wireIds) {
+            this.selected.add(id)
+          }
         }
       }
       this.callbacks.onSelectionChange?.(this.selected.values().next().value ?? null)
@@ -2000,6 +2306,37 @@ export class Editor {
     this.selectMany(this.diagram.selectAllInLayer(layerId))
   }
 
+  /**
+   * Añade o quita un elemento de la selección (Ctrl/Cmd + clic).
+   *
+   * Se usa un modificador distinto de `Shift` porque `Shift` ya está ocupado por la selección
+   * por área y por soltar los cables de una pieza al moverla.
+   */
+  toggleSelected(id: Id): void {
+    if (this.diagram.get(id) === undefined) {
+      return
+    }
+    if (!this.selected.delete(id)) {
+      this.selected.add(id)
+    }
+    this.callbacks.onSelectionChange?.(this.selectedId)
+    this.refresh()
+  }
+
+  /** Añade o quita un bus completo de la selección. */
+  private toggleBusSelection(group: BusGroup): void {
+    const allSelected = group.wireIds.every((id) => this.selected.has(id))
+    for (const id of group.wireIds) {
+      if (allSelected) {
+        this.selected.delete(id)
+      } else {
+        this.selected.add(id)
+      }
+    }
+    this.callbacks.onSelectionChange?.(this.selectedId)
+    this.refresh()
+  }
+
   select(id: Id | null): void {
     if (id === null) {
       if (this.selected.size === 0) {
@@ -2127,7 +2464,11 @@ export class Editor {
     // Los pines conectados se ven siempre (incluso con la corriente puesta), porque son
     // información del cableado. Los libres solo tienen sentido editando: con corriente
     // sobran, y en edición se ocultan si no hay zoom suficiente para no ser ruido.
-    const counts = connectionCounts(this.diagram.visibleElements, this.resolveCircuit)
+    const visible = this.diagram.visibleElements
+    const index = this.sceneIndex(visible)
+    const counts = connectionCounts(visible, this.resolveCircuit)
+    // Los buses plegados tapan sus cables y ocupan su sitio con una línea sintética.
+    const hiddenWires = index.hidden
 
     for (const device of this.diagram.devices) {
       for (const placed of placedPins(device, this.resolveCircuit)) {
@@ -2167,8 +2508,8 @@ export class Editor {
     const paintMode = loadSettings().paintWiresOnPower
     const wireStates = new Map<Id, WireSignal>()
     if (this.simulation.powered && paintMode !== 'never') {
-      for (const element of this.diagram.visibleElements) {
-        if (element.kind === 'wire' && element.bitWidth === 1) {
+      for (const element of visible) {
+        if (element.kind === 'wire' && element.bitWidth === 1 && !hiddenWires.has(element.id)) {
           const value = this.simulation.probeValue(element)
           wireStates.set(element.id, value === null ? 'floating' : value === 0 ? 'low' : 'high')
         }
@@ -2177,7 +2518,8 @@ export class Editor {
 
     this.renderer.render(
       buildScene({
-        elements: this.diagram.visibleElements,
+        elements: index.elements,
+        buses: this.busDrawItems(index.folded),
         states: this.sim.devices,
         segmentStates: this.sim.segmentStates,
         wireStates,
