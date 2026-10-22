@@ -7,7 +7,7 @@ Reescritura web de [LogicCircuit](https://www.logiccircuit.org) (C#/WPF), con **
 
 <!-- Cuando haya una captura decente: ![WebCircuits](docs/captura.png) -->
 
-> **En construcción.** 166 de 258 pasos hechos (64 %). La app ya sirve para dibujar,
+> **En construcción.** 167 de 258 pasos hechos (65 %). La app ya sirve para dibujar,
 > guardar y simular circuitos de varios niveles, con capas, temas y tablas de verdad;
 > quedan los buses cómodos, la síntesis, la exportación y el pulido. Ver [Estado](#estado).
 
@@ -44,7 +44,7 @@ Lo que todavía **no** funciona, y en qué hito llega:
 - Los **retardos de propagación** tienen módulos y pruebas (M7B), pero aún no están
   integrados en el `CircuitRunner`; la integración y el rendimiento llegan con M12
 
-**Calidad (2026-10-21):** `npm run check` sin errores ni avisos, `lint` limpio, **581 tests**
+**Calidad (2026-10-22):** `npm run check` sin errores ni avisos, `lint` limpio, **584 tests**
 verdes y `build` correcto. El oráculo C# queda en **174/179**: 3 fallos de cultura y 2 de
 rendimiento bajo carga, explicados en `docs/BASELINE-TESTS.md`.
 
@@ -111,7 +111,7 @@ algo que el original no tiene.
 |---|---|---|---|
 | M0 | Preparación: andamiaje y línea base del original | 12 | ✅ |
 | M1 | Slice vertical: colocar, cablear y simular | 15 | ✅ |
-| M2 | Motor y edición básica | 30 | 🟡 (28/30) |
+| M2 | Motor y edición básica | 30 | 🟡 (29/30) |
 | M3 | Jerarquía y buses | 16 | ✅ |
 | M3B | Buses excelentes · *diferenciador* | 9 | ⬜ |
 | M4 | Persistencia y archivos (web) | 24 | 🟡 (19/24) |
@@ -127,7 +127,7 @@ algo que el original no tiene.
 | M11 | Pulido y extras | 18 | ⬜ |
 | M11B | Modo didáctico · *nuevo* | 9 | ⬜ |
 | M12 | Rendimiento y despliegue | 14 | ⬜ |
-| | **Total** | **258** | **166 (64 %)** |
+| | **Total** | **258** | **167 (65 %)** |
 
 ## Licencia y atribución
 

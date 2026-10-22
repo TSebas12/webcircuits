@@ -66,6 +66,12 @@ Se volvió a ejecutar la suite completa durante la revisión de los módulos. Re
 > rendimiento son **dependientes de la carga de la máquina** y no aparecen cuando la suite
 > corre sola. Para comparar rendimiento hay que usar la medición de M12, no este umbral.
 
+En WebCircuits, `CircuitMapTest.cs` se porta en
+`tests/unit/core/persist/hierarchy-fixtures.test.ts`: limpieza y lazo de cable profundo se
+prueban tal cual, y los dos casos de rendimiento se quedan en una prueba de humo (crear,
+aplanar y encender) **sin umbral temporal**, por la misma razón: el tiempo depende de la
+máquina. La medición formal sigue siendo M12.
+
 ---
 
 ## Cómo reproducir la medición

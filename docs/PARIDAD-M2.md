@@ -38,3 +38,10 @@ M2 cierra su verificación de paridad para circuitos simples de un nivel: todos 
 comportamientos comprobados coinciden con el oráculo. Lo que queda fuera de este
 alcance (buses, jerarquía, retardos, conflictos detallados) se verifica en sus hitos
 (M3, M3B, M7B).
+
+Los casos de `CircuitMapTest.cs` también están portados en
+`tests/unit/core/persist/hierarchy-fixtures.test.ts`: la limpieza del mapa con los cuatro
+circuitos del fixture (`0/0/3/8` funciones y `0/7/4/11` símbolos), el lazo de cable profundo
+que lleva la constante hasta la probeta y una prueba de humo de los dos proyectos grandes.
+Los dos tests de rendimiento del original no trasladan su umbral de segundos: depende de la
+máquina y se midió que falla bajo carga; la medición formal es M12.
