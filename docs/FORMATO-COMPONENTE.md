@@ -160,7 +160,6 @@ está separada del almacén (`ComponentStore`) para poder probarla sin navegador
 
 ## Estado
 
-M4C-01 a M4C-05 están implementados. Quedan M4C-06 (auditoría de tests) y M4C-07
-(documentación final del flujo completo).
-
-El `.wccomp` es solo datos: no contiene código ejecutable ni rutas del sistema.
+M4C-01 a M4C-07 están implementados. El flujo completo —formato, exportación, importación,
+biblioteca, dependencias, tests y documentación de uso— está cubierto por la suite. El
+`.wccomp` es solo datos: no contiene código ejecutable ni rutas del sistema.

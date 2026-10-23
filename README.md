@@ -7,10 +7,10 @@ Reescritura web de [LogicCircuit](https://www.logiccircuit.org) (C#/WPF), con **
 
 <!-- Cuando haya una captura decente: ![WebCircuits](docs/captura.png) -->
 
-> **En construcción.** 170 de 258 pasos hechos (66 %). La app ya sirve para dibujar,
-> guardar y simular circuitos de varios niveles, con capas, temas, buses visuales y tablas
-> de verdad; quedan los buses cómodos, la síntesis, la exportación y el pulido. Ver
-> [Estado](#estado).
+> **En construcción.** 184 de 258 pasos hechos (71 %). La app ya sirve para dibujar,
+> guardar y simular circuitos de varios niveles, con capas, temas, buses visuales,
+> componentes reutilizables y tablas de verdad; quedan la síntesis, la exportación Verilog,
+> el scripting y el pulido. Ver [Estado](#estado).
 
 ## Estado
 
@@ -29,6 +29,9 @@ Lo que ya funciona:
 - **Buses visuales**: seleccionar varios cables con `Ctrl`/`Cmd`+clic y agruparlos, con
   asignación automática de bits; el bus se pliega en una línea, se aparta de las piezas
   buscando un canal libre y se puede desagrupar
+- **Componentes reutilizables** `.wccomp`: exportar un subcircuito con sus dependencias,
+  importarlo en otro proyecto y guardarlo en una biblioteca local; los lazos y las
+  dependencias ausentes se rechazan con un mensaje claro
 - Motor con compuertas, reloj, memoria (lectura/escritura por flanco), sensores, sondas,
   interruptores y **subcircuitos jerárquicos**
 - Guardar y abrir `.CircuitProject` (XML) y JSON nativo, con archivos recientes
@@ -43,15 +46,49 @@ Lo que todavía **no** funciona, y en qué hito llega:
   tienen pines ni función de simulación; no se ofrecen en la paleta (M3/M11)
 - La **nota de texto** se conserva al abrir un archivo, pero el lienzo no la pinta
 - El **altavoz** es solo un indicador visual; el audio real llega con M11
-- **Buses cómodos** (M3B-03..09: etiquetas, plegado configurable, inspector y splitters),
-  biblioteca de subcircuitos (M4C), síntesis desde tabla de verdad (M8B),
-  export Verilog (M9), scripting Python (M10) y modo didáctico (M11B)
+- **Síntesis** desde tabla de verdad (M8B), **export Verilog** (M9), **scripting Python**
+  (M10) y **modo didáctico** (M11B)
 - Los **retardos de propagación** tienen módulos y pruebas (M7B), pero aún no están
   integrados en el `CircuitRunner`; la integración y el rendimiento llegan con M12
 
-**Calidad (2026-10-22):** `npm run check` sin errores ni avisos, `lint` limpio, **613 tests**
+**Calidad (2026-10-22):** `npm run check` sin errores ni avisos, `lint` limpio, **652 tests**
 verdes y `build` correcto. El oráculo C# queda en **174/179**: 3 fallos de cultura y 2 de
 rendimiento bajo carga, explicados en `docs/BASELINE-TESTS.md`.
+
+## Componentes reutilizables
+
+Un componente es un subcircuito empaquetado en un fichero `.wccomp`, con su nombre y todas
+las dependencias que necesita. Sirve para mover un bloque entre proyectos sin llevar el
+proyecto entero.
+
+### Crear el subcircuito
+
+1. En **Subcircuitos**, pulsa **Subcircuito**. Se crea y se abre vacío.
+2. Dentro, añade los pines de entrada y salida en **Pines de la hoja**.
+3. Vuelve con **Subir**. El subcircuito ya aparece en la paleta para colocarlo.
+
+### Exportar
+
+1. Entra en el subcircuito con doble clic sobre una instancia o desde la paleta.
+2. En el breadcrumb pulsa **Exportar**; también puedes hacer clic derecho sobre una
+   instancia y elegir **Exportar componente**.
+3. Se descarga `<nombre>.wccomp` con el circuito raíz y su árbol de dependencias. El resto
+   del proyecto no viaja.
+
+### Importar y usar
+
+1. En **Subcircuitos**, pulsa **Importar** y elige un `.wccomp`.
+2. Se valida el formato, la versión, las dependencias y los lazos. Si algo falla, no se toca
+   el proyecto; si todo está bien, los circuitos se crean con ids nuevos y las referencias
+   entre ellos se reescriben.
+3. El componente queda en la paleta como cualquier subcircuito y se guarda en la biblioteca
+   local.
+4. **Biblioteca** lista los componentes guardados. **Añadir** crea una copia nueva en el
+   proyecto y activa la colocación; **Borrar** elimina solo la entrada de la biblioteca.
+
+Importar dos veces el mismo fichero crea dos copias independientes. El formato es JSON y no
+contiene código ejecutable; el esquema completo está en
+[`docs/FORMATO-COMPONENTE.md`](docs/FORMATO-COMPONENTE.md).
 
 ## Probar
 
@@ -118,9 +155,9 @@ algo que el original no tiene.
 | M1 | Slice vertical: colocar, cablear y simular | 15 | ✅ |
 | M2 | Motor y edición básica | 30 | 🟡 (29/30) |
 | M3 | Jerarquía y buses | 16 | ✅ |
-| M3B | Buses excelentes · *diferenciador* | 9 | ⬜ |
+| M3B | Buses excelentes · *diferenciador* | 9 | ✅ |
 | M4 | Persistencia y archivos (web) | 24 | 🟡 (19/24) |
-| M4C | Biblioteca de subcircuitos · *nuevo* | 7 | ⬜ |
+| M4C | Biblioteca de subcircuitos · *nuevo* | 7 | ✅ |
 | M5 | Capas · *nuevo* | 23 | 🟡 (21/23) |
 | M6 | Personalización, colores y temas · *nuevo* | 20 | ✅ |
 | M7 | Instrumentación | 12 | ✅ |
@@ -132,7 +169,7 @@ algo que el original no tiene.
 | M11 | Pulido y extras | 18 | ⬜ |
 | M11B | Modo didáctico · *nuevo* | 9 | ⬜ |
 | M12 | Rendimiento y despliegue | 14 | ⬜ |
-| | **Total** | **258** | **167 (65 %)** |
+| | **Total** | **258** | **184 (71 %)** |
 
 ## Licencia y atribución
 
