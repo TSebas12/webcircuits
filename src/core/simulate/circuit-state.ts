@@ -256,7 +256,14 @@ function CircuitFunction_toChar(s: State): string {
 // DirtyList (inner class of the original, ported as a standalone class here)
 // ---------------------------------------------------------------------------
 
-class DirtyList {
+/**
+ * La lista de sucios del original (`CircuitState.DirtyList`, una clase anidada privada).
+ *
+ * Se exporta solo para que los tests de paridad puedan reproducir
+ * `CircuitStateDirtyListTest.cs`, que en C# llegaba a ella por reflexión. El resto del motor
+ * la usa a través de `CircuitState`.
+ */
+export class DirtyList {
   private current: FunctionList
   private next: FunctionList
   private seed: number

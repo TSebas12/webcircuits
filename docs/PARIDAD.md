@@ -74,8 +74,8 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 | `CircuitTestSocketTest` | *Sockets* de test | `tests/unit/core/model/test-socket.test.ts` | ✅ |
 | `MemoryTest` | Memoria (RAM/ROM) | `tests/unit/core/function/memory.test.ts` | ✅ (RAM con flanco de escritura, cambio de dirección y ROM) |
 | `SensorTest` | Sensores | `tests/unit/core/function/sensors.test.ts`, `tests/unit/core/model/sensor.test.ts` | ✅ (serie, bucle, aleatorio, manual, secuencia, teclado y reloj; pieza, geometría y datos por defecto; fixture `SensorTests.CircuitProject` importado y XML de ida y vuelta) |
-| `CircuitStateTest` | Estado (señales) del circuito | `tests/unit/core/simulate/engine.test.ts`, `tests/unit/core/simulate/circuit-runner.test.ts` | 🟡 (se prueba a través del runner; falta el test aislado del original) |
-| `CircuitStateDirtyListTest` | Lista sucia (propagación incremental) | `tests/unit/core/simulate/engine.test.ts` | ⬜ (la lista sucia vive en `circuit-state.ts`; falta prueba dedicada) |
+| `CircuitStateTest` | Estado (señales) del circuito | `tests/unit/core/simulate/circuit-state.test.ts` | ✅ (constructor, `EndDefinition`, indexador, `Evaluate` y `MarkUpdated`) |
+| `CircuitStateDirtyListTest` | Lista sucia (propagación incremental) | `tests/unit/core/simulate/circuit-state.test.ts` | ✅ (añadir/obtener, orden aleatorio y oleadas; `DirtyList` se exporta para el test) |
 | `GraphicsArrayTest` | Rejilla gráfica / culling | `tests/unit/render/scene.test.ts` | 🟡 (símbolo de la matriz y culling; falta la rejilla gráfica real, M3/M11) |
 | `VisualElementLoadTest` | Carga de elementos visuales | `tests/unit/render/scene.test.ts` | 🟡 (construcción de la escena; falta cargar los fixtures visuales del original) |
 | `ConductorMapTest` | Rasgos de los conductores | `tests/unit/core/model/conductor.test.ts`, `tests/unit/core/simulate/connection.test.ts` | ✅ |
