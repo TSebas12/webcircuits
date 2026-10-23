@@ -208,7 +208,14 @@ describe('de modelo a piezas de dibujo', () => {
 
   it('los pines y el cable en construcción van los últimos, encima de todo', () => {
     const sketch: DrawWire[] = [
-      { kind: 'wire', p1: { x: 0, y: 0 }, p2: { x: 3, y: 3 }, selected: false, signal: 'idle', bus: false },
+      {
+        kind: 'wire',
+        p1: { x: 0, y: 0 },
+        p2: { x: 3, y: 3 },
+        selected: false,
+        signal: 'idle',
+        bus: false,
+      },
     ]
     const pinDots = [{ kind: 'pinDot' as const, point: { x: 4, y: 3 }, connected: false }]
 
@@ -235,10 +242,7 @@ describe('de modelo a piezas de dibujo', () => {
 
     expect(scene.layers.map((layer) => layer.id)).toEqual([bottom.id, top.id])
     expect(scene.layers[0]?.items.filter((item) => item.kind === 'device')).toHaveLength(1)
-    expect(scene.layers[1]?.items.map((item) => item.kind)).toEqual([
-      'wire',
-      'device',
-    ])
+    expect(scene.layers[1]?.items.map((item) => item.kind)).toEqual(['wire', 'device'])
     // La vista plana conserva el mismo orden que la composición: la capa superior va
     // entera después, incluido su cable, aunque la inferior tenga un símbolo.
     expect(scene.items.map((item) => item.kind)).toEqual(['device', 'wire', 'device'])
@@ -264,9 +268,9 @@ describe('de modelo a piezas de dibujo', () => {
     const scene = sceneOf(slice(), { pinDots, sketch })
 
     expect(scene.overlays.map((item) => item.kind)).toEqual(['pinDot', 'wire'])
-    expect(
-      scene.layers.every((layer) => layer.items.every((item) => item.kind !== 'pinDot')),
-    ).toBe(true)
+    expect(scene.layers.every((layer) => layer.items.every((item) => item.kind !== 'pinDot'))).toBe(
+      true,
+    )
   })
 
   it('un bus sintético se queda en la capa que dice, no en la primera', () => {
@@ -301,9 +305,7 @@ describe('de modelo a piezas de dibujo', () => {
     const scene = sceneWithLayers(diagram)
 
     expect(
-      scene.layers.flatMap((layer) =>
-        layer.items.filter((item) => item.kind === 'junction'),
-      ),
+      scene.layers.flatMap((layer) => layer.items.filter((item) => item.kind === 'junction')),
     ).toHaveLength(0)
   })
 

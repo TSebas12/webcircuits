@@ -281,10 +281,7 @@ function shapeForDevice(element: DrawableDevice): SymbolShape | null {
  * la hoja que representan. Las compuertas e interruptores no llevan etiqueta: su forma ya
  * lo dice todo y el original tampoco les pinta texto.
  */
-function labelFor(
-  element: DrawableDevice,
-  resolveCircuit?: CircuitResolver,
-): string | undefined {
+function labelFor(element: DrawableDevice, resolveCircuit?: CircuitResolver): string | undefined {
   switch (element.kind) {
     case 'pin': {
       const name = element.name.trim()

@@ -46,10 +46,14 @@ function buildDiagram(): Diagram {
     if (layer === undefined) continue
     diagram.activeLayerId = layer.id
     for (let index = 0; index < GATES_PER_LAYER; index += 1) {
-      diagram.addGate(layerIndex % 2 === 0 ? 'and' : 'or', {
-        x: (index % 40) * 4,
-        y: Math.floor(index / 40) * 5,
-      }, 2)
+      diagram.addGate(
+        layerIndex % 2 === 0 ? 'and' : 'or',
+        {
+          x: (index % 40) * 4,
+          y: Math.floor(index / 40) * 5,
+        },
+        2,
+      )
     }
   }
   return diagram
@@ -57,10 +61,7 @@ function buildDiagram(): Diagram {
 
 function sceneFor(diagram: Diagram): RenderScene {
   const layers = new Map(
-    diagram.layersList.map((layer) => [
-      layer.id,
-      { color: layer.color, opacity: layer.opacity },
-    ]),
+    diagram.layersList.map((layer) => [layer.id, { color: layer.color, opacity: layer.opacity }]),
   )
   return buildScene({
     elements: diagram.visibleElements,

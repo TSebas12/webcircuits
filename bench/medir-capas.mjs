@@ -30,14 +30,18 @@ if (chrome === undefined) {
   throw new Error('No se ha encontrado Chrome ni Edge. Define CHROME_PATH.')
 }
 
-const vite = spawn(process.execPath, [
-  join(root, 'node_modules', 'vite', 'bin', 'vite.js'),
-  '--host',
-  '127.0.0.1',
-  '--port',
-  String(port),
-  '--strictPort',
-], { cwd: root, stdio: 'ignore' })
+const vite = spawn(
+  process.execPath,
+  [
+    join(root, 'node_modules', 'vite', 'bin', 'vite.js'),
+    '--host',
+    '127.0.0.1',
+    '--port',
+    String(port),
+    '--strictPort',
+  ],
+  { cwd: root, stdio: 'ignore' },
+)
 
 const profile = await mkdtemp(join(tmpdir(), 'webcircuits-capas-'))
 let result
@@ -83,18 +87,22 @@ function waitForServer(target) {
 
 function runChrome(executable, profileDir) {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, [
-      '--headless=new',
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-extensions',
-      '--hide-scrollbars',
-      '--window-size=1280,800',
-      '--virtual-time-budget=60000',
-      `--user-data-dir=${profileDir}`,
-      '--dump-dom',
-      url,
-    ], { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(
+      executable,
+      [
+        '--headless=new',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-extensions',
+        '--hide-scrollbars',
+        '--window-size=1280,800',
+        '--virtual-time-budget=60000',
+        `--user-data-dir=${profileDir}`,
+        '--dump-dom',
+        url,
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    )
 
     let stdout = ''
     let stderr = ''
