@@ -1,0 +1,42 @@
+{
+  "benchmark": "capas",
+  "date": "2026-10-23T06:11:35.013Z",
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "hardwareConcurrency": 4,
+    "devicePixelRatio": 1,
+    "canvas": "1280x720",
+    "gates": 5000,
+    "layers": 5,
+    "cameraZoom": 0.25
+  },
+  "initialBuild": {
+    "sceneMs": 14,
+    "paintMs": 28.5,
+    "totalMs": 42.5
+  },
+  "reusedFrame": {
+    "sceneMs": 9.4,
+    "paintMs": 1.2,
+    "totalMs": 10.6
+  },
+  "hide": {
+    "frames": 40,
+    "sceneMs": 2.93,
+    "paintMs": 0.53,
+    "p50Ms": 3.5,
+    "p95Ms": 5.5,
+    "maxMs": 6.3,
+    "p95Fps": 181.82
+  },
+  "show": {
+    "frames": 40,
+    "sceneMs": 3.47,
+    "paintMs": 0.56,
+    "p50Ms": 3.8,
+    "p95Ms": 6.6,
+    "maxMs": 6.9,
+    "p95Fps": 151.52
+  },
+  "target": "60 FPS (16,67 ms por fotograma) en ocultar/mostrar"
+}

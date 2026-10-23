@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bench · capas</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #111;
+        color: #ddd;
+        font: 12px/1.45 ui-monospace, Consolas, monospace;
+      }
+
+      canvas {
+        display: block;
+        width: 1280px;
+        height: 720px;
+      }
+
+      pre {
+        margin: 0;
+        padding: 12px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <pre id="out">Midiendo…</pre>
+    <script type="module" src="./capas.ts"></script>
+  </body>
+</html>

@@ -203,16 +203,47 @@ describe('caché por capa (M5-17)', () => {
     caches.paint(ctx, 'capa-b', b, camera(), 1, THEME, 1000, 600)
     expect(built).toHaveLength(2)
 
-    // Se oculta B: solo se pinta A y se tira la caché de B.
+    // Se oculta B: solo se pinta A y la caché de B queda como reserva.
     caches.paint(ctx, 'capa-a', a, camera(), 1, THEME, 1000, 600)
-    caches.retain(new Set(['capa-a']))
+    caches.retain(new Set(['capa-a']), 1)
     expect(built).toHaveLength(2)
-    expect(caches.size).toBe(1)
+    expect(caches.size).toBe(2)
 
-    // Al volver a mostrarla, solo se rehace B.
+    // Al volver a mostrarla se reutiliza tal cual: ocultar/mostrar es instantáneo.
     caches.paint(ctx, 'capa-a', a, camera(), 1, THEME, 1000, 600)
     caches.paint(ctx, 'capa-b', b, camera(), 1, THEME, 1000, 600)
+    expect(built).toHaveLength(2)
+  })
+
+  it('sin reserva, la capa oculta se libera y se rehace al mostrarla', () => {
+    const caches = new LayerCacheSet()
+    const { ctx } = makePasteContext()
+    const a = [device(0, 0)]
+    const b = [device(10, 0)]
+
+    caches.paint(ctx, 'capa-a', a, camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-b', b, camera(), 1, THEME, 1000, 600)
+    caches.retain(new Set(['capa-a']), 0)
+    expect(caches.size).toBe(1)
+
+    caches.paint(ctx, 'capa-b', b, camera(), 1, THEME, 1000, 600)
     expect(built).toHaveLength(3)
+  })
+
+  it('solo guarda la última capa oculta, no todas', () => {
+    const caches = new LayerCacheSet()
+    const { ctx } = makePasteContext()
+
+    caches.paint(ctx, 'capa-a', [device(0, 0)], camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-b', [device(10, 0)], camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-c', [device(20, 0)], camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-a', [device(0, 0)], camera(), 1, THEME, 1000, 600)
+    caches.retain(new Set(['capa-a']), 1)
+
+    // B es la más antigua de las ocultas: se tira; C se conserva.
+    expect(caches.size).toBe(2)
+    caches.paint(ctx, 'capa-b', [device(10, 0)], camera(), 1, THEME, 1000, 600)
+    expect(built).toHaveLength(4)
   })
 
   it('mover una pieza solo invalida la caché de su capa', () => {

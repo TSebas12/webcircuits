@@ -192,7 +192,8 @@ export class Canvas2DRenderer implements IRenderer {
         }
       }
     }
-    this.layerCaches.retain(activeLayers)
+    // Se guarda también la última capa oculta: alternar su ojo no vuelve a rasterizarla.
+    this.layerCaches.retain(activeLayers, 1)
 
     if (scene.overlays.length > 0) {
       this.applyWorldTransform(scene)

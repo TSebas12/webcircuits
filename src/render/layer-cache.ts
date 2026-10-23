@@ -326,9 +326,9 @@ export class StaticLayerCache {
 /**
  * Un `StaticLayerCache` por capa.
  *
- * `retain` borra las cachés de capas que ya no están en la escena (ocultas o borradas). Así
- * no se acumulan lienzos de capas que el usuario no está mirando. Las capas que siguen
- * visibles conservan su lienzo aunque otra se oculte, que es lo que exige M5-17.
+ * `retain` conserva las capas visibles y, opcionalmente, la última capa oculta. Ese hueco
+ * hace que ocultar y volver a mostrar sea instantáneo, pero no deja crecer la memoria sin
+ * límite: si el usuario oculta muchas capas, solo sobrevive la última que se pintó.
  */
 export class LayerCacheSet {
   private readonly caches = new Map<Id, StaticLayerCache>()
@@ -346,15 +346,33 @@ export class LayerCacheSet {
     let cache = this.caches.get(layerId)
     if (cache === undefined) {
       cache = new StaticLayerCache()
-      this.caches.set(layerId, cache)
+    } else {
+      // Mover al final del Map convierte su orden de inserción en un LRU: `retain` puede
+      // quedarse con las capas ocultas usadas más recientemente.
+      this.caches.delete(layerId)
     }
+    this.caches.set(layerId, cache)
     return cache.paint(ctx, items, camera, dpr, theme, cssWidth, cssHeight)
   }
 
-  /** Deja solo las cachés de las capas presentes en este fotograma. */
-  retain(layerIds: ReadonlySet<Id>): void {
-    for (const id of [...this.caches.keys()]) {
+  /**
+   * Deja las capas visibles y hasta `idleLimit` capas ocultas (la última usada primero).
+   *
+   * El renderizador pasa 1: ocultar/mostrar alterna sin rehacer el lienzo de la capa que
+   * vuelve. Con 0 se libera también esa caché, útil para pruebas o para un circuito nuevo.
+   */
+  retain(layerIds: ReadonlySet<Id>, idleLimit = 0): void {
+    const idle: Id[] = []
+    for (const id of this.caches.keys()) {
       if (!layerIds.has(id)) {
+        idle.push(id)
+      }
+    }
+
+    const limit = Math.max(0, Math.floor(idleLimit))
+    for (let index = 0; index < idle.length - limit; index += 1) {
+      const id = idle[index]
+      if (id !== undefined) {
         this.caches.delete(id)
       }
     }
