@@ -18,9 +18,12 @@
   import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   import { deserializeProject, serializeProject } from '../core/persist/json'
   import { exportComponent } from '../core/persist/component-export'
-  import { parseComponent } from '../core/persist/component-format'
+  import { parseComponent, type SerializedComponent } from '../core/persist/component-format'
   import { importComponent } from '../core/persist/component-import'
   import { exportCircuitProject, importCircuitProject } from '../core/persist/circuitproject'
+  import ComponentLibraryPanel from './components/library/ComponentLibrary.svelte'
+  import { ComponentLibrary } from './components/library/library'
+  import { IndexedDbComponentStore } from './components/library/indexeddb-store'
   import { loadSettings, SETTINGS_EVENT } from './settings'
   import { IdbProvider } from './files/idb-provider'
   import { createFileProvider } from './files/provider-factory'
@@ -105,6 +108,10 @@
   >([])
   let showThemeEditor = $state(false)
   let showCommandPalette = $state(false)
+  let showComponentLibrary = $state(false)
+
+  /** La biblioteca se instancia una vez; IndexedDB se abre al primer uso, no al cargar. */
+  const componentLibrary = new ComponentLibrary(new IndexedDbComponentStore())
   let showConfirmClear = $state(false)
   let showConfirmExample = $state(false)
   let showExamplePicker = $state(false)
@@ -594,7 +601,15 @@
       const component = parseComponent(file.content)
       const imported = importComponent(editor.project, component)
       editor.projectStructureChanged()
-      openError = `Componente «${component.metadata.name}» importado (${imported.circuitIds.length} ${imported.circuitIds.length === 1 ? 'circuito' : 'circuitos'})`
+      let stored = true
+      try {
+        await componentLibrary.save(component)
+      } catch {
+        stored = false
+      }
+      openError = stored
+        ? `Componente «${component.metadata.name}» importado y guardado (${imported.circuitIds.length} ${imported.circuitIds.length === 1 ? 'circuito' : 'circuitos'})`
+        : `Componente «${component.metadata.name}» importado, pero no se pudo guardar en la biblioteca`
       setTimeout(() => (openError = null), 4000)
     } catch (err) {
       openError = err instanceof Error ? err.message : 'El componente no es válido'
@@ -606,6 +621,22 @@
   const chooseSubcircuit = (id: string): void => {
     placeCircuitId = id
     editor?.setPlaceCircuit(id)
+  }
+
+  /**
+   * Añade un componente de la biblioteca y deja su raíz lista para colocar.
+   *
+   * La biblioteca guarda documentos, no circuitos vivos: cada uso crea ids nuevos, así que
+   * añadir dos veces el mismo componente no mezcla sus cables ni sus capas.
+   */
+  const useLibraryComponent = async (component: SerializedComponent): Promise<void> => {
+    if (editor === null) throw new Error('El editor todavía no está listo.')
+    if (powered) throw new Error('Apaga la corriente antes de añadir componentes.')
+    const imported = importComponent(editor.project, component)
+    editor.projectStructureChanged()
+    chooseSubcircuit(imported.rootCircuitId)
+    openError = `«${component.metadata.name}» listo para colocar`
+    setTimeout(() => (openError = null), 3000)
   }
 
   /**
@@ -1440,6 +1471,13 @@
             title="Importar un componente .wccomp"
             ><Icon name="open" size={12} /> Importar</button
           >
+          <button
+            type="button"
+            class="sub-create sub-library"
+            onclick={() => (showComponentLibrary = true)}
+            title="Abrir la biblioteca local de componentes"
+            ><Icon name="layers" size={12} /> Biblioteca</button
+          >
         </div>
         {#if otherCircuits.length > 0}
           <p class="palette-hint">
@@ -1641,6 +1679,10 @@
         { label: 'Guardar circuito', action: () => void saveFile() },
         { label: 'Exportar a .CircuitProject (XML)', action: () => void exportXml() },
         { label: 'Importar componente (.wccomp)…', action: () => void importComponentFile() },
+        {
+          label: 'Abrir biblioteca de componentes',
+          action: () => (showComponentLibrary = true),
+        },
         ...(currentCircuitId !== 'main'
           ? [
               {
@@ -1650,6 +1692,15 @@
             ]
           : []),
       ]}
+    />
+  {/if}
+
+  {#if showComponentLibrary}
+    <ComponentLibraryPanel
+      library={componentLibrary}
+      canUse={!powered}
+      onUse={useLibraryComponent}
+      onClose={() => (showComponentLibrary = false)}
     />
   {/if}
 
@@ -2225,6 +2276,10 @@
     transition:
       background-color 100ms ease,
       border-color 100ms ease;
+  }
+
+  .sub-library {
+    grid-column: 1 / -1;
   }
 
   .sub-create:hover:not(:disabled) {
