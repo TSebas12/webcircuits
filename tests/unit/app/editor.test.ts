@@ -1336,6 +1336,37 @@ describe('agrupar cables en bus (M3B-01)', () => {
     dispose()
   })
 
+  it('pliega y despliega el bus sin perder sus cables ni su nombre', () => {
+    const { editor, dispose } = mount()
+    const a = editor.diagram.addWire({ x: 0, y: 2 }, { x: 10, y: 2 })
+    const b = editor.diagram.addWire({ x: 0, y: 4 }, { x: 10, y: 4 })
+    editor.selectMany([a.id, b.id])
+    expect(editor.groupSelection()).toBe(true)
+    const group = editor.selectedBusGroup
+    expect(group).not.toBeNull()
+    if (group === null) {
+      dispose()
+      return
+    }
+    editor.renameBusGroup('Datos')
+    expect(group.collapsed).toBe(true)
+
+    const at = screenOf(5, 3)
+    expect(editor.hitAt(at.x, at.y)?.kind).toBe('bus')
+    expect(editor.setBusGroupCollapsed(group.id, false)).toBe(true)
+    expect(editor.diagram.busGroup(group.id)?.collapsed).toBe(false)
+    expect(editor.diagram.busGroup(group.id)?.name).toBe('Datos')
+    expect(editor.diagram.storedElements).toHaveLength(2)
+    // Desplegado no hay línea sintética que intercepte el clic: se tocan los cables reales.
+    expect(editor.hitAt(at.x, at.y)).toBeNull()
+
+    expect(editor.toggleBusGroupCollapsed(group.id)).toBe(true)
+    expect(editor.diagram.busGroup(group.id)?.collapsed).toBe(true)
+    expect(editor.hitAt(at.x, at.y)?.kind).toBe('bus')
+
+    dispose()
+  })
+
   it('un clic en la línea del bus selecciona todos sus cables y desagrupa', () => {
     const { editor, dispose } = mount()
     const a = editor.diagram.addWire({ x: 0, y: 2 }, { x: 10, y: 2 })

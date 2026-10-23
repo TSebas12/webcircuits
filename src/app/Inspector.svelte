@@ -11,6 +11,7 @@
   let busGroupWidth = $state(0)
   let busGroupId = $state<string | null>(null)
   let busGroupName = $state('')
+  let busGroupCollapsed = $state(true)
   let canGroup = $state(false)
 
   /** Cómo se llama cada tipo de sensor en la interfaz. */
@@ -66,6 +67,7 @@
       busGroupWidth = 0
       busGroupId = null
       busGroupName = ''
+      busGroupCollapsed = true
       canGroup = false
       return
     }
@@ -78,6 +80,7 @@
       busGroupId = groupId
       busGroupName = group?.name ?? ''
     }
+    busGroupCollapsed = group?.collapsed ?? true
     busGroupWidth = group?.wireIds.length ?? 0
     canGroup = editor.canGroupSelection
   }
@@ -136,9 +139,20 @@
       </label>
       <p class="hint">
         Rango [{busGroupWidth - 1}:0]. La etiqueta muestra el valor real al simular; sin
-        corriente usa <code>z</code>. Los cables siguen ahí, solo plegados.
+        corriente usa <code>z</code>. {busGroupCollapsed
+          ? 'Plegado se ve como una sola línea.'
+          : 'Desplegado se ven sus cables de un bit.'}
       </p>
       <div class="actions">
+        <button
+          type="button"
+          onclick={() => {
+            if (busGroupId !== null) {
+              editor?.setBusGroupCollapsed(busGroupId, !busGroupCollapsed)
+            }
+            refresh()
+          }}>{busGroupCollapsed ? 'Desplegar bus' : 'Plegar bus'}</button
+        >
         <button
           type="button"
           onclick={() => {

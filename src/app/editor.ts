@@ -1104,6 +1104,38 @@ export class Editor {
     return true
   }
 
+  /**
+   * Pliega o despliega un bus (M3B-04).
+   *
+   * Plegado se dibuja la línea gruesa; desplegado vuelven a verse sus cables de un bit. El
+   * grupo no se borra al desplegarlo, así que se puede volver a plegar sin perder el nombre ni
+   * el orden de bits. Se prohíbe con la corriente puesta porque el usuario está probando, no
+   * editando la vista.
+   */
+  setBusGroupCollapsed(id: Id, collapsed: boolean): boolean {
+    if (this.simulation.powered) {
+      return false
+    }
+    const group = this.diagram.busGroup(id)
+    if (group === undefined) {
+      return false
+    }
+    if (group.collapsed === collapsed) {
+      return true
+    }
+    if (!this.diagram.updateBusGroup(id, { collapsed })) {
+      return false
+    }
+    this.refresh()
+    return true
+  }
+
+  /** Invierte el detalle visual del bus indicado. */
+  toggleBusGroupCollapsed(id: Id): boolean {
+    const group = this.diagram.busGroup(id)
+    return group === undefined ? false : this.setBusGroupCollapsed(id, !group.collapsed)
+  }
+
   /** Mueve lo seleccionado a otra capa, en una sola acción de deshacer. */
   moveSelectionToLayer(layerId: Id): void {
     if (this.selected.size === 0) {

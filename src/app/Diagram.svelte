@@ -840,6 +840,13 @@
         if (!editor.isSelected(hit.element.id)) {
           editor.select(hit.element.id)
         }
+        const wireGroup = editor.diagram.busGroupForWire(hit.element.id)
+        if (wireGroup !== undefined) {
+          items.push({
+            label: wireGroup.collapsed ? 'Desplegar bus' : 'Plegar bus',
+            action: () => editor?.toggleBusGroupCollapsed(wireGroup.id),
+          })
+        }
         if (editor.canUngroupSelection) {
           items.push({ label: 'Desagrupar bus', action: () => editor?.ungroupSelection() })
         } else if (editor.canGroupSelection) {
@@ -860,6 +867,10 @@
         if (!group.wireIds.every((id) => current.isSelected(id))) {
           current.selectMany(group.wireIds)
         }
+        items.push({
+          label: group.collapsed ? 'Desplegar bus' : 'Plegar bus',
+          action: () => editor?.toggleBusGroupCollapsed(group.id),
+        })
         items.push({ label: 'Desagrupar bus', action: () => editor?.ungroupSelection() })
         items.push({
           label: 'Borrar bus',
@@ -871,6 +882,13 @@
           },
         })
       } else {
+        const selectedGroup = editor.selectedBusGroup
+        if (selectedGroup !== null) {
+          items.push({
+            label: selectedGroup.collapsed ? 'Desplegar bus' : 'Plegar bus',
+            action: () => editor?.toggleBusGroupCollapsed(selectedGroup.id),
+          })
+        }
         if (editor.canUngroupSelection) {
           items.push({ label: 'Desagrupar bus', action: () => editor?.ungroupSelection() })
         } else if (editor.canGroupSelection) {
