@@ -117,7 +117,8 @@ function serializeElement(el: StoredElement): SerializedElement {
   }
 }
 
-function serializeCircuit(c: Circuit): SerializedCircuit {
+/** Serializa un circuito suelto. Lo usan el proyecto y los componentes (M4C-02). */
+export function serializeCircuit(c: Circuit): SerializedCircuit {
   const annotations = c.diagram.annotations
   const markers = c.diagram.markers
   const busGroups = c.diagram.busGroups

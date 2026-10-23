@@ -17,6 +17,7 @@
   import Icon from './Icon.svelte'
   import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   import { deserializeProject, serializeProject } from '../core/persist/json'
+  import { exportComponent } from '../core/persist/component-export'
   import { exportCircuitProject, importCircuitProject } from '../core/persist/circuitproject'
   import { loadSettings, SETTINGS_EVENT } from './settings'
   import { IdbProvider } from './files/idb-provider'
@@ -538,6 +539,38 @@
     )
   }
 
+  /**
+   * Exporta el subcircuito que se está editando como componente (M4C-02).
+   *
+   * El nombre del fichero sale del nombre del circuito, no del proyecto: el componente se
+   * comparte solo y debe recognoscerse por sí mismo. Se exporta el árbol de dependencias
+   * completo; el proyecto principal no viaja.
+   */
+  const exportSubcircuitComponent = async (id: string = currentCircuitId): Promise<void> => {
+    if (editor === null || id === 'main') return
+    const circuit = editor.project.circuit(id)
+    if (circuit === undefined) return
+    try {
+      const text = exportComponent(editor.project, {
+        rootCircuitId: id,
+        metadata: { name: circuit.name },
+      })
+      const stem =
+        circuit.name
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-zA-Z0-9._-]+/g, '-')
+          .replace(/^-+|-+$/g, '') || 'componente'
+      const handle = await files.save(text, `${stem}.wccomp`)
+      if (handle === null) return
+      openError = 'Componente exportado'
+      setTimeout(() => (openError = null), 2500)
+    } catch (err) {
+      openError = err instanceof Error ? err.message : 'No se pudo exportar el componente'
+      setTimeout(() => (openError = null), 4000)
+    }
+  }
+
   const chooseTool = (id: Tool): void => {
     // El estado lo devuelve el editor por `onToolChange`, así que aquí no se toca: una sola
     // fuente de verdad.
@@ -808,6 +841,12 @@
               }
             },
           })
+          if (target !== 'main') {
+            items.push({
+              label: 'Exportar componente',
+              action: () => void exportSubcircuitComponent(target),
+            })
+          }
         }
         items.push({
           label: 'Rotar 90°',
@@ -1389,6 +1428,14 @@
           onclick={goUp}
           disabled={powered}
           title="Subir un nivel"><Icon name="up" size={12} /> Subir</button
+        >
+        <button
+          type="button"
+          class="crumb-btn"
+          onclick={() => void exportSubcircuitComponent()}
+          disabled={powered}
+          title="Exportar este subcircuito como componente (.wccomp)"
+          ><Icon name="share" size={12} /> Exportar</button
         >
         <button
           type="button"

@@ -106,9 +106,21 @@ Los errores usan `ComponentFormatError` y un código estable:
 no cuando cambie su contenido. Un lector puede aceptar versiones anteriores; la primera
 implementación rechaza versiones futuras para no interpretar campos que no conoce.
 
+## Exportación (M4C-02)
+
+`src/core/persist/component-export.ts` recorre el subcircuito raíz y todas las instancias de
+subcircuito que contiene, en profundidad y sin repetir circuitos. El resultado incluye el
+raíz primero y solo su árbol de dependencias; el resto del proyecto no viaja.
+
+- Si falta el circuito raíz: error `missing-root`.
+- Si una instancia apunta a un circuito que no existe: error `missing-dependency`.
+- Un lazo accidental entre subcircuitos no cuelga: el conjunto de visitados lo corta.
+
+En la interfaz, dentro de un subcircuito, el breadcrumb ofrece **Exportar**. El fichero se
+llama como el circuito y usa la extensión `.wccomp`.
+
 ## Qué no hace todavía
 
-- `M4C-02` empaqueta un subcircuito real, con sus dependencias.
 - `M4C-03` lo registra y lo hace colocable.
 - `M4C-04` guarda la biblioteca local en IndexedDB.
 - `M4C-05` valida que las referencias entre circuitos del paquete estén resueltas.
