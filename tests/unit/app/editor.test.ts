@@ -1367,6 +1367,39 @@ describe('agrupar cables en bus (M3B-01)', () => {
     dispose()
   })
 
+  it('el inspector lee cada bit del bus con la corriente puesta', () => {
+    const { editor, canvas, dispose } = mount()
+    editor.loadExample('and')
+    const wires = editor.diagram.elements.filter((element) => element.kind === 'wire')
+    const first = wires[0]
+    const second = wires[1]
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    if (first === undefined || second === undefined) {
+      dispose()
+      return
+    }
+    editor.selectMany([first.id, second.id])
+    expect(editor.groupSelection()).toBe(true)
+    const group = editor.selectedBusGroup
+    expect(group).not.toBeNull()
+    if (group === null) {
+      dispose()
+      return
+    }
+
+    // Sin corriente no hay verdad eléctrica que enseñar.
+    expect(editor.busGroupValues(group.id)).toEqual([null, null])
+    editor.setPowered(true)
+    expect(editor.busGroupValues(group.id)).toEqual([0, 0])
+
+    // El primer interruptor es el bit 0: al pulsarlo, el bus lo refleja.
+    clickAt(canvas, 3, 3)
+    expect(editor.busGroupValues(group.id)).toEqual([1, 0])
+
+    dispose()
+  })
+
   it('un clic en la línea del bus selecciona todos sus cables y desagrupa', () => {
     const { editor, dispose } = mount()
     const a = editor.diagram.addWire({ x: 0, y: 2 }, { x: 10, y: 2 })

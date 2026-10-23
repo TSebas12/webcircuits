@@ -12,6 +12,7 @@
   let busGroupId = $state<string | null>(null)
   let busGroupName = $state('')
   let busGroupCollapsed = $state(true)
+  let busValues = $state<readonly (number | null)[]>([])
   let canGroup = $state(false)
 
   /** Cómo se llama cada tipo de sensor en la interfaz. */
@@ -68,6 +69,7 @@
       busGroupId = null
       busGroupName = ''
       busGroupCollapsed = true
+      busValues = []
       canGroup = false
       return
     }
@@ -81,6 +83,7 @@
       busGroupName = group?.name ?? ''
     }
     busGroupCollapsed = group?.collapsed ?? true
+    busValues = group === null ? [] : editor.busGroupValues(group.id)
     busGroupWidth = group?.wireIds.length ?? 0
     canGroup = editor.canGroupSelection
   }
@@ -143,6 +146,20 @@
           ? 'Plegado se ve como una sola línea.'
           : 'Desplegado se ven sus cables de un bit.'}
       </p>
+      <p class="section-title">Bits</p>
+      <div class="bus-bits" aria-label="Valores de los bits del bus">
+        {#each busValues as value, bit (bit)}
+          <div
+            class="bus-bit"
+            class:one={value === 1}
+            class:zero={value === 0}
+            class:floating={value === null}
+          >
+            <span class="bus-bit-index">b{bit}</span>
+            <span class="bus-bit-value">{value === null ? 'z' : value}</span>
+          </div>
+        {/each}
+      </div>
       <div class="actions">
         <button
           type="button"
@@ -672,6 +689,42 @@
     border-radius: 0.25rem;
     background: transparent;
     cursor: pointer;
+  }
+  .bus-bits {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.25rem;
+    margin-top: 0.3rem;
+  }
+  .bus-bit {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.2rem;
+    padding: 0.2rem 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .bus-bit-index {
+    color: var(--fg-muted);
+    font-size: 0.65rem;
+  }
+  .bus-bit-value {
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .bus-bit.one {
+    border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--accent);
+  }
+  .bus-bit.zero {
+    background: color-mix(in srgb, var(--fg-muted) 8%, transparent);
+  }
+  .bus-bit.floating {
+    border-style: dashed;
+    color: var(--fg-muted);
   }
   .actions {
     display: flex;

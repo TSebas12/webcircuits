@@ -1136,6 +1136,27 @@ export class Editor {
     return group === undefined ? false : this.setBusGroupCollapsed(id, !group.collapsed)
   }
 
+  /**
+   * Valor de cada bit del bus, en orden de bit (M3B-06).
+   *
+   * Sin simulación no hay verdad que enseñar y todos los bits valen `z`; con corriente se
+   * leen los cables reales del grupo. La lista siempre tiene un hueco por bit, aunque falte
+   * algún cable, para que el inspector pueda numerarlos sin desplazarse.
+   */
+  busGroupValues(id: Id): readonly (number | null)[] {
+    const group = this.diagram.busGroup(id)
+    if (group === undefined) {
+      return []
+    }
+    return group.wireIds.map((wireId) => {
+      if (!this.simulation.powered) {
+        return null
+      }
+      const wire = this.diagram.get(wireId)
+      return wire?.kind === 'wire' ? this.simulation.probeValue(wire) : null
+    })
+  }
+
   /** Mueve lo seleccionado a otra capa, en una sola acción de deshacer. */
   moveSelectionToLayer(layerId: Id): void {
     if (this.selected.size === 0) {
