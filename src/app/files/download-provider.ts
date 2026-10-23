@@ -10,7 +10,7 @@ export class DownloadProvider implements IFileProvider {
     return new Promise((resolve) => {
       const input = document.createElement('input')
       input.type = 'file'
-      input.accept = '.json,.CircuitProject,.xml,.txt'
+      input.accept = '.json,.CircuitProject,.wccomp,.xml,.txt'
       // Si el usuario cierra el diálogo sin elegir, `change` no salta nunca y la promesa se
       // quedaría colgada para siempre. `cancel` (soportado en navegadores modernos) lo evita.
       const finish = (value: { name: string; content: string } | null): void => {

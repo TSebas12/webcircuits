@@ -326,6 +326,58 @@ function deserializeElement(raw: SerializedElement): StoredElement {
 }
 
 /**
+ * Rellena un circuito ya creado desde su forma serializada.
+ *
+ * La usan tanto la carga de un proyecto como la importación de un componente (M4C-03):
+ * las capas van antes que los elementos, y los ids de destino se traducen con `idMap`.
+ * Así no hay dos traductores que puedan divergir.
+ */
+export function loadCircuitFromSerialized(
+  circuit: Circuit,
+  source: SerializedCircuit,
+  idMap: ReadonlyMap<string, string>,
+): void {
+  // Las capas van **antes** que los elementos: `importElement` decide si el `layerId` que
+  // trae el fichero existe, y para eso la lista tiene que estar ya cargada. Si no, un
+  // elemento de una capa secundaria se recolocaría en la principal por error.
+  // Se normaliza siempre, aunque el fichero no traiga capas: los elementos sin `layerId`
+  // (ficheros anteriores a M5) caen en la principal y no quedan invisibles e inalcanzables.
+  circuit.diagram.setLayers((source.layers ?? []) as Layer[])
+  const annotations: CircuitAnnotation[] = (source.annotations ?? []).map((note) => ({
+    id: note.id,
+    position: asPoint(note.position),
+    text: note.text,
+  }))
+  const markers: CircuitMarker[] = (source.markers ?? []).map((marker) => ({
+    id: marker.id,
+    position: asPoint(marker.position),
+    label: marker.label,
+  }))
+  circuit.diagram.setOverlays(annotations, markers)
+  for (const el of source.elements) {
+    const mapped = {
+      ...deserializeElement(el),
+      circuitId: circuit.id,
+    } as StoredElement
+    if (mapped.kind === 'circuit') {
+      const target = idMap.get(mapped.targetCircuitId)
+      circuit.diagram.importElement(target ? { ...mapped, targetCircuitId: target } : mapped)
+    } else {
+      circuit.diagram.importElement(mapped)
+    }
+  }
+  // Los buses van después de los cables: `setBusGroups` comprueba que todos los miembros
+  // existan antes de aceptar el grupo.
+  circuit.diagram.setBusGroups(
+    (source.busGroups ?? []).map((group) => ({
+      ...group,
+      circuitId: circuit.id,
+      wireIds: [...group.wireIds],
+    })),
+  )
+}
+
+/**
  * Carga un proyecto del formato nativo.
  *
  * Los circuitos se crean **primero** todos y después se rellenan, para poder reescribir las
@@ -360,44 +412,7 @@ export function deserializeProject(json: string): CircuitProject {
     if (circuit === undefined) {
       continue
     }
-    // Las capas van **antes** que los elementos: `importElement` decide si el `layerId` que
-    // trae el fichero existe, y para eso la lista tiene que estar ya cargada. Si no, un
-    // elemento de una capa secundaria se recolocaría en la principal por error.
-    // Se normaliza siempre, aunque el fichero no traiga capas: los elementos sin `layerId`
-    // (ficheros anteriores a M5) caen en la principal y no quedan invisibles e inalcanzables.
-    circuit.diagram.setLayers((sc.layers ?? []) as Layer[])
-    const annotations: CircuitAnnotation[] = (sc.annotations ?? []).map((note) => ({
-      id: note.id,
-      position: asPoint(note.position),
-      text: note.text,
-    }))
-    const markers: CircuitMarker[] = (sc.markers ?? []).map((marker) => ({
-      id: marker.id,
-      position: asPoint(marker.position),
-      label: marker.label,
-    }))
-    circuit.diagram.setOverlays(annotations, markers)
-    for (const el of sc.elements) {
-      const mapped = {
-        ...deserializeElement(el),
-        circuitId: circuit.id,
-      } as StoredElement
-      if (mapped.kind === 'circuit') {
-        const target = idMap.get(mapped.targetCircuitId)
-        circuit.diagram.importElement(target ? { ...mapped, targetCircuitId: target } : mapped)
-      } else {
-        circuit.diagram.importElement(mapped)
-      }
-    }
-    // Los buses van después de los cables: `setBusGroups` comprueba que todos los miembros
-    // existan antes de aceptar el grupo.
-    circuit.diagram.setBusGroups(
-      (sc.busGroups ?? []).map((group) => ({
-        ...group,
-        circuitId: circuit.id,
-        wireIds: [...group.wireIds],
-      })),
-    )
+    loadCircuitFromSerialized(circuit, sc, idMap)
   }
 
   if (data.currentCircuitId) {

@@ -1578,6 +1578,21 @@ export class Editor {
   }
 
   /**
+   * Avisa de un cambio estructural hecho fuera del editor, como importar un componente.
+   *
+   * La paleta y el autoguardado escuchan al editor, no al `CircuitProject`. Sin este aviso,
+   * los circuitos importados existirían pero no aparecerían como subcircuitos y el cambio
+   * no se guardaría hasta la siguiente edición. No navega: el usuario decide si colocarlo.
+   */
+  projectStructureChanged(): void {
+    this.followDiagram()
+    this.evaluate()
+    this.refresh()
+    this.callbacks.onCircuitChange?.(this.circuitPath)
+    this.callbacks.onDocumentChange?.()
+  }
+
+  /**
    * Cuántas instancias usan un subcircuito en todo el proyecto.
    *
    * Se cuenta en todos los circuitos, no solo en el que se está viendo: borrar una definición

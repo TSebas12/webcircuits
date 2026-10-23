@@ -119,10 +119,25 @@ raíz primero y solo su árbol de dependencias; el resto del proyecto no viaja.
 En la interfaz, dentro de un subcircuito, el breadcrumb ofrece **Exportar**. El fichero se
 llama como el circuito y usa la extensión `.wccomp`.
 
+## Importación (M4C-03)
+
+`src/core/persist/component-import.ts` añade el componente al proyecto actual:
+
+1. Valida el documento con `validateComponent`.
+2. Comprueba que cada instancia de subcircuito apunta a un circuito incluido en el paquete.
+3. Crea **todos** los circuitos con ids nuevos.
+4. Los rellena con `loadCircuitFromSerialized`, que reescribe `targetCircuitId` con el mapa
+   de ids nuevos.
+5. Si algo falla, borra los circuitos recién creados para no dejar una importación a medias.
+
+El resultado queda en la paleta como cualquier subcircuito. Importar dos veces el mismo
+fichero crea dos copias independientes. En la interfaz, **Importar** está en el grupo
+**Subcircuitos** y en la paleta de comandos.
+
 ## Qué no hace todavía
 
-- `M4C-03` lo registra y lo hace colocable.
 - `M4C-04` guarda la biblioteca local en IndexedDB.
-- `M4C-05` valida que las referencias entre circuitos del paquete estén resueltas.
+- `M4C-05` valida que las referencias entre circuitos del paquete estén resueltas (hoy se
+  comprueba lo imprescindible para poder importar: que las dependencias viajen).
 
 El `.wccomp` es solo datos: no contiene código ejecutable ni rutas del sistema.

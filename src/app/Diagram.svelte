@@ -18,6 +18,8 @@
   import type { CircuitAnnotation, CircuitMarker } from '../core/model/overlay'
   import { deserializeProject, serializeProject } from '../core/persist/json'
   import { exportComponent } from '../core/persist/component-export'
+  import { parseComponent } from '../core/persist/component-format'
+  import { importComponent } from '../core/persist/component-import'
   import { exportCircuitProject, importCircuitProject } from '../core/persist/circuitproject'
   import { loadSettings, SETTINGS_EVENT } from './settings'
   import { IdbProvider } from './files/idb-provider'
@@ -575,6 +577,29 @@
     // El estado lo devuelve el editor por `onToolChange`, así que aquí no se toca: una sola
     // fuente de verdad.
     editor?.setTool(id)
+  }
+
+  /**
+   * Importa un `.wccomp` y deja sus circuitos disponibles en la paleta (M4C-03).
+   *
+   * No se entra al componente importado: importar y colocar son dos gestos distintos. El
+   * aviso dice cuántos circuitos han llegado para que el usuario sepa que las dependencias
+   * también viajaron.
+   */
+  const importComponentFile = async (): Promise<void> => {
+    if (editor === null || powered) return
+    try {
+      const file = await files.open()
+      if (file === null) return
+      const component = parseComponent(file.content)
+      const imported = importComponent(editor.project, component)
+      editor.projectStructureChanged()
+      openError = `Componente «${component.metadata.name}» importado (${imported.circuitIds.length} ${imported.circuitIds.length === 1 ? 'circuito' : 'circuitos'})`
+      setTimeout(() => (openError = null), 4000)
+    } catch (err) {
+      openError = err instanceof Error ? err.message : 'El componente no es válido'
+      setTimeout(() => (openError = null), 5000)
+    }
   }
 
   /** Elige un subcircuito de la paleta para colocarlo. */
@@ -1398,13 +1423,24 @@
             {/each}
           </div>
         {/if}
-        <button
-          type="button"
-          class="sub-create"
-          onclick={newSubcircuit}
-          disabled={powered}
-          title="Crear y entrar en un subcircuito">+ Subcircuito</button
-        >
+        <div class="sub-actions">
+          <button
+            type="button"
+            class="sub-create"
+            onclick={newSubcircuit}
+            disabled={powered}
+            title="Crear y entrar en un subcircuito"
+            ><Icon name="plus" size={12} /> Subcircuito</button
+          >
+          <button
+            type="button"
+            class="sub-create"
+            onclick={() => void importComponentFile()}
+            disabled={powered}
+            title="Importar un componente .wccomp"
+            ><Icon name="open" size={12} /> Importar</button
+          >
+        </div>
         {#if otherCircuits.length > 0}
           <p class="palette-hint">
             Doble clic en una instancia para editarla. La papelera borra la definición; selecciona
@@ -1604,6 +1640,15 @@
         { label: 'Abrir circuito…', action: () => void openFile() },
         { label: 'Guardar circuito', action: () => void saveFile() },
         { label: 'Exportar a .CircuitProject (XML)', action: () => void exportXml() },
+        { label: 'Importar componente (.wccomp)…', action: () => void importComponentFile() },
+        ...(currentCircuitId !== 'main'
+          ? [
+              {
+                label: 'Exportar componente (.wccomp)…',
+                action: () => void exportSubcircuitComponent(),
+              },
+            ]
+          : []),
       ]}
     />
   {/if}
@@ -2152,12 +2197,22 @@
     white-space: nowrap;
   }
 
+  /* Crear e importar comparten fila: son las dos puertas de entrada de un subcircuito. */
+  .sub-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+  }
+
   /* El alta de subcircuitos era un botón sin estilo y parecía HTML crudo. Va a lo ancho de la
      paleta, con el color de acento y trazo discontinuo: se distingue de una pieza sin gritar. */
   .sub-create {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
     width: 100%;
-    margin-top: 0.35rem;
     padding: 0.3rem 0.4rem;
     border: 1px dashed color-mix(in srgb, var(--accent) 60%, var(--border));
     border-radius: 0.35rem;

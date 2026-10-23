@@ -20,7 +20,12 @@ export class FsAccessProvider implements IFileProvider {
     if (!FsAccessProvider.supported()) return null
     try {
       const [handle] = await (window as unknown as { showOpenFilePicker: (o?: unknown) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker({
-        types: [{ description: 'WebCircuits', accept: { 'application/json': ['.json', '.CircuitProject'] } }],
+        types: [
+          {
+            description: 'WebCircuits',
+            accept: { 'application/json': ['.json', '.CircuitProject', '.wccomp'] },
+          },
+        ],
       })
       if (!handle) return null
       const file = await handle.getFile()
@@ -52,7 +57,12 @@ export class FsAccessProvider implements IFileProvider {
     try {
       const handle = await (window as unknown as { showSaveFilePicker: (o?: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
         suggestedName,
-        types: [{ description: 'WebCircuits', accept: { 'application/json': ['.json', '.CircuitProject'] } }],
+        types: [
+          {
+            description: 'WebCircuits',
+            accept: { 'application/json': ['.json', '.CircuitProject', '.wccomp'] },
+          },
+        ],
       })
       const writable = await handle.createWritable()
       await writable.write(content)
