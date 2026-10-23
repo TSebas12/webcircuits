@@ -74,6 +74,7 @@ import type {
   DrawableDevice,
   Element,
   GridPoint,
+  GridRect,
   Id,
   PlacedElement,
   StoredElement,
@@ -91,6 +92,7 @@ import {
   type BusGroupHit,
   type FoldedBus,
 } from './editor/bus-group'
+import { routeBusGeometry } from './editor/bus-route'
 import { buildScene } from '../render/scene'
 import { readTheme, watchTheme } from '../render/theme-bridge'
 import { parseHex } from '../core/theme/contrast'
@@ -499,6 +501,20 @@ export class Editor {
       }
     }
 
+    // Las piezas son obstáculos para el rutado. Se calculan solo si hay algún bus plegado.
+    let obstacles: GridRect[] | null = null
+    const deviceObstacles = (): readonly GridRect[] => {
+      if (obstacles === null) {
+        obstacles = []
+        for (const element of visible) {
+          if (element.kind !== 'wire') {
+            obstacles.push(deviceBounds(element, this.resolveCircuit))
+          }
+        }
+      }
+      return obstacles
+    }
+
     const folded: FoldedBus[] = []
     const hidden = new Set<Id>()
     for (const group of this.diagram.busGroups) {
@@ -522,7 +538,8 @@ export class Editor {
       if (geometry === null) {
         continue
       }
-      folded.push({ group, geometry })
+      // La mediana puede caer encima de una pieza; M3B-02 la mueve al canal libre más cercano.
+      folded.push({ group, geometry: routeBusGeometry(geometry, deviceObstacles()) })
       for (const id of group.wireIds) {
         hidden.add(id)
       }

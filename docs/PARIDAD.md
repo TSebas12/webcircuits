@@ -112,7 +112,7 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 |---|---|---|
 | **Capas** (con vista por capa) | M5 | 🟡 (21/23 y 2 parciales; el resto llega con M12) |
 | **Temas y colores** personalizables | M6 | ✅ (20/20) |
-| **Buses cómodos** (agrupar, rutar, etiquetar) | M3B | 🟡 (1/9: agrupar y desagrupar con bits automáticos; faltan rutado, etiquetas y plegado configurable) |
+| **Buses cómodos** (agrupar, rutar, etiquetar) | M3B | 🟡 (2/9: agrupar/desagrupar con bits automáticos y rutado a canal libre; faltan etiquetas y plegado configurable) |
 | **Biblioteca de subcircuitos** (`.wccomp`) | M4C | ⬜ |
 | **Retardos de propagación** + análisis de tiempo | M7B | ✅ (13/13, módulos fundacionales; la integración en el runner llega con M12) |
 | **Síntesis**: tabla de verdad → circuito | M8B | ⬜ |
@@ -121,8 +121,9 @@ Origen: `LogicCircuit-ref/Sources/LogicCircuit/` (414 ficheros, ~44.600 líneas)
 > **Buses visuales (M3B-01).** No existen en el original, cuyos cables son siempre de 1 bit.
 > Aquí un bus es un **grupo de cables**, no un cable ancho que los sustituya: al plegarlo se
 > tapan los cables solo en dibujo y hit-test, pero la simulación sigue usando los mismos
-> cables. Se guarda en el JSON nativo; el XML `.CircuitProject` no tiene dónde representarlo,
-> así que al exportar se pierde la agrupación, nunca los cables ni la conectividad.
+> cables. La línea se aparta de las piezas al canal libre más cercano (M3B-02), sin mover las
+> puntas de los cables. Se guarda en el JSON nativo; el XML `.CircuitProject` no tiene dónde
+> representarlo, así que al exportar se pierde la agrupación, nunca los cables ni la conectividad.
 
 ---
 
