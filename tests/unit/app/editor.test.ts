@@ -1367,6 +1367,29 @@ describe('agrupar cables en bus (M3B-01)', () => {
     dispose()
   })
 
+  it('las salidas de un repartidor de 1 bit se agrupan en un bus visual', () => {
+    const { editor, dispose } = mount()
+    const splitter = editor.diagram.addSplitter(
+      { x: 4, y: 0 },
+      { bitWidth: 4, pinCount: 4, clockwise: true },
+    )
+    const thin = placedPins(splitter).filter((placed) => placed.pin.side === 'right')
+    expect(thin).toHaveLength(4)
+
+    const wires = thin.map((placed) =>
+      editor.diagram.addWire(placed.point, { x: placed.point.x + 6, y: placed.point.y }),
+    )
+    editor.selectMany(wires.map((wire) => wire.id))
+    expect(editor.canGroupSelection).toBe(true)
+    expect(editor.groupSelection()).toBe(true)
+    expect(editor.diagram.busGroups[0]?.wireIds).toHaveLength(4)
+    // El bus es solo una vista: el repartidor y sus cuatro cables siguen intactos.
+    expect(editor.diagram.get(splitter.id)?.kind).toBe('splitter')
+    expect(editor.diagram.storedElements).toHaveLength(5)
+
+    dispose()
+  })
+
   it('el inspector lee cada bit del bus con la corriente puesta', () => {
     const { editor, canvas, dispose } = mount()
     editor.loadExample('and')

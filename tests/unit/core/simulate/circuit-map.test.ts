@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { CircuitMap } from '../../../../src/core/simulate/circuit-map'
 import { projectIndex } from '../../../../src/core/model/symbol'
+import { placedPins } from '../../../../src/core/model/layout'
 import { CircuitError } from '../../../../src/core/circuit-error'
 import { FunctionButton, FunctionLed } from '../../../../src/core/function/devices'
+import { FunctionProbe } from '../../../../src/core/function/probes'
 import { State } from '../../../../src/core/function/state'
 import type {
   Circuit,
   CircuitInstance,
+  Constant,
   Gate,
   Pin,
+  Probe,
   Project,
+  Splitter,
   StoredElement,
   Wire,
 } from '../../../../src/core/model/types'
@@ -55,7 +60,15 @@ function sheetPin(
   }
 }
 
-function wire(id: string, circuitId: string, x1: number, y1: number, x2: number, y2: number): Wire {
+function wire(
+  id: string,
+  circuitId: string,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  bitWidth = 1,
+): Wire {
   return {
     kind: 'wire',
     id,
@@ -63,7 +76,7 @@ function wire(id: string, circuitId: string, x1: number, y1: number, x2: number,
     layerId: 'principal',
     p1: { x: x1, y: y1 },
     p2: { x: x2, y: y2 },
-    bitWidth: 1,
+    bitWidth,
   }
 }
 
@@ -177,6 +190,77 @@ function buttonGateLed(): Circuit {
     },
     wire('w1', 'main', 2, 1, 8, 1),
     wire('w2', 'main', 11, 2, 14, 3),
+  ])
+}
+
+/**
+ * Un bus de 8 bits que un repartidor parte en dos de 4.
+ *
+ * Es el caso de M3B-07: el cable ancho llega al pin ancho y los dos tramos salen por los
+ * pines finos, cada uno a su probeta. El valor 0b1011_0010 deja el nibble bajo en 2 y el
+ * alto en 11, así que un intercambio de bits se vería.
+ */
+function splitterBus(): Circuit {
+  const constant: Constant = {
+    kind: 'constant',
+    id: 'c1',
+    circuitId: 'main',
+    layerId: 'principal',
+    position: { x: 0, y: 0 },
+    rotation: 'up',
+    bitWidth: 8,
+    value: 0b1011_0010,
+    pinSide: 'right',
+  }
+  const splitter: Splitter = {
+    kind: 'splitter',
+    id: 's1',
+    circuitId: 'main',
+    layerId: 'principal',
+    position: { x: 6, y: 0 },
+    rotation: 'up',
+    bitWidth: 8,
+    pinCount: 2,
+    clockwise: true,
+  }
+  const low: Probe = {
+    kind: 'probe',
+    id: 'p-low',
+    circuitId: 'main',
+    layerId: 'principal',
+    position: { x: 14, y: 0 },
+    rotation: 'up',
+    name: 'Bajo',
+    pinSide: 'left',
+  }
+  const high: Probe = {
+    kind: 'probe',
+    id: 'p-high',
+    circuitId: 'main',
+    layerId: 'principal',
+    position: { x: 14, y: 4 },
+    rotation: 'up',
+    name: 'Alto',
+    pinSide: 'left',
+  }
+
+  const source = placedPins(constant)[0]!
+  const splitterPins = placedPins(splitter)
+  const wide = splitterPins.find((placed) => placed.pin.bitWidth === 8)!
+  const thin = splitterPins
+    .filter((placed) => placed.pin.bitWidth === 4)
+    .sort((a, b) => a.pin.order - b.pin.order)
+  const lowPin = placedPins(low)[0]!
+  const highPin = placedPins(high)[0]!
+
+  return circuit('main', 'Main', [
+    constant,
+    splitter,
+    low,
+    high,
+    wire('w-wide', 'main', source.point.x, source.point.y, wide.point.x, wide.point.y, 8),
+    wire('w-low', 'main', thin[0]!.point.x, thin[0]!.point.y, lowPin.point.x, lowPin.point.y, 4),
+    wire('w-high', 'main', thin[1]!.point.x, thin[1]!.point.y, highPin.point.x, highPin.point.y, 4),
   ])
 }
 
@@ -378,6 +462,21 @@ describe('mapa de simulación (portado de CircuitMap.cs)', () => {
     expect(led.get(0)).toBe(State.On1)
     state.evaluate(true)
     expect(led.get(0)).toBe(State.On0)
+  })
+
+  it('un bus de 8 bits se parte en dos de 4 sin perder ningún bit (M3B-07)', () => {
+    const index = projectIndex(project(splitterBus()))
+    const state = CircuitMap.create(index, index.circuit('main')!).apply(0)
+    state.evaluate(false)
+
+    const probes = state.functions.filter(
+      (fn): fn is FunctionProbe => fn instanceof FunctionProbe,
+    )
+    expect(probes.map((probe) => probe.label).sort()).toEqual(['Alto', 'Bajo'])
+    const low = probes.find((probe) => probe.label === 'Bajo')!
+    const high = probes.find((probe) => probe.label === 'Alto')!
+    expect(FunctionProbe.toInt(low.pack(), 4)).toBe(0b0010)
+    expect(FunctionProbe.toInt(high.pack(), 4)).toBe(0b1011)
   })
 
   it('la memoria ya se puede aplanar sin tumbar el circuito', () => {
