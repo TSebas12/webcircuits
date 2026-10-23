@@ -1423,6 +1423,32 @@ describe('agrupar cables en bus (M3B-01)', () => {
     dispose()
   })
 
+  it('dibuja una saturación de buses sin perder etiquetas ni reventar', () => {
+    const { editor, dispose } = mount()
+    const rows = 10
+    const bits = 8
+    for (let row = 0; row < rows; row += 1) {
+      const ids: string[] = []
+      for (let bit = 0; bit < bits; bit += 1) {
+        const y = row * 10 + bit * 2
+        const wire = editor.diagram.addWire({ x: 0, y }, { x: 30, y })
+        ids.push(wire.id)
+      }
+      editor.selectMany(ids)
+      expect(editor.groupSelection()).toBe(true)
+    }
+    expect(editor.diagram.busGroups).toHaveLength(rows)
+    editor.select(null)
+
+    context.calls.length = 0
+    flushFrames()
+    expect(context.named('stroke').length).toBeGreaterThan(rows)
+    // Cada bus plegado pinta su etiqueta; si el culling se las comiera, faltarían.
+    expect(context.named('fillText').length).toBeGreaterThanOrEqual(rows)
+
+    dispose()
+  })
+
   it('un clic en la línea del bus selecciona todos sus cables y desagrupa', () => {
     const { editor, dispose } = mount()
     const a = editor.diagram.addWire({ x: 0, y: 2 }, { x: 10, y: 2 })

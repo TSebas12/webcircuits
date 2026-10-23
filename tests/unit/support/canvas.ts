@@ -30,6 +30,7 @@ const METHODS = [
   'closePath',
   'moveTo',
   'lineTo',
+  'quadraticCurveTo',
   'arc',
   'arcTo',
   'rect',
