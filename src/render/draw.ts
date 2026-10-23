@@ -21,6 +21,7 @@ import type {
   DeviceState,
   DrawDevice,
   DrawJunction,
+  DrawLabel,
   DrawPinDot,
   DrawWire,
   RenderTheme,
@@ -115,6 +116,82 @@ export function drawWire(ctx: CanvasRenderingContext2D, wire: DrawWire, theme: R
       ctx.fillRect(point.x - size / 2, point.y - size / 2, size, size)
     }
   }
+}
+
+/**
+ * Pinta una etiqueta libre con una caja de fondo.
+ *
+ * El fondo usa el color del lienzo para que el texto se lea también encima de la rejilla, y
+ * el borde el color del bus. La caja se calcula aquí, así que el anclaje se comporta como
+ * el de `fillText`.
+ */
+export function drawLabel(
+  ctx: CanvasRenderingContext2D,
+  label: DrawLabel,
+  theme: RenderTheme,
+): void {
+  const text = label.text
+  if (text === '') {
+    return
+  }
+
+  const size = label.size
+  const paddingX = size * 0.38
+  const paddingY = size * 0.2
+  ctx.font = `600 ${size}px system-ui, sans-serif`
+  const measured =
+    typeof ctx.measureText === 'function' ? ctx.measureText(text).width : text.length * size * 0.62
+  const width = Math.max(size, measured) + paddingX * 2
+  const height = size + paddingY * 2
+
+  let x = label.position.x
+  if (label.align === 'center') {
+    x -= width / 2
+  } else if (label.align === 'right') {
+    x -= width
+  }
+
+  let y = label.position.y
+  if (label.baseline === 'middle') {
+    y -= height / 2
+  } else if (label.baseline === 'bottom') {
+    y -= height
+  }
+
+  roundedRectPath(ctx, x, y, width, height, Math.min(height / 2, size * 0.35))
+  ctx.fillStyle = theme.background
+  ctx.fill()
+  ctx.strokeStyle = label.selected === true ? theme.selection : theme.wireBus
+  ctx.lineWidth = Math.max(0.04, size * 0.1)
+  ctx.stroke()
+
+  ctx.fillStyle = theme.gateText
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, x + paddingX, y + height / 2)
+}
+
+/** Contorno redondeado sin depender de `CanvasRenderingContext2D.roundRect`. */
+function roundedRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+): void {
+  const r = Math.max(0, Math.min(radius, width / 2, height / 2))
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.lineTo(x + width - r, y)
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r)
+  ctx.lineTo(x + width, y + height - r)
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height)
+  ctx.lineTo(x + r, y + height)
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r)
+  ctx.lineTo(x, y + r)
+  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.closePath()
 }
 
 /** Dibuja un símbolo con su transformación. */

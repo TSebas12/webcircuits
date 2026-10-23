@@ -16,6 +16,7 @@ import type { CameraState } from './camera'
 import type {
   DrawDevice,
   DrawItem,
+  DrawLabel,
   DrawPinDot,
   DrawWire,
   RenderScene,
@@ -67,6 +68,8 @@ export interface SceneOptions {
   readonly buses?: readonly DrawWire[]
   /** Cables que se están dibujando ahora mismo. Van los últimos, encima de todo. */
   readonly sketch?: readonly DrawWire[]
+  /** Etiquetas libres. Se pintan encima de todo (M3B-03). */
+  readonly labels?: readonly DrawLabel[]
 }
 
 export function buildScene(options: SceneOptions): RenderScene {
@@ -150,6 +153,9 @@ export function buildScene(options: SceneOptions): RenderScene {
     for (const wire of options.sketch) {
       items.push({ ...wire, overlay: true })
     }
+  }
+  if (options.labels !== undefined) {
+    items.push(...options.labels)
   }
 
   return {

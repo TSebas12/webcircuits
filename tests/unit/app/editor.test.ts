@@ -1319,6 +1319,23 @@ describe('agrupar cables en bus (M3B-01)', () => {
     dispose()
   })
 
+  it('renombra el bus seleccionado y guarda el nombre en el documento', () => {
+    const { editor, dispose } = mount()
+    const a = editor.diagram.addWire({ x: 0, y: 2 }, { x: 10, y: 2 })
+    const b = editor.diagram.addWire({ x: 0, y: 4 }, { x: 10, y: 4 })
+    editor.selectMany([a.id, b.id])
+    expect(editor.groupSelection()).toBe(true)
+
+    expect(editor.renameBusGroup('Datos')).toBe(true)
+    expect(editor.selectedBusGroup?.name).toBe('Datos')
+
+    // El nombre vacío se acepta: la etiqueta cae al nombre por defecto.
+    expect(editor.renameBusGroup('')).toBe(true)
+    expect(editor.selectedBusGroup?.name).toBe('')
+
+    dispose()
+  })
+
   it('un clic en la línea del bus selecciona todos sus cables y desagrupa', () => {
     const { editor, dispose } = mount()
     const a = editor.diagram.addWire({ x: 0, y: 2 }, { x: 10, y: 2 })

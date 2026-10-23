@@ -1,5 +1,5 @@
 import { cullItems } from './culling'
-import { drawDevice, drawJunction, drawPinDot, drawWire } from './draw'
+import { drawDevice, drawJunction, drawLabel, drawPinDot, drawWire } from './draw'
 import { GRID_SIZE } from './geometry'
 import { drawGrid } from './grid'
 import { StaticLayerCache } from './layer-cache'
@@ -245,6 +245,9 @@ function paintItem(ctx: CanvasRenderingContext2D, item: DrawItem, theme: RenderT
       break
     case 'pinDot':
       drawPinDot(ctx, item, theme)
+      break
+    case 'label':
+      drawLabel(ctx, item, theme)
       break
   }
   ctx.restore()

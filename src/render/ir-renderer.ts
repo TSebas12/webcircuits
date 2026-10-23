@@ -135,11 +135,36 @@ export interface DrawJunction {
   readonly point: GridPoint
 }
 
+/** Alineación horizontal de una etiqueta libre. */
+export type LabelAlign = 'left' | 'center' | 'right'
+
+/** Alineación vertical de una etiqueta libre. */
+export type LabelBaseline = 'top' | 'middle' | 'bottom'
+
+/**
+ * Texto suelto sobre el lienzo. Lo usa la etiqueta de un bus (M3B-03).
+ *
+ * `position` es el punto de anclaje, no la esquina de la caja: con `align`/`baseline` se
+ * coloca igual que un `fillText`. La caja de fondo se calcula al pintar.
+ */
+export interface DrawLabel {
+  readonly kind: 'label'
+  readonly position: GridPoint
+  readonly text: string
+  /** Tamaño de la fuente, en unidades de rejilla. */
+  readonly size: number
+  readonly align?: LabelAlign
+  readonly baseline?: LabelBaseline
+  readonly selected?: boolean
+  /** Opacidad efectiva de la capa a la que pertenece (M5). */
+  readonly layerOpacity?: number
+}
+
 /**
  * Pieza a dibujar.
  * Se irán añadiendo variantes (notas de texto, buses…) sin romper nada.
  */
-export type DrawItem = DrawDevice | DrawWire | DrawJunction | DrawPinDot
+export type DrawItem = DrawDevice | DrawWire | DrawJunction | DrawPinDot | DrawLabel
 
 /**
  * ¿La pieza vive en la **capa de encima**?
@@ -149,7 +174,11 @@ export type DrawItem = DrawDevice | DrawWire | DrawJunction | DrawPinDot
  * cable provisional están en la de encima; lo demás, en la de abajo.
  */
 export function isOverlayItem(item: DrawItem): boolean {
-  return item.kind === 'pinDot' || (item.kind === 'wire' && item.overlay === true)
+  return (
+    item.kind === 'label' ||
+    item.kind === 'pinDot' ||
+    (item.kind === 'wire' && item.overlay === true)
+  )
 }
 
 /** Todo lo que hace falta para pintar un fotograma. */

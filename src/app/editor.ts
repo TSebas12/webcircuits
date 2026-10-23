@@ -84,7 +84,7 @@ import { Camera, MAX_ZOOM } from '../render/camera'
 import { Canvas2DRenderer } from '../render/canvas2d'
 import { GRID_SIZE } from '../render/geometry'
 import { hitTest, type Hit } from '../render/hit-test'
-import type { DrawPinDot, DrawWire, RendererStats, WireSignal } from '../render/ir-renderer'
+import type { DrawLabel, DrawPinDot, DrawWire, RendererStats, WireSignal } from '../render/ir-renderer'
 import {
   busGeometry,
   busGroupAtFolded,
@@ -92,6 +92,7 @@ import {
   type BusGroupHit,
   type FoldedBus,
 } from './editor/bus-group'
+import { busLabelText } from './editor/bus-label'
 import { routeBusGeometry } from './editor/bus-route'
 import { buildScene } from '../render/scene'
 import { readTheme, watchTheme } from '../render/theme-bridge'
@@ -607,6 +608,54 @@ export class Editor {
     return items
   }
 
+  /**
+   * Etiquetas con nombre, rango y valor de cada bus plegado (M3B-03).
+   *
+   * El valor solo se puede calcular con la corriente puesta. Sin simulación se pasa `null` y
+   * la etiqueta muestra `z`, que es el estado por defecto de los cables.
+   */
+  private busLabelItems(folded: readonly FoldedBus[]): DrawLabel[] {
+    const layers = new Map(this.diagram.layersList.map((layer) => [layer.id, layer]))
+    const items: DrawLabel[] = []
+
+    for (const { group, geometry } of folded) {
+      const bits = group.wireIds.length
+      let values: (number | null)[] | null = null
+      if (this.simulation.powered) {
+        values = []
+        for (const id of group.wireIds) {
+          const wire = this.diagram.get(id)
+          values.push(wire?.kind === 'wire' ? this.simulation.probeValue(wire) : null)
+        }
+      }
+
+      const layer = layers.get(group.layerId)
+      const baseOpacity = layer?.opacity ?? 1
+      const dim =
+        this.diagram.dimOtherLayers && this.diagram.activeLayerId !== group.layerId ? 0.25 : 1
+      const horizontal = geometry.orientation === 'horizontal'
+      const middle = {
+        x: (geometry.spine.p1.x + geometry.spine.p2.x) / 2,
+        y: (geometry.spine.p1.y + geometry.spine.p2.y) / 2,
+      }
+
+      items.push({
+        kind: 'label',
+        position: horizontal
+          ? { x: middle.x, y: geometry.spine.p1.y - 0.18 }
+          : { x: geometry.spine.p1.x + 0.55, y: middle.y },
+        text: busLabelText(group.name, bits, values),
+        size: 0.55,
+        align: horizontal ? 'center' : 'left',
+        baseline: horizontal ? 'bottom' : 'middle',
+        selected: group.wireIds.every((id) => this.selected.has(id)),
+        layerOpacity: baseOpacity * dim,
+      })
+    }
+
+    return items
+  }
+
   /** El valor de un cable para la sonda (1/0), o `null` si no se puede saber. */
   probeValue(wire: Wire): number | null {
     return this.simulation.probeValue(wire)
@@ -1030,6 +1079,27 @@ export class Editor {
       return false
     }
     this.callbacks.onSelectionChange?.(this.selectedId)
+    this.refresh()
+    return true
+  }
+
+  /**
+   * Pone nombre al bus seleccionado (M3B-03).
+   *
+   * Se guarda como texto y viaja en el JSON. El nombre vacío es válido: la etiqueta cae al
+   * nombre por defecto `Bus n`.
+   */
+  renameBusGroup(name: string): boolean {
+    const group = this.selectedBusGroup
+    if (group === null || this.simulation.powered) {
+      return false
+    }
+    if (group.name === name) {
+      return true
+    }
+    if (!this.diagram.updateBusGroup(group.id, { name })) {
+      return false
+    }
     this.refresh()
     return true
   }
@@ -2552,6 +2622,7 @@ export class Editor {
         resolveCircuit: this.resolveCircuit,
         pinDots,
         sketch,
+        labels: this.busLabelItems(index.folded),
       }),
     )
 

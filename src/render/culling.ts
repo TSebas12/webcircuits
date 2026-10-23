@@ -60,6 +60,28 @@ function deviceBox(item: Extract<DrawItem, { kind: 'device' }>): Box {
   }
 }
 
+/**
+ * La caja aproximada de una etiqueta. El ancho real se mide al pintar; para el culling basta
+ * con una estimación generosa basada en el número de caracteres.
+ */
+function labelBox(item: Extract<DrawItem, { kind: 'label' }>): Box {
+  const width = Math.max(item.size, item.text.length * item.size * 0.62) + item.size * 0.8
+  const height = item.size * 1.7
+  const x0 =
+    item.align === 'center'
+      ? item.position.x - width / 2
+      : item.align === 'right'
+        ? item.position.x - width
+        : item.position.x
+  const y0 =
+    item.baseline === 'middle'
+      ? item.position.y - height / 2
+      : item.baseline === 'bottom'
+        ? item.position.y - height
+        : item.position.y
+  return { x0, y0, x1: x0 + width, y1: y0 + height }
+}
+
 /** La caja que ocupa una pieza, en unidades de rejilla. */
 export function itemBox(item: DrawItem): Box | null {
   switch (item.kind) {
@@ -76,6 +98,8 @@ export function itemBox(item: DrawItem): Box | null {
       return { x0: item.point.x, y0: item.point.y, x1: item.point.x, y1: item.point.y }
     case 'pinDot':
       return { x0: item.point.x, y0: item.point.y, x1: item.point.x, y1: item.point.y }
+    case 'label':
+      return labelBox(item)
   }
 }
 

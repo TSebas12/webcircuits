@@ -86,6 +86,14 @@ function mixItem(hash: number, item: DrawItem): number {
     case 'pinDot':
       result = mix(result, item.point.x)
       return mix(result, item.point.y)
+    case 'label':
+      result = mix(result, item.position.x)
+      result = mix(result, item.position.y)
+      result = mix(result, item.selected === true ? 1 : 0)
+      for (const character of item.text) {
+        result = mix(result, character.charCodeAt(0))
+      }
+      return result
   }
 }
 

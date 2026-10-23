@@ -9,6 +9,8 @@
   /** Copias reactivas de lo que el editor no puede avisar por sí solo (no es un store). */
   let selectedCount = $state(0)
   let busGroupWidth = $state(0)
+  let busGroupId = $state<string | null>(null)
+  let busGroupName = $state('')
   let canGroup = $state(false)
 
   /** Cómo se llama cada tipo de sensor en la interfaz. */
@@ -62,13 +64,21 @@
       selected = null
       selectedCount = 0
       busGroupWidth = 0
+      busGroupId = null
+      busGroupName = ''
       canGroup = false
       return
     }
     const id = editor.selectedId
     selected = (id ? (editor.diagram.get(id) ?? null) : null) as Element | null
     selectedCount = editor.selectedCount
-    busGroupWidth = editor.selectedBusGroup?.wireIds.length ?? 0
+    const group = editor.selectedBusGroup
+    const groupId = group?.id ?? null
+    if (groupId !== busGroupId) {
+      busGroupId = groupId
+      busGroupName = group?.name ?? ''
+    }
+    busGroupWidth = group?.wireIds.length ?? 0
     canGroup = editor.canGroupSelection
   }
 
@@ -111,8 +121,22 @@
       <p class="kind">Selección múltiple</p>
     </header>
     {#if busGroupWidth > 0}
+      <label class="field">
+        <span>Nombre</span>
+        <input
+          type="text"
+          maxlength="32"
+          value={busGroupName}
+          oninput={(e) => {
+            const value = (e.currentTarget as HTMLInputElement).value
+            busGroupName = value
+            editor?.renameBusGroup(value)
+          }}
+        />
+      </label>
       <p class="hint">
-        Bus de {busGroupWidth} bits. Los cables siguen ahí, solo plegados.
+        Rango [{busGroupWidth - 1}:0]. La etiqueta muestra el valor real al simular; sin
+        corriente usa <code>z</code>. Los cables siguen ahí, solo plegados.
       </p>
       <div class="actions">
         <button
