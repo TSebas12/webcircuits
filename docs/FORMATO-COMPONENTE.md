@@ -1,0 +1,116 @@
+# Formato de componente `.wccomp` (M4C-01)
+
+Un **componente** es un subcircuito reutilizable empaquetado con sus metadatos y las
+dependencias que necesita. Sirve para mover un bloque entre proyectos sin arrastrar el
+proyecto entero.
+
+El formato es JSON. La implementación del esquema y su validación vive en
+`src/core/persist/component-format.ts`.
+
+## Cabecera
+
+```json
+{
+  "format": "webcircuits-component",
+  "version": 1,
+  "kind": "component",
+  "metadata": {
+    "name": "Sumador de 4 bits",
+    "description": "Cuatro semisumadores encadenados",
+    "author": "WebCircuits",
+    "createdAt": "2026-10-22T00:00:00.000Z",
+    "tags": ["suma", "aritmética"]
+  },
+  "rootCircuitId": "adder",
+  "circuits": []
+}
+```
+
+| Campo | Obligatorio | Significado |
+|---|---|---|
+| `format` | Sí | Siempre `webcircuits-component`. No es el formato del proyecto completo. |
+| `version` | Sí | Versión del esquema. Debe ser un entero mayor o igual que 1. |
+| `kind` | Sí | Siempre `component`. Evita confundirlo con un proyecto. |
+| `metadata.name` | Sí | Nombre visible en la biblioteca y al colocar el componente. |
+| `metadata.description` | No | Texto libre; si falta, se normaliza a `""`. |
+| `metadata.author` | No | Autor del componente; si falta, se normaliza a `""`. |
+| `metadata.createdAt` | No | Fecha ISO 8601 en texto; si falta, se normaliza a `""`. |
+| `metadata.tags` | No | Lista de etiquetas; si falta, se normaliza a `[]`. |
+| `rootCircuitId` | Sí | Id del circuito que representa el componente. |
+| `circuits` | Sí | Circuitos del paquete. Debe incluir el raíz y sus dependencias. |
+
+## Circuitos
+
+Cada elemento de `circuits` usa el mismo esquema que un circuito del JSON nativo
+(`SerializedCircuit` en `src/core/persist/json.ts`):
+
+```json
+{
+  "id": "adder",
+  "name": "Sumador",
+  "elements": [
+    {
+      "kind": "wire",
+      "id": "adder-w1",
+      "circuitId": "adder",
+      "layerId": "principal",
+      "p1": { "x": 0, "y": 0 },
+      "p2": { "x": 4, "y": 0 },
+      "bitWidth": 1
+    }
+  ],
+  "layers": [
+    {
+      "id": "principal",
+      "name": "Principal",
+      "color": "#888888",
+      "opacity": 1,
+      "visible": true,
+      "locked": false
+    }
+  ]
+}
+```
+
+Los campos opcionales `layers`, `annotations`, `markers` y `busGroups` se conservan tal
+cual. Reutilizar el esquema del proyecto evita dos traductores de elementos y mantiene los
+buses visuales, las capas y los overlays en el componente.
+
+## Reglas de validación
+
+`validateComponent` comprueba, antes de devolver nada:
+
+1. Que el valor sea un objeto.
+2. Que `format` sea exactamente `webcircuits-component`.
+3. Que `version` sea un entero válido y no supere `COMPONENT_FORMAT_VERSION`.
+4. Que `kind` sea `component`.
+5. Que los metadatos tengan nombre y que las etiquetas sean texto.
+6. Que `rootCircuitId` no esté vacío.
+7. Que `circuits` sea una lista no vacía.
+8. Que cada circuito tenga `id`, `name` y una lista de elementos con `kind`.
+9. Que no haya dos circuitos con el mismo id.
+10. Que `rootCircuitId` exista dentro de `circuits`.
+
+Los errores usan `ComponentFormatError` y un código estable:
+
+- `json`: el texto no es JSON válido.
+- `format`: la marca del fichero no es la esperada.
+- `version`: versión inválida o más nueva que la soportada.
+- `shape`: falta un campo o tiene un tipo incorrecto.
+- `duplicate-circuit`: hay ids de circuito repetidos.
+- `missing-root`: el circuito raíz no está en el paquete.
+
+## Versiones
+
+`COMPONENT_FORMAT_VERSION` empieza en `1`. Sube cuando cambie la **forma** del documento,
+no cuando cambie su contenido. Un lector puede aceptar versiones anteriores; la primera
+implementación rechaza versiones futuras para no interpretar campos que no conoce.
+
+## Qué no hace todavía
+
+- `M4C-02` empaqueta un subcircuito real, con sus dependencias.
+- `M4C-03` lo registra y lo hace colocable.
+- `M4C-04` guarda la biblioteca local en IndexedDB.
+- `M4C-05` valida que las referencias entre circuitos del paquete estén resueltas.
+
+El `.wccomp` es solo datos: no contiene código ejecutable ni rutas del sistema.
