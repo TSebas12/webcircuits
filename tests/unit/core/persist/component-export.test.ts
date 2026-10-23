@@ -66,6 +66,20 @@ describe('exportar un subcircuito como componente (M4C-02)', () => {
     expect(circuits.map((circuit) => circuit.id)).toEqual([root.id, half.id])
   })
 
+  it('se niega a exportar un componente con un lazo de subcircuitos', () => {
+    const { project, root, half } = projectWithDependencies()
+    half.diagram.addCircuitInstance({ x: 6, y: 2 }, root.id)
+
+    expect(() => createComponentFromProject(project, { rootCircuitId: root.id })).toThrowError(
+      /lazo de subcircuitos/,
+    )
+    try {
+      createComponentFromProject(project, { rootCircuitId: root.id })
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'circular-dependency' })
+    }
+  })
+
   it('avisa si falta el raíz o una dependencia', () => {
     const { project, root } = projectWithDependencies()
     expect(() => collectComponentCircuits(project, 'no-existe')).toThrowError(

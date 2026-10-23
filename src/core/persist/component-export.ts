@@ -7,7 +7,8 @@
  *
  * La salida pasa por `component-format.ts`, así que el fichero que se escribe es el mismo
  * que valida el importador. Las dependencias se recorren con una pila y un conjunto de
- * visitados: un lazo accidental no cuelga y un circuito repetido no se duplica.
+ * visitados: un circuito repetido no se duplica y un lazo no cuelga. El lazo se rechaza al
+ * crear el documento, porque un componente recursivo no se puede simular.
  */
 
 import type { CircuitProject } from '../model/circuit'
@@ -18,6 +19,7 @@ import {
   type ComponentMetadata,
   type SerializedComponent,
 } from './component-format'
+import { inspectComponentDependencies } from './component-dependencies'
 import { serializeCircuit, type SerializedCircuit } from './json'
 
 /** Lo que hay que indicar para exportar. El nombre sale del circuito si no se da otro. */
@@ -26,7 +28,10 @@ export interface ExportComponentOptions {
   readonly metadata?: Partial<ComponentMetadata>
 }
 
-export type ComponentExportErrorCode = 'missing-root' | 'missing-dependency'
+export type ComponentExportErrorCode =
+  | 'missing-root'
+  | 'missing-dependency'
+  | 'circular-dependency'
 
 /** Error de exportación, separado de los errores de formato. */
 export class ComponentExportError extends Error {
@@ -100,11 +105,22 @@ export function createComponentFromProject(
     tags: options.metadata?.tags ?? [],
   }
 
-  return createComponentDocument({
+  const component = createComponentDocument({
     metadata,
     rootCircuitId: options.rootCircuitId,
     circuits: collectComponentCircuits(project, options.rootCircuitId),
   })
+
+  const dependencies = inspectComponentDependencies(component)
+  if (dependencies.cycles.length > 0) {
+    const cycle = dependencies.cycles[0]
+    throw new ComponentExportError(
+      'circular-dependency',
+      `No se puede exportar un componente con un lazo de subcircuitos: ${cycle?.circuitIds.join(' → ')}.`,
+    )
+  }
+
+  return component
 }
 
 /** Empaqueta un subcircuito y devuelve el texto que se guarda como `.wccomp`. */

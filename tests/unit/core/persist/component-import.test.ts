@@ -101,6 +101,32 @@ describe('importar un componente (M4C-03)', () => {
     expect(target.circuitsList).toHaveLength(before)
   })
 
+  it('rechaza un lazo de subcircuitos sin tocar el proyecto', () => {
+    const target = new CircuitProject('Destino')
+    const before = target.circuitsList.length
+    const cyclic = parseComponent(
+      JSON.stringify({
+        format: 'webcircuits-component',
+        version: 1,
+        kind: 'component',
+        metadata: { name: 'Cíclico' },
+        rootCircuitId: 'a',
+        circuits: [
+          { id: 'a', name: 'A', elements: [{ kind: 'circuit', targetCircuitId: 'b' }] },
+          { id: 'b', name: 'B', elements: [{ kind: 'circuit', targetCircuitId: 'a' }] },
+        ],
+      }),
+    )
+
+    expect(() => importComponent(target, cyclic)).toThrowError(/lazo de subcircuitos/)
+    try {
+      importComponent(target, cyclic)
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'circular-dependency' })
+    }
+    expect(target.circuitsList).toHaveLength(before)
+  })
+
   it('si falla al rellenar, deshace los circuitos recién creados', () => {
     const target = new CircuitProject('Destino')
     const before = target.circuitsList.length

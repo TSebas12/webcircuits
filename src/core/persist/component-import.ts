@@ -14,7 +14,8 @@
 import type { CircuitProject } from '../model/circuit'
 import type { Id } from '../model/types'
 import { validateComponent, type SerializedComponent } from './component-format'
-import { loadCircuitFromSerialized, type SerializedCircuit } from './json'
+import { inspectComponentDependencies } from './component-dependencies'
+import { loadCircuitFromSerialized } from './json'
 
 /** Resultado de una importación: el raíz nuevo y todos los circuitos añadidos. */
 export interface ImportedComponent {
@@ -22,7 +23,7 @@ export interface ImportedComponent {
   readonly circuitIds: readonly Id[]
 }
 
-export type ComponentImportErrorCode = 'missing-dependency' | 'duplicate-circuit'
+export type ComponentImportErrorCode = 'missing-dependency' | 'circular-dependency'
 
 /** Error de importación distinto de un formato inválido. */
 export class ComponentImportError extends Error {
@@ -46,8 +47,7 @@ export function importComponent(
   component: SerializedComponent,
 ): ImportedComponent {
   const document = validateComponent(component)
-  const byOldId = indexCircuits(document.circuits)
-  assertDependencies(document.circuits, byOldId)
+  assertDependencies(document)
 
   const idMap = new Map<string, string>()
   const created: Id[] = []
@@ -83,47 +83,31 @@ export function importComponent(
   }
 }
 
-function indexCircuits(
-  circuits: readonly SerializedCircuit[],
-): ReadonlyMap<string, SerializedCircuit> {
-  const byId = new Map<string, SerializedCircuit>()
-  for (const circuit of circuits) {
-    if (byId.has(circuit.id)) {
-      // `validateComponent` ya lo rechaza, pero esta función también puede usarse con
-      // documentos construidos a mano en tests o por un importador futuro.
-      throw new ComponentImportError(
-        'duplicate-circuit',
-        `El circuito ${circuit.id} aparece más de una vez.`,
-      )
-    }
-    byId.set(circuit.id, circuit)
-  }
-  return byId
-}
-
 /**
- * Comprueba que cada instancia de subcircuito apunta a un circuito incluido en el paquete.
+ * Comprueba el árbol antes de crear nada.
  *
- * Se hace antes de crear nada: si faltara una dependencia, importar dejaría una instancia
- * rota o un proyecto a medias. M4C-05 ampliará esta validación a otros cruces, pero este es
- * el que no puede esperar: sin él, el componente no se puede usar.
+ * Faltar una dependencia deja una instancia rota; un lazo de subcircuitos no se puede
+ * aplanar para simular. En ambos casos se avisa antes de tocar el proyecto, y el llamador
+ * recibe un código estable para enseñar el mensaje que quiera.
  */
-function assertDependencies(
-  circuits: readonly SerializedCircuit[],
-  byId: ReadonlyMap<string, SerializedCircuit>,
-): void {
-  for (const circuit of circuits) {
-    for (const element of circuit.elements) {
-      if (element.kind !== 'circuit') {
-        continue
-      }
-      const target = element.targetCircuitId
-      if (typeof target !== 'string' || !byId.has(target)) {
-        throw new ComponentImportError(
-          'missing-dependency',
-          `El circuito ${circuit.id} usa el subcircuito ${String(target)}, que no está en el componente.`,
-        )
-      }
-    }
+function assertDependencies(document: SerializedComponent): void {
+  const report = inspectComponentDependencies(document)
+
+  if (report.missing.length > 0) {
+    const detail = report.missing
+      .map((missing) => `${missing.circuitId} → ${missing.targetCircuitId}`)
+      .join(', ')
+    throw new ComponentImportError(
+      'missing-dependency',
+      `Faltan dependencias en el componente: ${detail}.`,
+    )
+  }
+
+  if (report.cycles.length > 0) {
+    const cycle = report.cycles[0]
+    throw new ComponentImportError(
+      'circular-dependency',
+      `El componente tiene un lazo de subcircuitos: ${cycle?.circuitIds.join(' → ')}.`,
+    )
   }
 }

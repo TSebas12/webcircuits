@@ -114,7 +114,8 @@ raíz primero y solo su árbol de dependencias; el resto del proyecto no viaja.
 
 - Si falta el circuito raíz: error `missing-root`.
 - Si una instancia apunta a un circuito que no existe: error `missing-dependency`.
-- Un lazo accidental entre subcircuitos no cuelga: el conjunto de visitados lo corta.
+- Un lazo accidental no cuelga durante el recorrido, pero la exportación lo rechaza con
+  `circular-dependency`: un componente recursivo no se puede aplanar para simular.
 
 En la interfaz, dentro de un subcircuito, el breadcrumb ofrece **Exportar**. El fichero se
 llama como el circuito y usa la extensión `.wccomp`.
@@ -124,7 +125,8 @@ llama como el circuito y usa la extensión `.wccomp`.
 `src/core/persist/component-import.ts` añade el componente al proyecto actual:
 
 1. Valida el documento con `validateComponent`.
-2. Comprueba que cada instancia de subcircuito apunta a un circuito incluido en el paquete.
+2. Comprueba que cada instancia de subcircuito apunta a un circuito incluido en el paquete y
+   que no hay lazos (`inspectComponentDependencies`).
 3. Crea **todos** los circuitos con ids nuevos.
 4. Los rellena con `loadCircuitFromSerialized`, que reescribe `targetCircuitId` con el mapa
    de ids nuevos.
@@ -134,10 +136,31 @@ El resultado queda en la paleta como cualquier subcircuito. Importar dos veces e
 fichero crea dos copias independientes. En la interfaz, **Importar** está en el grupo
 **Subcircuitos** y en la paleta de comandos.
 
-## Qué no hace todavía
+## Validación de dependencias (M4C-05)
 
-- `M4C-04` guarda la biblioteca local en IndexedDB.
-- `M4C-05` valida que las referencias entre circuitos del paquete estén resueltas (hoy se
-  comprueba lo imprescindible para poder importar: que las dependencias viajen).
+`src/core/persist/component-dependencies.ts` inspecciona el grafo sin lanzar errores y
+devuelve:
+
+- `missing`: instancias que apuntan a un circuito que no está en el paquete.
+- `cycles`: lazos de subcircuitos, con el primer circuito repetido al final.
+- `ok`: `true` solo si no hay ninguna de las dos cosas.
+
+El importador rechaza `missing` con `missing-dependency` y `cycles` con
+`circular-dependency`. La exportación también rechaza lazos, para no producir un fichero que
+el propio importador no aceptaría. Un componente normal no necesita resolver dependencias
+externas: todas viajan dentro del `.wccomp`.
+
+## Biblioteca local (M4C-04)
+
+`src/app/components/library/` guarda documentos validados en IndexedDB, no circuitos vivos.
+Cada entrada conserva nombre, descripción, autor, etiquetas, fecha y el `.wccomp` completo.
+Guardar el mismo documento actualiza la entrada existente; **Añadir** crea una copia con ids
+nuevos y activa la colocación; **Borrar** elimina solo la entrada de la biblioteca. La lógica
+está separada del almacén (`ComponentStore`) para poder probarla sin navegador.
+
+## Estado
+
+M4C-01 a M4C-05 están implementados. Quedan M4C-06 (auditoría de tests) y M4C-07
+(documentación final del flujo completo).
 
 El `.wccomp` es solo datos: no contiene código ejecutable ni rutas del sistema.
