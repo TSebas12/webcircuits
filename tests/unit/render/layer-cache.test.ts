@@ -5,7 +5,7 @@
 // el lienzo cacheado y que un cambio de verdad sí lo rehace.
 
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { StaticLayerCache } from '../../../src/render/layer-cache'
+import { LayerCacheSet, StaticLayerCache } from '../../../src/render/layer-cache'
 import { installFakePath2D, makeFakeContext, type FakeContext } from '../support/canvas'
 import type { CameraState } from '../../../src/render/camera'
 import type { DrawItem, RenderTheme } from '../../../src/render/ir-renderer'
@@ -178,5 +178,64 @@ describe('caché de la capa estática', () => {
     // Desplazada 100 px: la pieza (58 px de ancho) queda toda a la izquierda.
     expect(cache.paint(ctx, [device(0, 0)], camera(1, -100, 0), 1, THEME, 1000, 600)).toBe(true)
     expect(pastes).toHaveLength(0)
+  })
+})
+
+describe('caché por capa (M5-17)', () => {
+  it('cada capa construye su propio lienzo', () => {
+    const caches = new LayerCacheSet()
+    const { ctx } = makePasteContext()
+
+    caches.paint(ctx, 'capa-a', [device(0, 0)], camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-b', [device(10, 0)], camera(), 1, THEME, 1000, 600)
+
+    expect(built).toHaveLength(2)
+    expect(caches.size).toBe(2)
+  })
+
+  it('ocultar una capa no rehace la caché de las demás', () => {
+    const caches = new LayerCacheSet()
+    const { ctx } = makePasteContext()
+    const a = [device(0, 0)]
+    const b = [device(10, 0)]
+
+    caches.paint(ctx, 'capa-a', a, camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-b', b, camera(), 1, THEME, 1000, 600)
+    expect(built).toHaveLength(2)
+
+    // Se oculta B: solo se pinta A y se tira la caché de B.
+    caches.paint(ctx, 'capa-a', a, camera(), 1, THEME, 1000, 600)
+    caches.retain(new Set(['capa-a']))
+    expect(built).toHaveLength(2)
+    expect(caches.size).toBe(1)
+
+    // Al volver a mostrarla, solo se rehace B.
+    caches.paint(ctx, 'capa-a', a, camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-b', b, camera(), 1, THEME, 1000, 600)
+    expect(built).toHaveLength(3)
+  })
+
+  it('mover una pieza solo invalida la caché de su capa', () => {
+    const caches = new LayerCacheSet()
+    const { ctx } = makePasteContext()
+
+    caches.paint(ctx, 'capa-a', [device(0, 0)], camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-b', [device(10, 0)], camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-a', [device(0, 2)], camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-b', [device(10, 0)], camera(), 1, THEME, 1000, 600)
+
+    expect(built).toHaveLength(3)
+  })
+
+  it('cambiar el z-order no rehace ningún lienzo', () => {
+    const caches = new LayerCacheSet()
+    const { ctx } = makePasteContext()
+
+    caches.paint(ctx, 'capa-a', [device(0, 0)], camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-b', [device(10, 0)], camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-b', [device(10, 0)], camera(), 1, THEME, 1000, 600)
+    caches.paint(ctx, 'capa-a', [device(0, 0)], camera(), 1, THEME, 1000, 600)
+
+    expect(built).toHaveLength(2)
   })
 })

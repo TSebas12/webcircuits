@@ -19,6 +19,7 @@ import type {
   DrawLabel,
   DrawPinDot,
   DrawWire,
+  RenderLayer,
   RenderScene,
   RenderTheme,
   WireSignal,
@@ -73,26 +74,79 @@ export interface SceneOptions {
 }
 
 export function buildScene(options: SceneOptions): RenderScene {
-  const items: DrawItem[] = []
-
-  // El punto de unión va el primero de todos: en el original está en `Z = 0`, por debajo
-  // incluso de los cables, porque es el remache que los une y no una pieza que va encima.
-  for (const point of junctionPoints(options.elements)) {
-    items.push({ kind: 'junction', point })
+  // El orden de capas sale del mapa de ajustes (que el editor construye en z-order) y, si
+  // falta alguna, del orden en que aparece en los elementos. Así una capa vacía no rompe
+  // el orden y una capa con solo buses tampoco se queda fuera.
+  const layerIds: Id[] = []
+  const known = new Set<Id>()
+  const addLayer = (id: Id): void => {
+    if (known.has(id)) return
+    known.add(id)
+    layerIds.push(id)
+  }
+  for (const id of options.layers?.keys() ?? []) {
+    addLayer(id)
+  }
+  for (const element of options.elements) {
+    addLayer(element.layerId)
   }
 
-  // Después los cables y luego los símbolos: en el original el cable tiene Z = 1, así
-  // que un símbolo siempre tapa el cable que le entra por debajo.
+  const elementsByLayer = new Map<Id, Element[]>()
   for (const element of options.elements) {
-    if (element.kind === 'wire') {
+    const group = elementsByLayer.get(element.layerId)
+    if (group === undefined) {
+      elementsByLayer.set(element.layerId, [element])
+    } else {
+      group.push(element)
+    }
+  }
+
+  const busesByLayer = new Map<Id, DrawWire[]>()
+  for (const bus of options.buses ?? []) {
+    const layerId = bus.layerId ?? layerIds[0]
+    if (layerId === undefined) continue
+    addLayer(layerId)
+    const group = busesByLayer.get(layerId)
+    if (group === undefined) {
+      busesByLayer.set(layerId, [bus])
+    } else {
+      group.push(bus)
+    }
+  }
+
+  const layers: RenderLayer[] = []
+  const items: DrawItem[] = []
+
+  for (const layerId of layerIds) {
+    const layerElements = elementsByLayer.get(layerId) ?? []
+    const layerItems: DrawItem[] = []
+    const layer = options.layers?.get(layerId)
+
+    // El punto de unión va el primero de todos: en el original está en `Z = 0`, por debajo
+    // incluso de los cables, porque es el remache que los une y no una pieza que va encima.
+    // Se calcula por capa: un cruce entre cables de capas distintas no es una unión visual.
+    for (const point of junctionPoints(layerElements)) {
+      layerItems.push({ kind: 'junction', point })
+    }
+
+    // Después los cables y luego los símbolos: en el original el cable tiene Z = 1, así
+    // que un símbolo siempre tapa el cable que le entra por debajo.
+    for (const element of layerElements) {
+      if (element.kind !== 'wire') {
+        continue
+      }
       const paint = options.paintWiresOnPower ?? 'defaults'
       // «Siempre» borra el color forzado a mano para que el estado mande; «defaults» lo
       // respeta; «nunca» se resuelve no pasando `wireStates` (se pinta en reposo).
       const color = paint === 'always' ? undefined : element.color
-      const layer = options.layers?.get(element.layerId)
       const baseOpacity = layer?.opacity ?? 1
-      const dim = options.dimOtherLayers === true && options.activeLayerId !== undefined && element.layerId !== options.activeLayerId ? 0.25 : 1
-      items.push({
+      const dim =
+        options.dimOtherLayers === true &&
+        options.activeLayerId !== undefined &&
+        element.layerId !== options.activeLayerId
+          ? 0.25
+          : 1
+      layerItems.push({
         kind: 'wire',
         p1: element.p1,
         p2: element.p2,
@@ -104,64 +158,78 @@ export function buildScene(options: SceneOptions): RenderScene {
         layerOpacity: baseOpacity * dim,
       })
     }
-  }
 
-  // Los buses plegados se pintan en el mismo plano que los cables: debajo de los símbolos.
-  for (const bus of options.buses ?? []) {
-    items.push({ ...bus, kind: 'wire' })
-  }
+    // Los buses plegados se pintan en el mismo plano que los cables: debajo de los símbolos.
+    for (const bus of busesByLayer.get(layerId) ?? []) {
+      layerItems.push({ ...bus, kind: 'wire' })
+    }
 
-  for (const element of options.elements) {
-    if (element.kind === 'wire') {
+    for (const element of layerElements) {
+      if (element.kind === 'wire') {
+        continue
+      }
+
+      const shape = shapeForDevice(element)
+      if (shape === null) {
+        // Compuerta que todavía no sabemos dibujar. Se ignora en vez de reventar: así
+        // cargar un circuito con compuertas de M2 no rompe nada.
+        continue
+      }
+
+      const layout = deviceLayout(element, options.resolveCircuit)
+      const label = labelFor(element, options.resolveCircuit)
+      const baseOpacity = layer?.opacity ?? 1
+      const dim =
+        options.dimOtherLayers === true &&
+        options.activeLayerId !== undefined &&
+        element.layerId !== options.activeLayerId
+          ? 0.25
+          : 1
+      const segmentStates = options.segmentStates?.get(element.id)
+      const device: DrawDevice = {
+        kind: 'device',
+        shape,
+        position: element.position,
+        rotation: element.rotation,
+        width: layout.width,
+        height: layout.height,
+        selected: options.selected.has(element.id),
+        hovered: options.hovered === element.id,
+        state: options.states.get(element.id) ?? 'off',
+        layerOpacity: baseOpacity * dim,
+        ...(label === undefined ? {} : { label }),
+        ...(segmentStates === undefined ? {} : { segmentStates }),
+      }
+      layerItems.push(device)
+    }
+
+    if (layerItems.length === 0) {
       continue
     }
-
-    const shape = shapeForDevice(element)
-    if (shape === null) {
-      // Compuerta que todavía no sabemos dibujar. Se ignora en vez de reventar: así
-      // cargar un circuito con compuertas de M2 no rompe nada.
-      continue
-    }
-
-    const layout = deviceLayout(element, options.resolveCircuit)
-    const label = labelFor(element, options.resolveCircuit)
-    const layer = options.layers?.get(element.layerId)
-    const baseOpacity = layer?.opacity ?? 1
-    const dim = options.dimOtherLayers === true && options.activeLayerId !== undefined && element.layerId !== options.activeLayerId ? 0.25 : 1
-    const segmentStates = options.segmentStates?.get(element.id)
-    const device: DrawDevice = {
-      kind: 'device',
-      shape,
-      position: element.position,
-      rotation: element.rotation,
-      width: layout.width,
-      height: layout.height,
-      selected: options.selected.has(element.id),
-      hovered: options.hovered === element.id,
-      state: options.states.get(element.id) ?? 'off',
-      layerOpacity: baseOpacity * dim,
-      ...(label === undefined ? {} : { label }),
-      ...(segmentStates === undefined ? {} : { segmentStates }),
-    }
-    items.push(device)
+    layers.push({ id: layerId, items: layerItems })
+    items.push(...layerItems)
   }
 
+  const overlays: DrawItem[] = []
   if (options.pinDots !== undefined) {
-    items.push(...options.pinDots)
+    overlays.push(...options.pinDots)
   }
   if (options.sketch !== undefined) {
     for (const wire of options.sketch) {
-      items.push({ ...wire, overlay: true })
+      overlays.push({ ...wire, overlay: true })
     }
   }
   if (options.labels !== undefined) {
-    items.push(...options.labels)
+    overlays.push(...options.labels)
   }
+  items.push(...overlays)
 
   return {
     camera: options.camera,
     theme: options.theme,
     showGrid: options.showGrid,
+    layers,
+    overlays,
     items,
   }
 }

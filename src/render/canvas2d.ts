@@ -1,10 +1,10 @@
+import type { Id } from '../core/model/types'
 import { cullItems } from './culling'
 import { drawDevice, drawJunction, drawLabel, drawPinDot, drawWire } from './draw'
 import { GRID_SIZE } from './geometry'
 import { drawGrid } from './grid'
-import { StaticLayerCache } from './layer-cache'
+import { LayerCacheSet } from './layer-cache'
 import {
-  isOverlayItem,
   type DrawItem,
   type IRenderer,
   type RenderScene,
@@ -37,8 +37,8 @@ export class Canvas2DRenderer implements IRenderer {
   private dirty = true
   private rafId = 0
 
-  /** La capa estática cacheada (M2-17). */
-  private readonly layerCache = new StaticLayerCache()
+  /** Una caché estática por capa (M5-17). */
+  private readonly layerCaches = new LayerCacheSet()
 
   private onStats: ((stats: RendererStats) => void) | undefined
 
@@ -106,7 +106,7 @@ export class Canvas2DRenderer implements IRenderer {
     this.canvas = null
     this.ctx = null
     this.scene = null
-    this.layerCache.clear()
+    this.layerCaches.clear()
     this.onStats = undefined
     this.dirty = true
   }
@@ -165,39 +165,38 @@ export class Canvas2DRenderer implements IRenderer {
       drawGrid(ctx, scene.camera, scene.theme, this.cssWidth, this.cssHeight)
     }
 
-    // Dos capas (M2-17): abajo lo estable (cables, uniones, símbolos), que se cachea; encima
-    // los pines y el cable provisional, que cambian con el ratón y se dibujan del natural.
-    const staticItems: DrawItem[] = []
-    const overlayItems: DrawItem[] = []
-    for (const item of scene.items) {
-      if (isOverlayItem(item)) {
-        overlayItems.push(item)
-      } else {
-        staticItems.push(item)
+    // Cada capa estable tiene su propia caché (M5-17): ocultar una no rehace las demás.
+    // Los overlays (pines, cable provisional y etiquetas) van siempre encima y del natural.
+    const activeLayers = new Set<Id>()
+    for (const layer of scene.layers) {
+      if (layer.items.length === 0) continue
+      activeLayers.add(layer.id)
+
+      // La caché se pinta en píxeles de dispositivo. Si esa capa no cabe (o el entorno no
+      // sabe pegar imágenes), se cae al dibujado directo con recorte de vista **solo para
+      // ella**; las demás siguen usando su caché.
+      const cached = this.layerCaches.paint(
+        ctx,
+        layer.id,
+        layer.items,
+        scene.camera,
+        this.dpr,
+        scene.theme,
+        this.cssWidth,
+        this.cssHeight,
+      )
+      if (!cached) {
+        this.applyWorldTransform(scene)
+        for (const item of cullItems(layer.items, scene.camera, this.cssWidth, this.cssHeight)) {
+          paintItem(ctx, item, scene.theme)
+        }
       }
     }
+    this.layerCaches.retain(activeLayers)
 
-    // La caché se pinta en píxeles de dispositivo. Si el circuito no cabe (o el entorno no
-    // sabe pegar imágenes), se cae al dibujado directo con recorte de vista.
-    const cached = this.layerCache.paint(
-      ctx,
-      staticItems,
-      scene.camera,
-      this.dpr,
-      scene.theme,
-      this.cssWidth,
-      this.cssHeight,
-    )
-    if (!cached) {
+    if (scene.overlays.length > 0) {
       this.applyWorldTransform(scene)
-      for (const item of cullItems(staticItems, scene.camera, this.cssWidth, this.cssHeight)) {
-        paintItem(ctx, item, scene.theme)
-      }
-    }
-
-    if (overlayItems.length > 0) {
-      this.applyWorldTransform(scene)
-      for (const item of cullItems(overlayItems, scene.camera, this.cssWidth, this.cssHeight)) {
+      for (const item of cullItems(scene.overlays, scene.camera, this.cssWidth, this.cssHeight)) {
         paintItem(ctx, item, scene.theme)
       }
     }

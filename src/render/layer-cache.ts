@@ -1,10 +1,14 @@
 /**
- * Caché de la capa estática (M2-17).
+ * Caché de la capa estática (M2-17), ahora una por capa (M5-17).
  *
  * La idea: las piezas que no cambian con el ratón —cables, uniones y símbolos— se dibujan
  * **una vez** a un lienzo aparte, en píxeles ya resueltos, y a partir de ahí un fotograma
  * cualquiera solo tiene que **pegar** ese lienzo. Los pines y el cable provisional (la capa
  * de encima) se siguen dibujando del natural, porque cambian a cada movimiento.
+ *
+ * `LayerCacheSet` mantiene un `StaticLayerCache` por capa. Ocultar o mostrar una capa solo
+ * afecta a su propia caché: las demás siguen pegándose tal cual. Al cambiar el z-order ni
+ * siquiera se rehace nada; solo cambia el orden de los pegados.
  *
  * Lo que esto arregla de verdad es el **paneo**: mover la vista es cambiar dos números, y
  * con la caché no se vuelve a recorrer ni una sola pieza. El zoom sí rehace la caché, porque
@@ -16,6 +20,7 @@
  * que para eso está M2-16).
  */
 
+import type { Id } from '../core/model/types'
 import type { CameraState } from './camera'
 import { itemBox } from './culling'
 import { drawDevice, drawJunction, drawWire } from './draw'
@@ -157,6 +162,7 @@ export class StaticLayerCache {
       return false
     }
     if (items.length === 0) {
+      this.canvas = null
       this.key = ''
       return true
     }
@@ -314,5 +320,52 @@ export class StaticLayerCache {
 
   private context(canvas: HTMLCanvasElement | OffscreenCanvas): CanvasRenderingContext2D | null {
     return canvas.getContext('2d') as CanvasRenderingContext2D | null
+  }
+}
+
+/**
+ * Un `StaticLayerCache` por capa.
+ *
+ * `retain` borra las cachés de capas que ya no están en la escena (ocultas o borradas). Así
+ * no se acumulan lienzos de capas que el usuario no está mirando. Las capas que siguen
+ * visibles conservan su lienzo aunque otra se oculte, que es lo que exige M5-17.
+ */
+export class LayerCacheSet {
+  private readonly caches = new Map<Id, StaticLayerCache>()
+
+  paint(
+    ctx: CanvasRenderingContext2D,
+    layerId: Id,
+    items: readonly DrawItem[],
+    camera: CameraState,
+    dpr: number,
+    theme: RenderTheme,
+    cssWidth: number,
+    cssHeight: number,
+  ): boolean {
+    let cache = this.caches.get(layerId)
+    if (cache === undefined) {
+      cache = new StaticLayerCache()
+      this.caches.set(layerId, cache)
+    }
+    return cache.paint(ctx, items, camera, dpr, theme, cssWidth, cssHeight)
+  }
+
+  /** Deja solo las cachés de las capas presentes en este fotograma. */
+  retain(layerIds: ReadonlySet<Id>): void {
+    for (const id of [...this.caches.keys()]) {
+      if (!layerIds.has(id)) {
+        this.caches.delete(id)
+      }
+    }
+  }
+
+  clear(): void {
+    this.caches.clear()
+  }
+
+  /** Cuántas capas tienen caché ahora mismo. Útil para tests y para el panel de rendimiento. */
+  get size(): number {
+    return this.caches.size
   }
 }

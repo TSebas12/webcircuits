@@ -46,6 +46,21 @@ function sceneOf(
   })
 }
 
+function sceneWithLayers(diagram: Diagram, buses: DrawWire[] = []) {
+  return buildScene({
+    elements: diagram.elements,
+    buses,
+    states: new Map(),
+    selected: new Set(),
+    camera: new Camera().state,
+    theme: THEME,
+    showGrid: true,
+    layers: new Map(
+      diagram.layersList.map((layer) => [layer.id, { color: layer.color, opacity: layer.opacity }]),
+    ),
+  })
+}
+
 describe('de modelo a piezas de dibujo', () => {
   it('los cables salen primero, para que los símbolos los tapen', () => {
     const items = sceneOf(slice()).items
@@ -202,6 +217,94 @@ describe('de modelo a piezas de dibujo', () => {
 
     expect(kinds.at(-1)).toBe('wire')
     expect(kinds.at(-2)).toBe('pinDot')
+  })
+
+  it('agrupa por capa y respeta el z-order del panel', () => {
+    const diagram = new Diagram()
+    const bottom = diagram.layersList[0]
+    expect(bottom).toBeDefined()
+    if (bottom === undefined) return
+    diagram.addGate('and', { x: 0, y: 0 }, 2)
+
+    const top = diagram.createLayer('Superior')
+    diagram.activeLayerId = top.id
+    diagram.addGate('or', { x: 10, y: 0 }, 2)
+    diagram.addWire({ x: 4, y: 2 }, { x: 10, y: 2 })
+
+    const scene = sceneWithLayers(diagram)
+
+    expect(scene.layers.map((layer) => layer.id)).toEqual([bottom.id, top.id])
+    expect(scene.layers[0]?.items.filter((item) => item.kind === 'device')).toHaveLength(1)
+    expect(scene.layers[1]?.items.map((item) => item.kind)).toEqual([
+      'wire',
+      'device',
+    ])
+    // La vista plana conserva el mismo orden que la composición: la capa superior va
+    // entera después, incluido su cable, aunque la inferior tenga un símbolo.
+    expect(scene.items.map((item) => item.kind)).toEqual(['device', 'wire', 'device'])
+    expect(scene.items.filter((item) => item.kind === 'device').map((item) => item.shape)).toEqual([
+      'and',
+      'or',
+    ])
+  })
+
+  it('los overlays no entran en ninguna caché de capa', () => {
+    const pinDots = [{ kind: 'pinDot' as const, point: { x: 4, y: 3 }, connected: false }]
+    const sketch: DrawWire[] = [
+      {
+        kind: 'wire',
+        p1: { x: 0, y: 0 },
+        p2: { x: 3, y: 3 },
+        selected: false,
+        signal: 'idle',
+        bus: false,
+      },
+    ]
+
+    const scene = sceneOf(slice(), { pinDots, sketch })
+
+    expect(scene.overlays.map((item) => item.kind)).toEqual(['pinDot', 'wire'])
+    expect(
+      scene.layers.every((layer) => layer.items.every((item) => item.kind !== 'pinDot')),
+    ).toBe(true)
+  })
+
+  it('un bus sintético se queda en la capa que dice, no en la primera', () => {
+    const diagram = new Diagram()
+    const top = diagram.createLayer('Superior')
+    const bus: DrawWire = {
+      kind: 'wire',
+      p1: { x: 0, y: 0 },
+      p2: { x: 5, y: 0 },
+      selected: false,
+      signal: 'idle',
+      bus: true,
+      layerId: top.id,
+    }
+
+    const scene = sceneWithLayers(diagram, [bus])
+
+    expect(scene.layers).toHaveLength(1)
+    expect(scene.layers[0]?.id).toBe(top.id)
+    expect(scene.layers[0]?.items).toHaveLength(1)
+  })
+
+  it('la unión se calcula por capa: dos cables de capas distintas no son un nudo', () => {
+    const diagram = new Diagram()
+    diagram.addWire({ x: 0, y: 2 }, { x: 5, y: 2 })
+    diagram.addWire({ x: 5, y: 2 }, { x: 5, y: 6 })
+
+    const top = diagram.createLayer('Superior')
+    diagram.activeLayerId = top.id
+    diagram.addWire({ x: 2, y: 5 }, { x: 5, y: 5 })
+
+    const scene = sceneWithLayers(diagram)
+
+    expect(
+      scene.layers.flatMap((layer) =>
+        layer.items.filter((item) => item.kind === 'junction'),
+      ),
+    ).toHaveLength(0)
   })
 
   it('una compuerta que todavía no sabemos dibujar se ignora en vez de reventar', () => {

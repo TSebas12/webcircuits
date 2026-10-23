@@ -582,6 +582,7 @@ export class Editor {
         signal: 'idle',
         bus: true,
         layerOpacity,
+        layerId: group.layerId,
       })
       // Los codos no llevan tiradores: si fueran «cables seleccionados» llenarían el bus de
       // cuadraditos. Se les pone el color a mano y se dejan como parte de la línea.
@@ -601,6 +602,7 @@ export class Editor {
           bus: false,
           color: stubColor,
           layerOpacity,
+          layerId: group.layerId,
         })
       }
     }

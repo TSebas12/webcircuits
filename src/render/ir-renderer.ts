@@ -1,4 +1,4 @@
-import type { DeviceState, GridPoint, Rotation } from '../core/model/types'
+import type { DeviceState, GridPoint, Id, Rotation } from '../core/model/types'
 import type { SymbolShape } from './symbols'
 import type { CameraState } from './camera'
 
@@ -105,6 +105,11 @@ export interface DrawWire {
    */
   readonly layerOpacity?: number
   /**
+   * Capa a la que pertenece. Solo la usan los tramos sintéticos de un bus: un cable normal
+   * ya viene dentro del grupo de su capa y el renderizador no necesita este dato (M5-17).
+   */
+  readonly layerId?: Id
+  /**
    * Es un cable **provisional** (el que se está tendiendo), no del circuito.
    *
    * Vive en la capa de encima: cambia a cada movimiento del ratón, así que no puede formar
@@ -167,18 +172,14 @@ export interface DrawLabel {
 export type DrawItem = DrawDevice | DrawWire | DrawJunction | DrawPinDot | DrawLabel
 
 /**
- * ¿La pieza vive en la **capa de encima**?
+ * Las piezas estables de una capa, en su orden de dibujado (M5-17).
  *
- * La capa de encima cambia con el ratón y se dibuja siempre del natural. La de abajo
- * (cables, uniones y símbolos) es estable y es la que se cachea (M2-17). Los pines y el
- * cable provisional están en la de encima; lo demás, en la de abajo.
+ * Cada capa tiene su propia caché. El orden del array `layers` de la escena es el z-order:
+ * la primera se pinta debajo. Así ocultar una capa no invalida las cachés de las demás.
  */
-export function isOverlayItem(item: DrawItem): boolean {
-  return (
-    item.kind === 'label' ||
-    item.kind === 'pinDot' ||
-    (item.kind === 'wire' && item.overlay === true)
-  )
+export interface RenderLayer {
+  readonly id: Id
+  readonly items: readonly DrawItem[]
 }
 
 /** Todo lo que hace falta para pintar un fotograma. */
@@ -186,6 +187,11 @@ export interface RenderScene {
   readonly camera: CameraState
   readonly theme: RenderTheme
   readonly showGrid: boolean
+  /** Capas estables en orden de abajo a arriba. */
+  readonly layers: readonly RenderLayer[]
+  /** Pines, cable provisional y etiquetas: cambian con el ratón o van siempre encima. */
+  readonly overlays: readonly DrawItem[]
+  /** Vista plana de `layers` + `overlays`, para consumidores que no necesitan capas. */
   readonly items: readonly DrawItem[]
 }
 
