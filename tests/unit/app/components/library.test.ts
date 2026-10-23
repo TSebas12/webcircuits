@@ -76,6 +76,18 @@ describe('biblioteca local de componentes (M4C-04)', () => {
     expect(list.map((entry) => entry.id)).toEqual([newer.id, older.id])
   })
 
+  it('otra instancia sobre el mismo almacén ve lo guardado', async () => {
+    const { library, store } = clockedLibrary()
+    const saved = await library.save(component('Persistente'))
+
+    const reopened = new ComponentLibrary(store, {
+      now: () => new Date('2026-10-23T00:00:00.000Z'),
+      newId: () => 'otro-id',
+    })
+
+    expect((await reopened.list()).map((entry) => entry.id)).toEqual([saved.id])
+  })
+
   it('borra una entrada sin tocar las demás', async () => {
     const { library } = clockedLibrary()
     const first = await library.save(component('Uno'))

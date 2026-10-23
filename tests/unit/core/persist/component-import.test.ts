@@ -66,6 +66,32 @@ describe('importar un componente (M4C-03)', () => {
     }
   })
 
+  it('exportar, importar y volver a exportar conserva el árbol', () => {
+    const source = sourceComponent()
+    const target = new CircuitProject('Destino')
+    const imported = importComponent(target, parseComponent(source.text))
+
+    const reexported = parseComponent(
+      exportComponent(target, {
+        rootCircuitId: imported.rootCircuitId,
+        metadata: { createdAt: '2026-10-23T00:00:00.000Z' },
+      }),
+    )
+
+    expect(reexported.circuits.map((circuit) => circuit.name).sort()).toEqual([
+      'Semisumador',
+      'Sumador',
+    ])
+    const root = reexported.circuits.find((circuit) => circuit.id === reexported.rootCircuitId)
+    const instance = root?.elements.find((element) => element.kind === 'circuit')
+    expect(instance?.kind).toBe('circuit')
+    if (instance?.kind === 'circuit') {
+      expect(
+        reexported.circuits.some((circuit) => circuit.id === instance.targetCircuitId),
+      ).toBe(true)
+    }
+  })
+
   it('se puede importar dos veces sin que los circuitos choquen', () => {
     const source = sourceComponent()
     const target = new CircuitProject('Destino')
