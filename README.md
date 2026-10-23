@@ -7,7 +7,7 @@ Reescritura web de [LogicCircuit](https://www.logiccircuit.org) (C#/WPF), con **
 
 <!-- Cuando haya una captura decente: ![WebCircuits](docs/captura.png) -->
 
-> **En construcción.** 184 de 258 pasos hechos (71 %). La app ya sirve para dibujar,
+> **En construcción.** 186 de 258 pasos hechos (72 %). La app ya sirve para dibujar,
 > guardar y simular circuitos de varios niveles, con capas, temas, buses visuales,
 > componentes reutilizables y tablas de verdad; quedan la síntesis, la exportación Verilog,
 > el scripting y el pulido. Ver [Estado](#estado).
@@ -35,7 +35,7 @@ Lo que ya funciona:
 - Motor con compuertas, reloj, memoria (lectura/escritura por flanco), sensores, sondas,
   interruptores y **subcircuitos jerárquicos**
 - Guardar y abrir `.CircuitProject` (XML) y JSON nativo, con archivos recientes
-- **Capas**: crear, ocultar, bloquear y ajustar opacidad
+- **Capas**: crear, ocultar, bloquear, reordenar y ajustar opacidad, con **caché de render por capa**; ocultar o mostrar una capa no vuelve a rasterizar las demás (ver `bench/CAPAS.md`)
 - **Temas**: claro, oscuro, alto contraste, daltónico, monocromo y editor propio
 - **Tabla de verdad** con filtro, inversión, bus multi-bit, subcircuitos y exportación CSV/HTML
 - Ejemplos con vista previa, notas y marcadores persistentes
@@ -51,7 +51,7 @@ Lo que todavía **no** funciona, y en qué hito llega:
 - Los **retardos de propagación** tienen módulos y pruebas (M7B), pero aún no están
   integrados en el `CircuitRunner`; la integración y el rendimiento llegan con M12
 
-**Calidad (2026-10-22):** `npm run check` sin errores ni avisos, `lint` limpio, **652 tests**
+**Calidad (2026-10-23):** `npm run check` sin errores ni avisos, `lint` limpio, **662 tests**
 verdes y `build` correcto. El oráculo C# queda en **174/179**: 3 fallos de cultura y 2 de
 rendimiento bajo carga, explicados en `docs/BASELINE-TESTS.md`.
 
@@ -158,7 +158,7 @@ algo que el original no tiene.
 | M3B | Buses excelentes · *diferenciador* | 9 | ✅ |
 | M4 | Persistencia y archivos (web) | 24 | 🟡 (19/24) |
 | M4C | Biblioteca de subcircuitos · *nuevo* | 7 | ✅ |
-| M5 | Capas · *nuevo* | 23 | 🟡 (21/23) |
+| M5 | Capas · *nuevo* | 23 | ✅ |
 | M6 | Personalización, colores y temas · *nuevo* | 20 | ✅ |
 | M7 | Instrumentación | 12 | ✅ |
 | M7B | Retardos de propagación y análisis de tiempo · *diferenciador* | 13 | ✅ (módulos; integración en M12) |
@@ -169,7 +169,7 @@ algo que el original no tiene.
 | M11 | Pulido y extras | 18 | ⬜ |
 | M11B | Modo didáctico · *nuevo* | 9 | ⬜ |
 | M12 | Rendimiento y despliegue | 14 | ⬜ |
-| | **Total** | **258** | **184 (71 %)** |
+| | **Total** | **258** | **186 (72 %)** |
 
 ## Licencia y atribución
 
