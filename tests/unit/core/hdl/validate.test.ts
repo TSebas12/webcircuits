@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseHdl } from '../../../../src/core/hdl/parser'
+import type { HdlModule } from '../../../../src/core/hdl/parser'
 import { validateHdlModule } from '../../../../src/core/hdl/validate'
 
 describe('M9-05 · validación HDL', () => {
@@ -8,8 +9,8 @@ describe('M9-05 · validación HDL', () => {
     expect(validateHdlModule(mod).valid).toBe(true)
   })
   it('detecta falta de salidas', () => {
-    const mod = { name: 'X', inputs: ['a'], outputs: [], parts: [] }
-    const r = validateHdlModule(mod as any)
+    const mod: HdlModule = { name: 'X', inputs: ['a'], outputs: [], parts: [] }
+    const r = validateHdlModule(mod)
     expect(r.valid).toBe(false)
     expect(r.errors).toContain('sin salidas')
   })

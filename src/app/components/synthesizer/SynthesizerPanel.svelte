@@ -1,7 +1,10 @@
 <script lang="ts">
   import { booleanFunction } from '../../../core/synthesis/function'
   import { minimize } from '../../../core/synthesis/minimize'
+  import type { Netlist } from '../../../core/synthesis/netlist'
   import { synthesizeNetlist } from '../../../core/synthesis/netlist'
+  import { createFileProvider } from '../../files/provider-factory'
+  import { netlistToVerilog } from '../../../core/hdl/netlist-verilog'
 
   let { onClose }: { onClose: () => void } = $props()
 
@@ -9,6 +12,13 @@
   let error = $state<string | null>(null)
   let expression = $state('')
   let nodeCount = $state(0)
+  let lastNetlist = $state<Netlist | null>(null)
+
+  async function exportVerilog(): Promise<void> {
+    if (!lastNetlist) return
+    const provider = createFileProvider()
+    await provider.save(netlistToVerilog(lastNetlist), 'synthesized.sv')
+  }
 
   function generate(): void {
     error = null
@@ -31,6 +41,7 @@
       const nl = synthesizeNetlist(fn, mf)
       expression = mf.expression
       nodeCount = nl.nodes.length
+      lastNetlist = nl
     } catch (e) {
       error = e instanceof Error ? e.message : 'error'
     }
@@ -48,6 +59,9 @@
       <input bind:value={outputsText} />
     </label>
     <button type="button" onclick={generate}>Generar</button>
+    {#if lastNetlist}
+      <button type="button" onclick={() => void exportVerilog()}>Exportar Verilog</button>
+    {/if}
     {#if error}
       <p class="err">{error}</p>
     {/if}

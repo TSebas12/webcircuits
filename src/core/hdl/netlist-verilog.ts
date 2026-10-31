@@ -11,16 +11,13 @@ export function netlistToVerilog(netlist: Netlist, moduleName = 'synthesized'): 
     : Array.from({ length: netlist.inputCount }, (_, i) => `x${i + 1}`)
   const outputPort = netlist.outputName ?? 'out'
 
+  lines.push(`module ${moduleName} (${[...inputPorts, outputPort].join(', ')});`)
+  lines.push(`  input ${inputPorts.join(', ')};`)
+  lines.push(`  output ${outputPort};`)
   // nodos internos (excluyendo entradas y la salida final ya nombrada)
   const internal = netlist.nodes
     .filter((n) => n.kind !== 'input')
     .map((n) => n.id)
-  // la salida final se renombra a outputPort
-  const wireNames = internal.map((id) => (id === netlist.outputNodeId ? outputPort : id))
-
-  lines.push(`module ${moduleName} (${[...inputPorts, outputPort].join(', ')});`)
-  lines.push(`  input ${inputPorts.join(', ')};`)
-  lines.push(`  output ${outputPort};`)
   const wires = internal.filter((id) => id !== netlist.outputNodeId)
   if (wires.length > 0) lines.push(`  wire ${wires.join(', ')};`)
   lines.push('')
