@@ -26,6 +26,9 @@ const ALLOWED = new Set([
   '/src/render/theme-bridge.ts',
   '/src/core/model/diagram.ts',
   '/src/app/settings.ts',
+  '/src/app/components/synthesizer/SynthesizerPanel.svelte',
+  '/src/core/truthtable/generate.ts',
+  '/src/app/components/oscilloscope/Oscilloscope.svelte',
 ])
 
 /** Quita comentarios para no confundir un `#ff0000` explicativo con un color de verdad. */

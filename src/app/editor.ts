@@ -93,6 +93,10 @@ import {
   type FoldedBus,
 } from './editor/bus-group'
 import { busLabelText } from './editor/bus-label'
+import { booleanFunction } from '../core/synthesis/function'
+import { minimize } from '../core/synthesis/minimize'
+import { synthesizeNetlist } from '../core/synthesis/netlist'
+import { verifyNetlist } from '../core/synthesis/verify'
 import { routeBusGeometry } from './editor/bus-route'
 import { buildScene } from '../render/scene'
 import { readTheme, watchTheme } from '../render/theme-bridge'
@@ -772,6 +776,117 @@ export class Editor {
     )
     this.refresh()
     this.callbacks.onZoom?.(Math.round(this.camera.zoom * 100))
+  }
+
+  /** Sintetiza y coloca un circuito a partir de salidas 0/1 (M8B-05). */
+  synthesizeCircuit(outputsText: string): void {
+    const rawOutputs = outputsText
+      .split(/[,\s]+/)
+      .filter((s) => s.length > 0)
+      .map((s) => Number(s))
+    if (rawOutputs.some((v) => v !== 0 && v !== 1)) throw new Error('solo 0/1')
+    const outputs: (0 | 1)[] = rawOutputs as (0 | 1)[]
+    const inputCount = Math.log2(outputs.length)
+    if (!Number.isInteger(inputCount) || inputCount < 1) throw new Error('potencia de 2')
+    const fn = booleanFunction(inputCount, outputs, Array.from({ length: inputCount }, (_, i) => `x${i + 1}`))
+    const mf = minimize(fn)
+    const nl = synthesizeNetlist(fn, mf)
+    if (!verifyNetlist(fn, nl).equivalent) throw new Error('verificación fallida')
+
+    // Calcular niveles topológicos
+    const levels = new Map<string, number>()
+    function levelOf(id: string): number {
+      if (levels.has(id)) return levels.get(id) as number
+      const node = nl.nodes.find((n) => n.id === id)
+      if (!node || node.kind === 'input' || node.kind === 'const') {
+        levels.set(id, 0)
+        return 0
+      }
+      const lvl = 1 + Math.max(0, ...node.inputs.map((inp) => levelOf(inp)))
+      levels.set(id, lvl)
+      return lvl
+    }
+    for (const node of nl.nodes) levelOf(node.id)
+
+    // Agrupar por nivel
+    const byLevel = new Map<number, string[]>()
+    for (const node of nl.nodes) {
+      const lvl = levels.get(node.id) ?? 0
+      if (!byLevel.has(lvl)) byLevel.set(lvl, [])
+      byLevel.get(lvl)?.push(node.id)
+    }
+
+    const pos = new Map<string, { x: number; y: number }>()
+    const idMap = new Map<string, string>()
+
+    // Entradas (in0...)
+    for (let i = 0; i < inputCount; i += 1) {
+      const nodeId = `in${i}`
+      const p = { x: 0, y: i * 6 + 2 }
+      pos.set(nodeId, p)
+      const btn = this.diagram.addButton(p, { isToggle: true, bitWidth: 1 })
+      idMap.set(nodeId, btn.id)
+    }
+
+    // Nodos por nivel
+    const levelsSorted = [...byLevel.keys()].sort((a, b) => a - b)
+    for (const lvl of levelsSorted) {
+      if (lvl === 0) continue
+      const ids = byLevel.get(lvl) ?? []
+      ids.forEach((nid, row) => {
+        const node = nl.nodes.find((n) => n.id === nid)
+        if (!node) return
+        const p = { x: lvl * 8, y: row * 6 + 2 }
+        pos.set(nid, p)
+        if (node.kind === 'not') {
+          const g = this.diagram.addGate('not', p, 1)
+          idMap.set(nid, g.id)
+        } else if (node.kind === 'and') {
+          const g = this.diagram.addGate('and', p, Math.max(1, node.inputs.length))
+          idMap.set(nid, g.id)
+        } else if (node.kind === 'or') {
+          const g = this.diagram.addGate('or', p, Math.max(1, node.inputs.length))
+          idMap.set(nid, g.id)
+        } else if (node.kind === 'const') {
+          const c = this.diagram.addConstant(p, { value: node.value ?? 0 })
+          idMap.set(nid, c.id)
+        }
+      })
+    }
+
+    // Cablear usando placedPins
+    const resolve = (id: Id) => this.project.circuit(id)
+    for (const node of nl.nodes) {
+      if (node.kind === 'input' || node.inputs.length === 0) continue
+      const targetId = idMap.get(node.id)
+      if (!targetId) continue
+      const targetEl = this.diagram.get(targetId) as PlacedElement | undefined
+      if (!targetEl) continue
+      const targetPins = placedPins(targetEl, resolve)
+      const targetInputs = targetPins.slice(0, Math.max(1, node.inputs.length))
+      node.inputs.forEach((srcId, idx) => {
+        const srcElId = idMap.get(srcId)
+        if (!srcElId) return
+        const srcEl = this.diagram.get(srcElId) as PlacedElement | undefined
+        if (!srcEl) return
+        const srcPins = placedPins(srcEl, resolve)
+        if (srcPins.length === 0) return
+        const srcPin = srcPins[srcPins.length - 1]
+        if (!srcPin) return
+        const dstPin = targetInputs[idx] ?? targetPins[0]
+        if (!dstPin) return
+        const a = srcPin.point
+        const b = dstPin.point
+        if (a.x === b.x || a.y === b.y) {
+          this.diagram.addWire(a, b, 1)
+        } else {
+          this.diagram.addWire(a, { x: b.x, y: a.y }, 1)
+          this.diagram.addWire({ x: b.x, y: a.y }, b, 1)
+        }
+      })
+    }
+
+    this.fitToContent()
   }
 
   /** Fija los huecos que tapa la interfaz. No mueve la cámara: solo afecta a los encuadres. */

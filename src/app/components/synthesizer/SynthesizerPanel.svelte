@@ -82,11 +82,11 @@
     z-index: 50;
   }
   .panel {
-    background: var(--wc-bg, #fff);
+    background: var(--wc-bg);
     padding: 1rem;
     border-radius: 0.5rem;
     min-width: 24rem;
   }
-  .err { color: #c00; }
+  .err { color: var(--wc-error, #c00); }
   .result { font-family: monospace; }
 </style>

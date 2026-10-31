@@ -312,8 +312,8 @@ export function truthTableToHtml(table: TruthTable): string {
 <style>
 body{font-family:system-ui,sans-serif;margin:2rem}
 table{border-collapse:collapse}
-th,td{border:1px solid #999;padding:.25rem .6rem;text-align:right}
-th{background:#eee}
+th,td{border:1px solid var(--wc-border, #999);padding:.25rem .6rem;text-align:right}
+th{background:var(--wc-header-bg, #eee)}
 </style>
 <table>
 <thead><tr>${columns}</tr></thead>
