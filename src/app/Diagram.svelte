@@ -11,6 +11,7 @@
   import Modal from './Modal.svelte'
   import ExamplePicker from './ExamplePicker.svelte'
   import TruthTablePanel from './components/truthtable/TruthTablePanel.svelte'
+import SynthesizerPanel from './components/synthesizer/SynthesizerPanel.svelte'
   import TestSocketPanel from './components/test-socket/TestSocketPanel.svelte'
   import OscilloscopePanel from './components/oscilloscope/OscilloscopePanel.svelte'
   import TextPrompt from './components/TextPrompt.svelte'
@@ -101,6 +102,7 @@
   let contextMenu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null)
   let showSettings = $state(false)
   let showTruthTable = $state(false)
+  let showSynthesizer = $state(false)
   let showTestSockets = $state(false)
   let showOscilloscope = $state(false)
   let scopeChannels = $state<
@@ -1155,11 +1157,11 @@
     <button
       type="button"
       class="tool"
-      onclick={() => (showSettings = true)}
-      title="Preferencias"
-      aria-label="Preferencias"
+      onclick={() => (showSynthesizer = true)}
+      title="Sintetizador"
+      aria-label="Sintetizador"
     >
-      <Icon name="settings" />
+      <span aria-hidden="true">Σ</span>
     </button>
     <button
       type="button"
@@ -1635,6 +1637,10 @@
 
   {#if showTruthTable && editor}
     <TruthTablePanel {editor} onClose={() => (showTruthTable = false)} />
+  {/if}
+
+  {#if showSynthesizer}
+    <SynthesizerPanel onClose={() => (showSynthesizer = false)} />
   {/if}
 
   {#if showOscilloscope}
