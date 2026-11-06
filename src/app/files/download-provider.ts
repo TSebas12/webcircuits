@@ -24,6 +24,10 @@ export class DownloadProvider implements IFileProvider {
           finish(null)
           return
         }
+        if (file.size > 50 * 1024 * 1024) {
+          finish(null)
+          return
+        }
         const reader = new FileReader()
         reader.onload = () => finish({ name: file.name, content: String(reader.result ?? '') })
         reader.onerror = () => finish(null)
