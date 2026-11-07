@@ -18,7 +18,7 @@
     { label: 'Duplicar', action: () => editor?.duplicate() },
     { label: 'Borrar selección', action: () => editor?.removeSelected() },
     { label: 'Pegar', action: () => editor?.paste() },
-    { label: 'Zoom to fit', action: () => editor?.fitToContent() },
+    { label: t('cmd.zoomFit'), action: () => editor?.fitToContent() },
     { label: t('cmd.exportPng'), action: () => editor?.exportPng() },
     { label: 'Vaciar lienzo', action: () => editor?.clear() },
     { label: 'Encender/apagar corriente', action: () => editor?.setPowered(!editor?.isPowered) },
