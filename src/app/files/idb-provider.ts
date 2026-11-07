@@ -43,6 +43,7 @@ export class IdbProvider implements IFileProvider {
       const last = rows.reduce((newest, row) =>
         (row.savedAt ?? 0) > (newest.savedAt ?? 0) ? row : newest,
       )
+      if (last.content.length > 50 * 1024 * 1024) return null
       return { name: last.name, content: last.content }
     } catch {
       return null
@@ -50,6 +51,7 @@ export class IdbProvider implements IFileProvider {
   }
 
   async save(content: string, suggestedName: string, _handle?: FileHandle): Promise<FileHandle | null> {
+    if (content.length > 50 * 1024 * 1024) return null
     try {
       const db = await openDb()
       const tx = db.transaction(STORE, 'readwrite')
