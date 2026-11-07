@@ -15,7 +15,7 @@
     { label: 'Agrupar cables en bus', action: () => editor?.groupSelection() },
     { label: 'Desagrupar bus', action: () => editor?.ungroupSelection() },
     { label: 'Rotar selección', action: () => editor?.rotateSelection(true) },
-    { label: 'Duplicar', action: () => editor?.duplicate() },
+    { label: t('cmd.duplicate'), action: () => editor?.duplicate() },
     { label: 'Borrar selección', action: () => editor?.removeSelected() },
     { label: 'Pegar', action: () => editor?.paste() },
     { label: t('cmd.zoomFit'), action: () => editor?.fitToContent() },
