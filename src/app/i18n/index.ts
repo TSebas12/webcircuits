@@ -3,11 +3,29 @@ type Catalog = Record<string, string>
 const es: Catalog = {
   'app.title': 'WebCircuits',
   'editor.exportPng': 'Exportar PNG',
+  'cmd.groupBus': 'Agrupar cables en bus',
+  'cmd.ungroupBus': 'Desagrupar bus',
+  'cmd.rotate': 'Rotar selección',
+  'cmd.duplicate': 'Duplicar',
+  'cmd.delete': 'Borrar selección',
+  'cmd.paste': 'Pegar',
+  'cmd.zoomFit': 'Zoom to fit',
+  'cmd.clear': 'Vaciar lienzo',
+  'cmd.togglePower': 'Encender/apagar corriente',
 }
 
 const en: Catalog = {
   'app.title': 'WebCircuits',
   'editor.exportPng': 'Export PNG',
+  'cmd.groupBus': 'Group wires into bus',
+  'cmd.ungroupBus': 'Ungroup bus',
+  'cmd.rotate': 'Rotate selection',
+  'cmd.duplicate': 'Duplicate',
+  'cmd.delete': 'Delete selection',
+  'cmd.paste': 'Paste',
+  'cmd.zoomFit': 'Zoom to fit',
+  'cmd.clear': 'Clear canvas',
+  'cmd.togglePower': 'Toggle power',
 }
 
 const catalogs: Record<string, Catalog> = { es, en }
