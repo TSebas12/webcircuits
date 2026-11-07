@@ -17,7 +17,7 @@
     { label: 'Rotar selección', action: () => editor?.rotateSelection(true) },
     { label: t('cmd.duplicate'), action: () => editor?.duplicate() },
     { label: 'Borrar selección', action: () => editor?.removeSelected() },
-    { label: 'Pegar', action: () => editor?.paste() },
+    { label: t('cmd.paste'), action: () => editor?.paste() },
     { label: t('cmd.zoomFit'), action: () => editor?.fitToContent() },
     { label: t('cmd.exportPng'), action: () => editor?.exportPng() },
     { label: 'Vaciar lienzo', action: () => editor?.clear() },
