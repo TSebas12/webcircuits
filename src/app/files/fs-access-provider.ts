@@ -29,6 +29,7 @@ export class FsAccessProvider implements IFileProvider {
       })
       if (!handle) return null
       const file = await handle.getFile()
+      if (file.size > 50 * 1024 * 1024) return null
       const content = await file.text()
       return { name: file.name, content }
     } catch {
@@ -37,6 +38,7 @@ export class FsAccessProvider implements IFileProvider {
   }
 
   async save(content: string, suggestedName: string, handle?: FileHandle): Promise<FileHandle | null> {
+    if (content.length > 50 * 1024 * 1024) return null
     if (!FsAccessProvider.supported()) return null
     const nativeHandle = (handle as FsHandle | undefined)?.native
     if (nativeHandle) {
@@ -53,6 +55,7 @@ export class FsAccessProvider implements IFileProvider {
   }
 
   async saveAs(content: string, suggestedName: string): Promise<FileHandle | null> {
+    if (content.length > 50 * 1024 * 1024) return null
     if (!FsAccessProvider.supported()) return null
     try {
       const handle = await (window as unknown as { showSaveFilePicker: (o?: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
