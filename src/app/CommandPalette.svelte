@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import type { Editor } from './editor'
+  import { t } from './i18n'
 
   let { editor, onClose, extra = [] }: {
     editor: Editor | null
@@ -18,7 +19,7 @@
     { label: 'Borrar selección', action: () => editor?.removeSelected() },
     { label: 'Pegar', action: () => editor?.paste() },
     { label: 'Zoom to fit', action: () => editor?.fitToContent() },
-    { label: 'Exportar PNG', action: () => editor?.exportPng() },
+    { label: t('cmd.exportPng'), action: () => editor?.exportPng() },
     { label: 'Vaciar lienzo', action: () => editor?.clear() },
     { label: 'Encender/apagar corriente', action: () => editor?.setPowered(!editor?.isPowered) },
   ]
