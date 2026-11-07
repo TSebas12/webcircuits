@@ -947,6 +947,19 @@ export class Editor {
     this.refresh()
   }
 
+  /** Exporta el lienzo actual a PNG (M11-08). */
+  exportPng(filename = 'circuito.png'): void {
+    const canvas = this.canvas
+    if (canvas === null) throw new Error('sin lienzo')
+    const url = canvas.toDataURL('image/png')
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   unmount(): void {
     const canvas = this.canvas
     if (canvas !== null) {
