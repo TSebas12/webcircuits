@@ -18,6 +18,7 @@
     { label: 'Borrar selección', action: () => editor?.removeSelected() },
     { label: 'Pegar', action: () => editor?.paste() },
     { label: 'Zoom to fit', action: () => editor?.fitToContent() },
+    { label: 'Exportar PNG', action: () => editor?.exportPng() },
     { label: 'Vaciar lienzo', action: () => editor?.clear() },
     { label: 'Encender/apagar corriente', action: () => editor?.setPowered(!editor?.isPowered) },
   ]
