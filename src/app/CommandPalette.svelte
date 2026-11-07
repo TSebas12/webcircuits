@@ -12,16 +12,16 @@
   let inputEl = $state<HTMLInputElement | null>(null)
 
   const baseCommands = [
-    { label: 'Agrupar cables en bus', action: () => editor?.groupSelection() },
-    { label: 'Desagrupar bus', action: () => editor?.ungroupSelection() },
-    { label: 'Rotar selección', action: () => editor?.rotateSelection(true) },
+    { label: t('cmd.groupBus'), action: () => editor?.groupSelection() },
+    { label: t('cmd.ungroupBus'), action: () => editor?.ungroupSelection() },
+    { label: t('cmd.rotate'), action: () => editor?.rotateSelection(true) },
     { label: t('cmd.duplicate'), action: () => editor?.duplicate() },
-    { label: 'Borrar selección', action: () => editor?.removeSelected() },
+    { label: t('cmd.delete'), action: () => editor?.removeSelected() },
     { label: t('cmd.paste'), action: () => editor?.paste() },
     { label: t('cmd.zoomFit'), action: () => editor?.fitToContent() },
     { label: t('cmd.exportPng'), action: () => editor?.exportPng() },
-    { label: 'Vaciar lienzo', action: () => editor?.clear() },
-    { label: 'Encender/apagar corriente', action: () => editor?.setPowered(!editor?.isPowered) },
+    { label: t('cmd.clear'), action: () => editor?.clear() },
+    { label: t('cmd.togglePower'), action: () => editor?.setPowered(!editor?.isPowered) },
   ]
   const commands = $derived([...baseCommands, ...extra])
   const filtered = $derived(
