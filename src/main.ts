@@ -6,4 +6,12 @@ const app = mount(App, {
   target: document.getElementById('app')!,
 })
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Offline support is best-effort; ignore registration errors.
+    })
+  })
+}
+
 export default app
