@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import Diagram from './app/Diagram.svelte'
+  import ScriptPanel from './app/components/scripting/ScriptPanel.svelte'
   import {
     applyTheme,
     nextThemeSelection,
@@ -14,6 +15,8 @@
   import { SETTINGS_EVENT } from './app/settings'
 
   const version = '0.0.0'
+
+  let showScript = $state(false)
 
   let selection = $state<ThemeSelection>('auto')
   let custom = $state<Theme | null>(null)
@@ -69,6 +72,7 @@
       acercar</span
     >
     <span class="spacer"></span>
+    <button type="button" onclick={() => (showScript = true)} title="Script Python">Py</button>
     <span class="version">v{version}</span>
     <button
       class="theme"
@@ -79,6 +83,12 @@
       {themeSelectionLabel(selection, custom)}
     </button>
   </header>
+
+  {#if showScript}
+    <div class="script-dock">
+      <ScriptPanel onClose={() => (showScript = false)} />
+    </div>
+  {/if}
 
   <Diagram />
 </div>
