@@ -18,6 +18,7 @@ const es: Catalog = {
   'cmd.zoomFit': 'Zoom to fit',
   'cmd.clear': 'Vaciar lienzo',
   'cmd.togglePower': 'Encender/apagar corriente',
+  'cmd.print': 'Imprimir',
 }
 
 const en: Catalog = {
@@ -38,6 +39,7 @@ const en: Catalog = {
   'cmd.zoomFit': 'Zoom to fit',
   'cmd.clear': 'Clear canvas',
   'cmd.togglePower': 'Toggle power',
+  'cmd.print': 'Print',
 }
 
 const catalogs: Record<string, Catalog> = { es, en }

@@ -22,7 +22,7 @@
     { label: t('cmd.exportPng'), action: () => editor?.exportPng() },
     { label: t('cmd.exportSvg'), action: () => editor?.exportSvg() },
     { label: t('cmd.clear'), action: () => editor?.clear() },
-    { label: t('cmd.togglePower'), action: () => editor?.setPowered(!editor?.isPowered) },
+    { label: t('cmd.print'), action: () => window.print() },
   ]
   const commands = $derived([...baseCommands, ...extra])
   const filtered = $derived(
