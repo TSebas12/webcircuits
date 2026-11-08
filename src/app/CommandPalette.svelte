@@ -20,6 +20,7 @@
     { label: t('cmd.paste'), action: () => editor?.paste() },
     { label: t('cmd.zoomFit'), action: () => editor?.fitToContent() },
     { label: t('cmd.exportPng'), action: () => editor?.exportPng() },
+    { label: t('cmd.exportSvg'), action: () => editor?.exportSvg() },
     { label: t('cmd.clear'), action: () => editor?.clear() },
     { label: t('cmd.togglePower'), action: () => editor?.setPowered(!editor?.isPowered) },
   ]

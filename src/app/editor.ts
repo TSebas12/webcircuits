@@ -960,6 +960,23 @@ export class Editor {
     document.body.removeChild(link)
   }
 
+  /** Exporta el lienzo actual a SVG (M11-09) usando una imagen embebida. */
+  exportSvg(filename = 'circuito.svg'): void {
+    const canvas = this.canvas
+    if (canvas === null) throw new Error('sin lienzo')
+    const url = canvas.toDataURL('image/png')
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}"><image href="${url}" width="${canvas.width}" height="${canvas.height}"/></svg>`
+    const blob = new Blob([svg], { type: 'image/svg+xml' })
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(objectUrl)
+  }
+
   unmount(): void {
     const canvas = this.canvas
     if (canvas !== null) {
