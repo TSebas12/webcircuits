@@ -30,6 +30,7 @@ const ALLOWED = new Set([
   '/src/core/truthtable/generate.ts',
   '/src/app/components/oscilloscope/Oscilloscope.svelte',
   '/src/app/components/common/Modal.svelte',
+  '/src/app/components/scripting/ScriptPanel.svelte',
 ])
 
 /** Quita comentarios para no confundir un `#ff0000` explicativo con un color de verdad. */

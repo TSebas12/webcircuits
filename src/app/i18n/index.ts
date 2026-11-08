@@ -3,6 +3,9 @@ type Catalog = Record<string, string>
 const es: Catalog = {
   'app.title': 'WebCircuits',
   'editor.exportPng': 'Exportar PNG',
+  'script.title': 'Script Python',
+  'script.run': 'Ejecutar',
+  'common.close': 'Cerrar',
   'cmd.groupBus': 'Agrupar cables en bus',
   'cmd.ungroupBus': 'Desagrupar bus',
   'cmd.rotate': 'Rotar selección',
@@ -17,6 +20,9 @@ const es: Catalog = {
 const en: Catalog = {
   'app.title': 'WebCircuits',
   'editor.exportPng': 'Export PNG',
+  'script.title': 'Python Script',
+  'script.run': 'Run',
+  'common.close': 'Close',
   'cmd.groupBus': 'Group wires into bus',
   'cmd.ungroupBus': 'Ungroup bus',
   'cmd.rotate': 'Rotate selection',
