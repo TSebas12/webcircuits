@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import Diagram from './app/Diagram.svelte'
   import ScriptPanel from './app/components/scripting/ScriptPanel.svelte'
+  import Modal from './app/components/common/Modal.svelte'
   import {
     applyTheme,
     nextThemeSelection,
@@ -17,6 +18,7 @@
   const version = '0.0.0'
 
   let showScript = $state(false)
+  let showHelp = $state(false)
 
   let selection = $state<ThemeSelection>('auto')
   let custom = $state<Theme | null>(null)
@@ -73,6 +75,7 @@
     >
     <span class="spacer"></span>
     <button type="button" onclick={() => (showScript = true)} title="Script Python">Py</button>
+    <button type="button" onclick={() => (showHelp = true)} title="Ayuda">?</button>
     <span class="version">v{version}</span>
     <button
       class="theme"
@@ -88,6 +91,12 @@
     <div class="script-dock">
       <ScriptPanel onClose={() => (showScript = false)} />
     </div>
+  {/if}
+
+  {#if showHelp}
+    <Modal open={true} title="Ayuda rapida" onClose={() => (showHelp = false)}>
+      <p>Elige una pieza y haz click para colocar. Cablea arrastrando entre pines. Rueda para acercar.</p>
+    </Modal>
   {/if}
 
   <Diagram />
