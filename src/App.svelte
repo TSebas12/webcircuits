@@ -70,6 +70,15 @@
   })
 </script>
 
+<svelte:window
+  onkeydown={(event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p') {
+      event.preventDefault()
+      window.print()
+    }
+  }}
+/>
+
 <div class="shell">
   <header>
     <span class="brand">WebCircuits</span>
@@ -109,7 +118,9 @@
     </Modal>
   {/if}
 
+
   <Diagram />
+
 </div>
 
 <style>
