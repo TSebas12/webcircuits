@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Modal from './common/Modal.svelte'
+
   let {
     title,
     label,
@@ -36,51 +38,20 @@
   }
 </script>
 
-<div class="backdrop" role="presentation" onclick={onCancel}>
-  <div
-    class="panel"
-    role="dialog"
-    aria-modal="true"
-    aria-label={title}
-    tabindex="-1"
-    onclick={(event) => event.stopPropagation()}
-    onkeydown={(event) => event.stopPropagation()}
-  >
-    <h2>{title}</h2>
-    <label>
-      <span>{label}</span>
-      <input bind:this={input} bind:value={text} {placeholder} onkeydown={onKey} />
-    </label>
+<Modal open={true} title={title} onClose={onCancel}>
+  <label>
+    <span>{label}</span>
+    <input bind:this={input} bind:value={text} {placeholder} onkeydown={onKey} />
+  </label>
+  {#snippet footer()}
     <div class="actions">
       <button type="button" onclick={onCancel}>Cancelar</button>
       <button type="button" class="primary" onclick={confirm}>{confirmLabel}</button>
     </div>
-  </div>
-</div>
+  {/snippet}
+</Modal>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 75;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-    background: rgb(0 0 0 / 0.4);
-  }
-  .panel {
-    display: flex;
-    flex-direction: column;
-    gap: 0.7rem;
-    width: min(24rem, calc(100vw - 2rem));
-    padding: 0.9rem 1rem;
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    background: var(--panel-bg);
-    box-shadow: 0 14px 40px rgb(0 0 0 / 30%);
-  }
-  h2 { margin: 0; font-size: 0.98rem; font-weight: 600 }
   label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.75rem; color: var(--fg-muted) }
   input {
     padding: 0.4rem 0.5rem;
