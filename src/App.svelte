@@ -19,6 +19,7 @@
 
   let showScript = $state(false)
   let showHelp = $state(false)
+  let showTour = $state(false)
 
   let selection = $state<ThemeSelection>('auto')
   let custom = $state<Theme | null>(null)
@@ -39,6 +40,9 @@
 
   onMount(() => {
     systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
+    showTour = localStorage.getItem('wc-tour-seen') !== '1'
+
+    // Si manda el sistema...
 
     // Si manda el sistema, hay que enterarse de cuándo el usuario cambia Windows.
     const onSystemChange = (): void => {
@@ -96,6 +100,12 @@
   {#if showHelp}
     <Modal open={true} title="Ayuda rapida" onClose={() => (showHelp = false)}>
       <p>Elige una pieza y haz click para colocar. Cablea arrastrando entre pines. Rueda para acercar.</p>
+    </Modal>
+  {/if}
+
+  {#if showTour}
+    <Modal open={true} title="Tour inicial" onClose={() => { localStorage.setItem('wc-tour-seen', '1'); showTour = false }}>
+      <p>Bienvenido. Elige una pieza, colocala y cablea. Usa rueda para zoom. Abre la paleta con Ctrl+K si aplica.</p>
     </Modal>
   {/if}
 
