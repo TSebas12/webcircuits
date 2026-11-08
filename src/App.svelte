@@ -80,6 +80,7 @@
 />
 
 <div class="shell">
+  <a class="skip-link" href="#main-canvas">Saltar al lienzo</a>
   <header>
     <span class="brand">WebCircuits</span>
     <span class="hint"
@@ -192,6 +193,22 @@
   .theme:focus-visible {
     outline: 2px solid var(--wc-selection);
     outline-offset: 2px;
+  }
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+  .skip-link:focus {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0.25rem 0.5rem;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
   }
 
   @media (max-width: 700px) {
