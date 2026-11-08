@@ -51,7 +51,7 @@ Lo que todavía **no** funciona, y en qué hito llega:
 - Los **retardos de propagación** tienen módulos y pruebas (M7B), pero aún no están
   integrados en el `CircuitRunner`; la integración y el rendimiento llegan con M12
 
-**Calidad (2026-10-23):** `npm run check` sin errores ni avisos, `lint` limpio, **662 tests**
+**Calidad (2026-11-08):** `npm run check` sin errores ni avisos, `lint` limpio, **711 tests**
 verdes y `build` correcto. El oráculo C# queda en **174/179**: 3 fallos de cultura y 2 de
 rendimiento bajo carga, explicados en `docs/BASELINE-TESTS.md`.
 
