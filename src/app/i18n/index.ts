@@ -42,7 +42,16 @@ const en: Catalog = {
   'cmd.print': 'Print',
 }
 
-const catalogs: Record<string, Catalog> = { es, en }
+const catalogs: Record<string, Catalog> = {
+  es,
+  en,
+  fr: { 'app.title': 'WebCircuits', 'editor.exportPng': 'Exporter PNG', 'cmd.zoomFit': 'Zoom ajusté' },
+  de: { 'app.title': 'WebCircuits', 'editor.exportPng': 'PNG exportieren', 'cmd.zoomFit': 'Ansicht anpassen' },
+  pt: { 'app.title': 'WebCircuits', 'editor.exportPng': 'Exportar PNG', 'cmd.zoomFit': 'Ajustar zoom' },
+  it: { 'app.title': 'WebCircuits', 'editor.exportPng': 'Esporta PNG', 'cmd.zoomFit': 'Adatta zoom' },
+  ja: { 'app.title': 'WebCircuits', 'editor.exportPng': 'PNG をエクスポート' },
+  zh: { 'app.title': 'WebCircuits', 'editor.exportPng': '导出 PNG' },
+}
 
 let current = detectLocale()
 
@@ -63,5 +72,5 @@ export function availableLocales(): string[] {
 }
 
 export function t(key: string): string {
-  return catalogs[current]?.[key] ?? key
+  return catalogs[current]?.[key] ?? catalogs.es?.[key] ?? catalogs.en?.[key] ?? key
 }
