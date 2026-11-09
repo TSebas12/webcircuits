@@ -15,9 +15,11 @@ export interface ComponentRunOptions {
  * The user-provided body must define `compute(inputs)`.
  */
 export function buildComponentCode(userCode: string, spec: PythonComponentSpec): string {
+  const inputs = `[${Array(spec.inputCount).fill('0').join(', ')}]`
   return `${userCode}
 
-_result = compute(${JSON.stringify(spec.inputCount)})
+_inputs = ${inputs}
+_result = compute(_inputs)
 if not (isinstance(_result, (list, tuple)) and len(_result) == ${spec.outputCount}):
     raise ValueError('salida invalida')
 print(_result)
