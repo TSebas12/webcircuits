@@ -88,8 +88,8 @@
       acercar</span
     >
     <span class="spacer"></span>
-    <button type="button" onclick={() => (showScript = true)} title="Script Python">Py</button>
-    <button type="button" onclick={() => (showHelp = true)} title="Ayuda">?</button>
+    <button type="button" onclick={() => (showScript = true)} title="Script Python" aria-label="Abrir panel de scripting Python">Py</button>
+    <button type="button" onclick={() => (showHelp = true)} title="Ayuda" aria-label="Ayuda rapida">?</button>
     <span class="version">v{version}</span>
     <button
       class="theme"
