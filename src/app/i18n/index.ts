@@ -51,6 +51,15 @@ const catalogs: Record<string, Catalog> = {
   it: { 'app.title': 'WebCircuits', 'editor.exportPng': 'Esporta PNG', 'cmd.zoomFit': 'Adatta zoom' },
   ja: { 'app.title': 'WebCircuits', 'editor.exportPng': 'PNG をエクスポート' },
   zh: { 'app.title': 'WebCircuits', 'editor.exportPng': '导出 PNG' },
+  // --- resto (M11-13): títulos completos pending, fallback a es/en ---
+  hu: { 'app.title': 'WebCircuits' }, tr: { 'app.title': 'WebCircuits' },
+  ko: { 'app.title': 'WebCircuits' }, ru: { 'app.title': 'WebCircuits' },
+  ar: { 'app.title': 'WebCircuits' }, hi: { 'app.title': 'WebCircuits' },
+  nl: { 'app.title': 'WebCircuits' }, pl: { 'app.title': 'WebCircuits' },
+  sv: { 'app.title': 'WebCircuits' }, da: { 'app.title': 'WebCircuits' },
+  fi: { 'app.title': 'WebCircuits' }, no: { 'app.title': 'WebCircuits' },
+  cs: { 'app.title': 'WebCircuits' }, el: { 'app.title': 'WebCircuits' },
+  th: { 'app.title': 'WebCircuits' }, vi: { 'app.title': 'WebCircuits' },
 }
 
 let current = detectLocale()
