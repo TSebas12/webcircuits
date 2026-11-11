@@ -1,5 +1,6 @@
 <script lang="ts">
   import Modal from './common/Modal.svelte'
+  import { t } from '../i18n'
 
   interface Pin {
     id: string
@@ -20,21 +21,20 @@
     onClose?: () => void
   } = $props()
 
-  // eslint-disable-next-line svelte/prefer-writable-derived
-  let pinsVal = $state<Pin[]>(pins)
+  let pinsVal = $state<Pin[]>(pins) // eslint-disable-line svelte/prefer-writable-derived
   $effect(() => { pinsVal = pins })
 </script>
 
-<Modal open={open} title="Pines del circuito" onClose={() => onClose?.()}>
+<Modal open={open} title={t('dialog.pins.title')} onClose={() => onClose?.()}>
   <div class="pins-list">
     {#each pinsVal as pin (pin.id)}
       <div class="pin-row">
-        <input bind:value={pin.name} placeholder="Nombre" />
+        <input bind:value={pin.name} placeholder={t('dialog.pins.name')} />
         <select bind:value={pin.side}>
-          <option value="left">Izq</option>
-          <option value="right">Der</option>
-          <option value="top">Arr</option>
-          <option value="bottom">Aba</option>
+          <option value="left">{t('dialog.pins.side.left')}</option>
+          <option value="right">{t('dialog.pins.side.right')}</option>
+          <option value="top">{t('dialog.pins.side.top')}</option>
+          <option value="bottom">{t('dialog.pins.side.bottom')}</option>
         </select>
         <input type="number" bind:value={pin.bitWidth} min={1} max={32} style="width: 4rem" />
       </div>
@@ -42,8 +42,8 @@
   </div>
   {#snippet footer()}
     <div class="actions">
-      <button type="button" onclick={() => onClose?.()}>Cerrar</button>
-      <button type="button" class="primary" onclick={() => { onChange?.(pinsVal); onClose?.() }}>Guardar</button>
+      <button type="button" onclick={() => onClose?.()}>{t('common.close')}</button>
+      <button type="button" class="primary" onclick={() => { onChange?.(pinsVal); onClose?.() }}>{t('common.save')}</button>
     </div>
   {/snippet}
 </Modal>

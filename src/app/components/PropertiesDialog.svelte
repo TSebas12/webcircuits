@@ -1,5 +1,6 @@
 <script lang="ts">
   import Modal from './common/Modal.svelte'
+  import { t } from '../i18n'
 
   let {
     open = false,
@@ -20,19 +21,19 @@
   $effect(() => { nameVal = name; descVal = description ?? '' })
 </script>
 
-<Modal open={open} title="Propiedades del circuito" onClose={() => onClose?.()}>
+<Modal open={open} title={t('dialog.properties.title')} onClose={() => onClose?.()}>
   <label>
-    <span>Nombre</span>
+    <span>{t('dialog.properties.name')}</span>
     <input bind:value={nameVal} />
   </label>
   <label>
-    <span>Descripción</span>
+    <span>{t('dialog.properties.description')}</span>
     <textarea bind:value={descVal} rows={3}></textarea>
   </label>
   {#snippet footer()}
     <div class="actions">
-      <button type="button" onclick={() => onClose?.()}>Cancelar</button>
-      <button type="button" class="primary" onclick={() => { onConfirm?.(nameVal, descVal); onClose?.() }}>Guardar</button>
+      <button type="button" onclick={() => onClose?.()}>{t('common.cancel')}</button>
+      <button type="button" class="primary" onclick={() => { onConfirm?.(nameVal, descVal); onClose?.() }}>{t('common.save')}</button>
     </div>
   {/snippet}
 </Modal>

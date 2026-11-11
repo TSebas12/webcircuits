@@ -1,5 +1,6 @@
 <script lang="ts">
   import Modal from './common/Modal.svelte'
+  import { t } from '../i18n'
 
   let {
     open = false,
@@ -17,26 +18,25 @@
     addressWidth?: number
   } = $props()
 
-  // eslint-disable-next-line svelte/prefer-writable-derived
-  let text = $state('')
+  let text = $state('') // eslint-disable-line svelte/prefer-writable-derived
   $effect(() => { text = value })
 </script>
 
-<Modal open={open} title="Editor de memoria" onClose={() => onClose?.()}>
+<Modal open={open} title={t('dialog.memory.title')} onClose={() => onClose?.()}>
   <div class="mem-editor">
     <div class="header">
-      <span>Ancho datos: {bitWidth} bits</span>
-      <span>Ancho dir.: {addressWidth} bits</span>
+      <span>{t('dialog.memory.dataBits').replace('{bits}', String(bitWidth))}</span>
+      <span>{t('dialog.memory.addrBits').replace('{bits}', String(addressWidth))}</span>
     </div>
     <label>
-      <span>Datos (hex, 1 por línea)</span>
+      <span>{t('dialog.memory.dataLabel')}</span>
       <textarea bind:value={text} spellcheck="false"></textarea>
     </label>
   </div>
   {#snippet footer()}
     <div class="actions">
-      <button type="button" onclick={() => onClose?.()}>Cancelar</button>
-      <button type="button" class="primary" onclick={() => { onChange?.(text); onClose?.() }}>Guardar</button>
+      <button type="button" onclick={() => onClose?.()}>{t('common.cancel')}</button>
+      <button type="button" class="primary" onclick={() => { onChange?.(text); onClose?.() }}>{t('common.save')}</button>
     </div>
   {/snippet}
 </Modal>

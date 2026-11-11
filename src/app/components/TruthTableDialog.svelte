@@ -1,5 +1,6 @@
 <script lang="ts">
   import Modal from './common/Modal.svelte'
+  import { t } from '../i18n'
   import { truthTableToCsv, truthTableToHtml } from '../../core/truthtable/generate'
   import { createFileProvider } from '../files/provider-factory'
   import type { TruthTable } from '../../core/truthtable/truth-state'
@@ -29,25 +30,25 @@
 
 {#snippet footerWithTable()}
   <div class="actions">
-    <button onclick={exportCsv}>Exportar CSV</button>
-    <button onclick={exportHtml}>Exportar HTML</button>
-    <button type="button" onclick={() => onClose?.()}>Cerrar</button>
+    <button onclick={exportCsv}>{t('dialog.truthTable.exportCsv')}</button>
+    <button onclick={exportHtml}>{t('dialog.truthTable.exportHtml')}</button>
+    <button type="button" onclick={() => onClose?.()}>{t('common.close')}</button>
   </div>
 {/snippet}
 
 {#snippet footerWithoutTable()}
   <div class="actions">
-    <button type="button" onclick={() => onClose?.()}>Cerrar</button>
+    <button type="button" onclick={() => onClose?.()}>{t('common.close')}</button>
   </div>
 {/snippet}
 
-<Modal open={open} title="Tabla de verdad" onClose={() => onClose?.()} footer={table ? footerWithTable : footerWithoutTable}>
+<Modal open={open} title={t('dialog.truthTable.title')} onClose={() => onClose?.()} footer={table ? footerWithTable : footerWithoutTable}>
   {#if table}
     <div class="tt-container">
       <div class="tt-header">
-        <span>Entradas: {table.inputs.length}</span>
-        <span>Salidas: {table.outputs.length}</span>
-        <span>Filas: {table.rows.length}</span>
+        <span>{t('dialog.truthTable.inputs').replace('{count}', String(table.inputs.length))}</span>
+        <span>{t('dialog.truthTable.outputs').replace('{count}', String(table.outputs.length))}</span>
+        <span>{t('dialog.truthTable.rows').replace('{count}', String(table.rows.length))}</span>
       </div>
       <table class="tt-table">
         <thead>
@@ -75,7 +76,7 @@
       </table>
     </div>
   {:else}
-    <p>No hay tabla de verdad disponible.</p>
+    <p>{t('dialog.truthTable.noData')}</p>
   {/if}
 </Modal>
 
