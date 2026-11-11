@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import type { Snippet } from 'svelte'
+  import { t } from '../../i18n'
+  
   let {
     open = false,
     title = '',
@@ -14,9 +17,59 @@
     footer?: Snippet
   } = $props()
 
-  function onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape') onClose?.()
+  let modalEl = $state<HTMLDivElement | null>(null)
+  let previouslyFocused = $state<HTMLElement | null>(null)
+
+  function trapFocus(event: KeyboardEvent): void {
+    if (event.key !== 'Tab') return
+    if (!modalEl) return
+    
+    const focusableElements = modalEl.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    const firstElement = focusableElements[0]
+    const lastElement = focusableElements[focusableElements.length - 1]
+
+    if (event.shiftKey) {
+      if (document.activeElement === firstElement) {
+        event.preventDefault()
+        lastElement?.focus()
+      }
+    } else {
+      if (document.activeElement === lastElement) {
+        event.preventDefault()
+        firstElement?.focus()
+      }
+    }
   }
+
+  function onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      onClose?.()
+      return
+    }
+    trapFocus(event)
+  }
+
+  onMount(() => {
+    if (open && modalEl) {
+      previouslyFocused = document.activeElement as HTMLElement
+      // Focus first focusable element or the modal itself
+      const firstFocusable = modalEl.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+      firstFocusable?.focus()
+      // Add keydown listener for focus trap
+      modalEl.addEventListener('keydown', trapFocus)
+    }
+    return () => {
+      if (modalEl) {
+        modalEl.removeEventListener('keydown', trapFocus)
+      }
+      // Restore focus to previously focused element
+      previouslyFocused?.focus()
+    }
+  })
 </script>
 
 {#if open}
@@ -33,11 +86,12 @@
       tabindex="-1"
       onclick={(event) => event.stopPropagation()}
       onkeydown={onKeydown}
+      bind:this={modalEl}
     >
       {#if title}
         <header class="modal-header">
           <h2>{title}</h2>
-          <button class="modal-close" type="button" onclick={() => onClose?.()} aria-label="Cerrar">×</button>
+          <button class="modal-close" type="button" onclick={() => onClose?.()} aria-label={t('common.close')}>×</button>
         </header>
       {/if}
       <div class="modal-body">
