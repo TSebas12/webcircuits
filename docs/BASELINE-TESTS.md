@@ -77,7 +77,7 @@ máquina. La medición formal sigue siendo M12.
 ## Cómo reproducir la medición
 
 ```powershell
-cd C:\Users\sebas\Downloads\VsCode\LogicCircuit\LogicCircuit-ref\Sources
+cd <ruta-al-referente>/LogicCircuit-ref/Sources
 
 # M0-04 · Compilar el original
 dotnet build LogicCircuit.slnx
